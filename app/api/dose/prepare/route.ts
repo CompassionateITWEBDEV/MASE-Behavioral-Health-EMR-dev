@@ -1,36 +1,42 @@
+import { createServiceRoleClient } from "@/lib/supabase/service-role"
 import { type NextRequest, NextResponse } from "next/server"
 
 export async function POST(request: NextRequest) {
   try {
     const { patient_id, requested_mg } = await request.json()
 
-    // Validate patient has active order
-    const activeOrder = await validatePatientOrder(patient_id)
-    if (!activeOrder) {
-      return NextResponse.json({ error: "No active order found" }, { status: 400 })
+    if (!patient_id || typeof requested_mg !== "number") {
+      return NextResponse.json({ error: "Missing dose preparation data" }, { status: 400 })
     }
 
-    // Check if requested dose is within order limits
-    if (requested_mg > activeOrder.daily_dose_mg) {
+    const supabase = await createServiceRoleClient()
+
+    const activeOrder = await getActiveMedicationOrder(supabase, patient_id)
+    if (!activeOrder) {
+      return NextResponse.json({ error: "No active order found" }, { status: 404 })
+    }
+
+    if (requested_mg > Number(activeOrder.daily_dose_mg)) {
       return NextResponse.json({ error: "Requested dose exceeds daily limit" }, { status: 400 })
     }
 
-    // Get active bottle and check sufficiency
-    const activeBottle = await getActiveBottle()
+    const activeBottle = await getActiveBottle(supabase)
     if (!activeBottle) {
-      return NextResponse.json({ error: "No active bottle available" }, { status: 400 })
+      return NextResponse.json({ error: "No active bottle available" }, { status: 503 })
     }
 
-    // Calculate required volume based on medication concentration
-    const medication = await getMedication(activeBottle.lot_batch.medication_id)
-    const computed_ml = requested_mg / medication.conc_mg_per_ml
+    const medication = await getMedicationForBottle(supabase, activeBottle.lot_id)
+    if (!medication) {
+      return NextResponse.json({ error: "Medication configuration missing" }, { status: 500 })
+    }
 
-    // Check bottle sufficiency
-    if (activeBottle.current_volume_ml < computed_ml) {
+    const computed_ml = requested_mg / Number(medication.conc_mg_per_ml)
+
+    if (Number(activeBottle.current_volume_ml) < computed_ml) {
       return NextResponse.json(
         {
           error: "Insufficient volume in bottle",
-          available_ml: activeBottle.current_volume_ml,
+          available_ml: Number(activeBottle.current_volume_ml),
           required_ml: computed_ml,
         },
         { status: 400 },
@@ -40,45 +46,78 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       computed_ml,
       bottle_id: activeBottle.id,
-      available_ml: activeBottle.current_volume_ml,
+      available_ml: Number(activeBottle.current_volume_ml),
       medication_name: medication.name,
-      concentration: medication.conc_mg_per_ml,
+      concentration: Number(medication.conc_mg_per_ml),
+      order_id: activeOrder.id,
     })
   } catch (error) {
-    console.error("[v0] Dose preparation error:", error)
+    console.error("[dose] preparation error", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
-async function validatePatientOrder(patient_id: string) {
-  // Mock implementation - replace with actual database query
-  return {
-    id: "1",
-    patient_id,
-    daily_dose_mg: 100,
-    max_takehome: 0,
-    prescriber_id: "dr_smith",
+async function getActiveMedicationOrder(supabase: any, patientId: number) {
+  const today = new Date().toISOString().split("T")[0]
+
+  const { data, error } = await supabase
+    .from("medication_order")
+    .select("id, daily_dose_mg, max_takehome, start_date, stop_date, status")
+    .eq("patient_id", patientId)
+    .eq("status", "active")
+    .lte("start_date", today)
+    .or(`stop_date.is.null,stop_date.gte.${today}`)
+    .order("start_date", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) {
+    console.error("[dose] active order query failed", error)
   }
+
+  return data
 }
 
-async function getActiveBottle() {
-  // Mock implementation - replace with actual database query
-  return {
-    id: "bottle_001",
-    current_volume_ml: 500,
-    status: "active",
-    lot_batch: {
-      medication_id: "med_001",
-    },
+async function getActiveBottle(supabase: any) {
+  const { data, error } = await supabase
+    .from("bottle")
+    .select("id, current_volume_ml, lot_id")
+    .eq("status", "active")
+    .order("opened_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) {
+    console.error("[dose] active bottle query failed", error)
   }
+
+  return data
 }
 
-async function getMedication(medication_id: string) {
-  // Mock implementation - replace with actual database query
-  return {
-    id: medication_id,
-    name: "Methadone HCl",
-    conc_mg_per_ml: 10,
-    ndc: "12345-678-90",
+async function getMedicationForBottle(supabase: any, lotId: number | null) {
+  if (!lotId) return null
+
+  const { data: lot, error: lotError } = await supabase
+    .from("lot_batch")
+    .select("id, medication_id")
+    .eq("id", lotId)
+    .single()
+
+  if (lotError || !lot) {
+    console.error("[dose] lot lookup failed", lotError)
+    return null
   }
+
+  const { data: medication, error: medicationError } = await supabase
+    .from("medication")
+    .select("id, name, conc_mg_per_ml")
+    .eq("id", lot.medication_id)
+    .single()
+
+  if (medicationError) {
+    console.error("[dose] medication lookup failed", medicationError)
+    return null
+  }
+
+  return medication
 }

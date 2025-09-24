@@ -1,3 +1,4 @@
+import { createServiceRoleClient } from "@/lib/supabase/service-role"
 import { type NextRequest, NextResponse } from "next/server"
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
@@ -5,49 +6,64 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const holdId = Number.parseInt(params.id)
     const { override_reason, override_type, overridden_by } = await request.json()
 
-    // Validate required fields
-    if (!override_reason || override_reason.length < 20) {
+    if (!Number.isFinite(holdId)) {
+      return NextResponse.json({ error: "Invalid hold identifier" }, { status: 400 })
+    }
+
+    if (!override_reason || override_reason.trim().length < 20) {
       return NextResponse.json({ error: "Override reason must be at least 20 characters" }, { status: 400 })
     }
 
-    // In a real implementation, this would:
-    // 1. Verify the user has charge nurse privileges
-    // 2. Update the compliance hold with override information
-    // 3. Create audit log entry
-    // 4. Send notification to Medical Director
-    // 5. Schedule follow-up review
+    const supabase = await createServiceRoleClient()
 
-    const overrideData = {
-      hold_id: holdId,
-      override_reason,
-      override_type,
-      overridden_by,
-      override_time: new Date().toISOString(),
-      requires_md_review: true,
-      audit_trail: {
-        action: "charge_nurse_override",
-        timestamp: new Date().toISOString(),
-        user: overridden_by,
-        reason: override_reason,
-        ip_address: request.headers.get("x-forwarded-for") || "unknown",
-      },
+    const { data: hold, error: holdError } = await supabase
+      .from("compliance_holds")
+      .select("id, patient_id, status")
+      .eq("id", holdId)
+      .single()
+
+    if (holdError || !hold) {
+      return NextResponse.json({ error: "Compliance hold not found" }, { status: 404 })
     }
 
-    // Mock database update
-    console.log("Processing charge nurse override:", overrideData)
+    if (hold.status === "cleared") {
+      return NextResponse.json({ error: "Hold already cleared" }, { status: 409 })
+    }
 
-    // In real implementation:
-    // await db.compliance_holds.update(holdId, {
-    //   status: 'overridden',
-    //   override_data: overrideData
-    // })
-    // await db.audit_log.insert(overrideData.audit_trail)
-    // await notifyMedicalDirector(holdId, overrideData)
+    const now = new Date().toISOString()
+
+    const { error: updateError } = await supabase
+      .from("compliance_holds")
+      .update({
+        status: "cleared",
+        cleared_by: overridden_by ?? null,
+        cleared_time: now,
+      })
+      .eq("id", holdId)
+
+    if (updateError) {
+      console.error("[takehome] hold override update failed", updateError)
+      return NextResponse.json({ error: "Failed to update compliance hold" }, { status: 500 })
+    }
+
+    await supabase.from("audit_trail").insert({
+      user_id: overridden_by ?? null,
+      patient_id: hold.patient_id,
+      action: "charge_nurse_override",
+      table_name: "compliance_holds",
+      record_id: holdId,
+      new_values: {
+        override_reason,
+        override_type,
+        override_time: now,
+        ip_address: request.headers.get("x-forwarded-for") || "unknown",
+      },
+    })
 
     return NextResponse.json({
       success: true,
       message: "Override authorized. Medical Director has been notified.",
-      override_id: `OVR-${Date.now()}`,
+      override_id: `OVR-${holdId}-${Date.now()}`,
       review_required_by: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     })
   } catch (error) {

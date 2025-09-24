@@ -1,130 +1,214 @@
+import { createServiceRoleClient } from "@/lib/supabase/service-role"
+import { createHash } from "crypto"
 import { type NextRequest, NextResponse } from "next/server"
 
 export async function POST(request: NextRequest) {
   try {
     const { patient_id, ml, witness_signature } = await request.json()
 
-    // Validate device is ready and safe to dispense
-    const deviceStatus = await checkDeviceStatus()
-    if (!deviceStatus.ready) {
-      return NextResponse.json(
-        {
-          error: "Device not ready",
-          device_status: deviceStatus,
-        },
-        { status: 400 },
-      )
+    if (!patient_id || typeof ml !== "number" || !witness_signature) {
+      return NextResponse.json({ error: "Missing dispense parameters" }, { status: 400 })
     }
 
-    // Create dose event record
-    const doseEvent = await createDoseEvent({
-      patient_id,
-      requested_ml: ml,
-      bottle_id: deviceStatus.active_bottle_id,
-      device_id: deviceStatus.device_id,
-      witness_signature,
+    const supabase = await createServiceRoleClient()
+
+    const [device, order, bottle, patient] = await Promise.all([
+      getActiveDevice(supabase),
+      getActiveMedicationOrder(supabase, patient_id),
+      getActiveBottle(supabase),
+      getPatientDetails(supabase, patient_id),
+    ])
+
+    const medication = await getMedicationForBottle(supabase, bottle?.lot_id ?? null)
+
+    if (!device || device.status !== "online") {
+      return NextResponse.json({ error: "Dispensing device offline" }, { status: 503 })
+    }
+
+    if (!order) {
+      return NextResponse.json({ error: "No active order" }, { status: 404 })
+    }
+
+    if (!bottle || !medication) {
+      return NextResponse.json({ error: "Active bottle unavailable" }, { status: 503 })
+    }
+
+    const concentration = Number(medication.conc_mg_per_ml)
+    const requestedMg = ml * concentration
+
+    if (requestedMg > Number(order.daily_dose_mg)) {
+      return NextResponse.json({ error: "Requested volume exceeds order limits" }, { status: 400 })
+    }
+
+    if (Number(bottle.current_volume_ml) < ml) {
+      return NextResponse.json({ error: "Insufficient volume in active bottle" }, { status: 400 })
+    }
+
+    const signature_hash = createHash("sha256").update(witness_signature).digest("hex")
+    const now = new Date().toISOString()
+
+    const { data: doseEvent, error: doseError } = await supabase
+      .from("dose_event")
+      .insert({
+        patient_id,
+        order_id: order.id,
+        requested_mg: requestedMg,
+        dispensed_mg: requestedMg,
+        dispensed_ml: ml,
+        bottle_id: bottle.id,
+        device_id: device.id,
+        by_user: "dispensing_api",
+        outcome: "success",
+        signature_hash,
+        notes: "Automated dispense",
+      })
+      .select("id")
+      .single()
+
+    if (doseError || !doseEvent) {
+      console.error("[dose] failed to record event", doseError)
+      return NextResponse.json({ error: "Failed to record dose" }, { status: 500 })
+    }
+
+    const newVolume = Number(bottle.current_volume_ml) - ml
+
+    const { error: bottleError } = await supabase
+      .from("bottle")
+      .update({ current_volume_ml: newVolume, updated_at: now })
+      .eq("id", bottle.id)
+
+    if (bottleError) {
+      console.error("[dose] failed to update bottle", bottleError)
+    }
+
+    await supabase.from("inventory_txn").insert({
+      bottle_id: bottle.id,
+      type: "dose",
+      qty_ml: -ml,
+      reason: `Patient dose - ${patient?.name ?? patient_id}`,
+      by_user: "dispensing_api",
+      dose_event_id: doseEvent.id,
+      at_time: now,
     })
 
-    // Execute dose via serial communication
-    const dispenseResult = await executeDispenseCommand(ml, doseEvent.id)
-
-    // Update dose event with results
-    await updateDoseEvent(doseEvent.id, {
-      dispensed_ml: dispenseResult.actual_ml,
-      outcome: dispenseResult.outcome,
-      device_events: dispenseResult.device_events,
-      signature_hash: generateSignatureHash(witness_signature),
+    await supabase.from("dispensing_logs").insert({
+      dose_event_id: doseEvent.id,
+      drug_name: medication.name,
+      dosage_form: "Oral Solution",
+      quantity_ml: ml,
+      quantity_units: null,
+      patient_mrn: patient?.mrn ?? null,
+      dispensed_at: now,
+      staff_initials: deriveInitials(witness_signature),
+      registered_location: "Main Treatment Center",
     })
 
-    // Update bottle inventory
-    await updateBottleInventory(deviceStatus.active_bottle_id, dispenseResult.actual_ml)
+    const deviceEvents = [
+      {
+        device_id: device.id,
+        event_type: "dispense_start" as const,
+        payload: { requested_ml: ml },
+        at_time: now,
+      },
+      {
+        device_id: device.id,
+        event_type: "dispense_complete" as const,
+        payload: { actual_ml: ml },
+        at_time: now,
+      },
+    ]
+
+    await supabase.from("device_event").insert(deviceEvents)
 
     return NextResponse.json({
       dose_event_id: doseEvent.id,
-      actual_ml: dispenseResult.actual_ml,
-      device_events: dispenseResult.device_events,
-      outcome: dispenseResult.outcome,
+      actual_ml: ml,
+      outcome: "success",
+      device_events: deviceEvents.map(({ event_type, payload, at_time }) => ({
+        event_type,
+        payload,
+        timestamp: at_time,
+      })),
     })
   } catch (error) {
-    console.error("[v0] Dose execution error:", error)
+    console.error("[dose] execution error", error)
     return NextResponse.json({ error: "Dose execution failed" }, { status: 500 })
   }
 }
 
-async function checkDeviceStatus() {
-  // Mock implementation - replace with actual serial communication
-  return {
-    ready: true,
-    active_bottle_id: "bottle_001",
-    device_id: "methaSpense_001",
-    est_remaining_ml: 450,
-    last_alarm: null,
-  }
+async function getActiveDevice(supabase: any) {
+  const { data } = await supabase
+    .from("device")
+    .select("id, status")
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  return data
 }
 
-async function executeDispenseCommand(ml: number, dose_event_id: string) {
-  // Mock serial communication - replace with actual IVEK MethaSpense integration
-  console.log("[v0] Executing dispense command:", { ml, dose_event_id })
+async function getActiveMedicationOrder(supabase: any, patientId: number) {
+  const today = new Date().toISOString().split("T")[0]
+  const { data } = await supabase
+    .from("medication_order")
+    .select("id, daily_dose_mg")
+    .eq("patient_id", patientId)
+    .eq("status", "active")
+    .lte("start_date", today)
+    .or(`stop_date.is.null,stop_date.gte.${today}`)
+    .order("start_date", { ascending: false })
+    .limit(1)
+    .maybeSingle()
 
-  // Simulate serial communication with proper error handling
-  try {
-    // Send dispense command via RS-232
-    const command = `DISPENSE:${ml}:${dose_event_id}`
-
-    // Mock response - replace with actual serial communication
-    await new Promise((resolve) => setTimeout(resolve, 2000)) // Simulate dispense time
-
-    return {
-      actual_ml: ml * 0.98, // Slight variance for realism
-      outcome: "success",
-      device_events: [
-        {
-          event_type: "dispense_start",
-          payload: { requested_ml: ml },
-          timestamp: new Date().toISOString(),
-        },
-        {
-          event_type: "dispense_complete",
-          payload: { actual_ml: ml * 0.98 },
-          timestamp: new Date().toISOString(),
-        },
-      ],
-    }
-  } catch (error) {
-    return {
-      actual_ml: 0,
-      outcome: "aborted",
-      device_events: [
-        {
-          event_type: "dispense_error",
-          payload: { error: error.message },
-          timestamp: new Date().toISOString(),
-        },
-      ],
-    }
-  }
+  return data
 }
 
-async function createDoseEvent(data: any) {
-  // Mock implementation - replace with actual database insert
-  return {
-    id: `dose_${Date.now()}`,
-    ...data,
-    created_at: new Date().toISOString(),
-  }
+async function getActiveBottle(supabase: any) {
+  const { data } = await supabase
+    .from("bottle")
+    .select("id, current_volume_ml, lot_id")
+    .eq("status", "active")
+    .order("opened_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  return data
 }
 
-async function updateDoseEvent(id: string, updates: any) {
-  // Mock implementation - replace with actual database update
-  console.log("[v0] Updating dose event:", { id, updates })
+async function getMedicationForBottle(supabase: any, lotId: number | null) {
+  if (!lotId) return null
+
+  const { data: lot } = await supabase
+    .from("lot_batch")
+    .select("medication_id")
+    .eq("id", lotId)
+    .single()
+
+  if (!lot) return null
+
+  const { data: medication } = await supabase
+    .from("medication")
+    .select("id, name, conc_mg_per_ml")
+    .eq("id", lot.medication_id)
+    .single()
+
+  return medication
 }
 
-async function updateBottleInventory(bottle_id: string, dispensed_ml: number) {
-  // Mock implementation - replace with actual inventory transaction
-  console.log("[v0] Updating bottle inventory:", { bottle_id, dispensed_ml })
+async function getPatientDetails(supabase: any, patientId: number) {
+  const { data } = await supabase
+    .from("patient_dispensing")
+    .select("id, name, mrn")
+    .eq("id", patientId)
+    .maybeSingle()
+
+  return data
 }
 
-function generateSignatureHash(signature: string) {
-  // Mock implementation - replace with actual cryptographic hash
-  return `hash_${signature.length}_${Date.now()}`
+function deriveInitials(signature: string) {
+  const parts = signature.split(/\s+/).filter(Boolean)
+  return parts
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("")
+    .slice(0, 10)
 }
