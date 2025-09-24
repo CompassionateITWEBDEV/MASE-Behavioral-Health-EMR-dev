@@ -1,3 +1,4 @@
+import { createServiceRoleClient } from "@/lib/supabase/service-role"
 import { type NextRequest, NextResponse } from "next/server"
 
 export async function POST(request: NextRequest) {
@@ -5,70 +6,83 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { patient_id, days, risk_level, start_date } = body
 
-    const rulesValidation = await validateTakehomeRules(patient_id, days, risk_level)
-
-    if (!rulesValidation.eligible) {
-      return NextResponse.json(
-        { error: "Patient not eligible for take-home", reasons: rulesValidation.reasons },
-        { status: 400 },
-      )
+    if (!patient_id || !days || !risk_level || !start_date) {
+      return NextResponse.json({ error: "Missing take-home order fields" }, { status: 400 })
     }
 
-    // Calculate end date
+    const supabase = await createServiceRoleClient()
+
+    const validation = await validateTakehomeRules(supabase, patient_id, days, risk_level)
+    if (!validation.eligible) {
+      return NextResponse.json({ error: "Patient not eligible for take-home", reasons: validation.reasons }, { status: 400 })
+    }
+
     const startDate = new Date(start_date)
     const endDate = new Date(startDate)
-    endDate.setDate(startDate.getDate() + days - 1)
+    endDate.setDate(startDate.getDate() + Number(days) - 1)
 
-    // Create take-home order (mock implementation)
-    const order = {
-      id: Math.floor(Math.random() * 1000),
-      patient_id,
-      days,
-      start_date,
-      end_date: endDate.toISOString().split("T")[0],
-      risk_level,
-      status: "pending",
-      created_at: new Date().toISOString(),
+    const { data: prescriber } = await supabase
+      .from("medication_order")
+      .select("prescriber_id")
+      .eq("patient_id", patient_id)
+      .eq("status", "active")
+      .order("start_date", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const { data: order, error } = await supabase
+      .from("takehome_orders")
+      .insert({
+        patient_id,
+        days,
+        start_date,
+        end_date: endDate.toISOString().split("T")[0],
+        prescriber_id: prescriber?.prescriber_id ?? "unknown",
+        risk_level,
+        status: "pending",
+      })
+      .select("*")
+      .single()
+
+    if (error) {
+      console.error("[takehome] order insert failed", error)
+      return NextResponse.json({ error: "Failed to create take-home order" }, { status: 500 })
     }
 
-    // Log audit entry
-    await logAuditEntry({
+    await logAuditEntry(supabase, {
       action: "takehome_order_created",
       patient_id,
       details: { order_id: order.id, days, risk_level },
-      user_id: "current_user", // Replace with actual user
     })
 
     return NextResponse.json(order)
   } catch (error) {
-    console.error("Take-home order creation failed:", error)
+    console.error("[takehome] order creation error", error)
     return NextResponse.json({ error: "Failed to create take-home order" }, { status: 500 })
   }
 }
 
-async function validateTakehomeRules(patientId: number, days: number, riskLevel: string) {
-  const rules = {
-    max_consecutive_days: riskLevel === "high" ? 3 : riskLevel === "low" ? 14 : 7,
-    missed_returns_allowed: 0,
-    positive_uds_auto_hold: true,
+async function validateTakehomeRules(supabase: any, patientId: number, days: number, riskLevel: string) {
+  const rules = await fetchRules(supabase, riskLevel)
+  const maxDays = Number(rules.get("max_consecutive_days") ?? (riskLevel === "high" ? 3 : riskLevel === "low" ? 14 : 7))
+
+  const reasons: string[] = []
+
+  if (days > maxDays) {
+    reasons.push(`Exceeds maximum ${maxDays} days for ${riskLevel} risk level`)
   }
 
-  const reasons = []
-
-  if (days > rules.max_consecutive_days) {
-    reasons.push(`Exceeds maximum ${rules.max_consecutive_days} days for ${riskLevel} risk level`)
-  }
-
-  // Check for existing holds
-  const hasActiveHold = await checkActiveHolds(patientId)
+  const hasActiveHold = await checkActiveHolds(supabase, patientId)
   if (hasActiveHold) {
     reasons.push("Patient has active compliance hold")
   }
 
-  // Check recent UDS results
-  const hasRecentPositiveUDS = await checkRecentUDS(patientId)
-  if (hasRecentPositiveUDS && rules.positive_uds_auto_hold) {
-    reasons.push("Recent positive UDS result")
+  const positiveUdSRule = rules.get("positive_uds_auto_hold") === "true"
+  if (positiveUdSRule) {
+    const hasRecentPositiveUDS = await checkRecentUDS(supabase, patientId)
+    if (hasRecentPositiveUDS) {
+      reasons.push("Recent positive UDS result")
+    }
   }
 
   return {
@@ -77,17 +91,70 @@ async function validateTakehomeRules(patientId: number, days: number, riskLevel:
   }
 }
 
-async function checkActiveHolds(patientId: number) {
-  // Mock implementation - replace with actual database query
-  return false
+async function fetchRules(supabase: any, riskLevel: string) {
+  const { data, error } = await supabase
+    .from("takehome_rules")
+    .select("rule_name, rule_value, risk_level")
+    .in("risk_level", [riskLevel, "all"])
+
+  if (error) {
+    console.error("[takehome] rule fetch failed", error)
+    return new Map<string, string>()
+  }
+
+  const rules = new Map<string, string>()
+  for (const rule of data ?? []) {
+    // Risk-specific overrides entries from the generic "all" rule
+    if (!rules.has(rule.rule_name) || rule.risk_level === riskLevel) {
+      rules.set(rule.rule_name, rule.rule_value)
+    }
+  }
+
+  return rules
 }
 
-async function checkRecentUDS(patientId: number) {
-  // Mock implementation - replace with actual database query
-  return false
+async function checkActiveHolds(supabase: any, patientId: number) {
+  const { count, error } = await supabase
+    .from("compliance_holds")
+    .select("id", { head: true, count: "exact" })
+    .eq("patient_id", patientId)
+    .eq("status", "open")
+
+  if (error) {
+    console.error("[takehome] hold lookup failed", error)
+    return false
+  }
+
+  return (count ?? 0) > 0
 }
 
-async function logAuditEntry(entry: any) {
-  // Mock implementation - replace with actual audit logging
-  console.log("Audit entry:", entry)
+async function checkRecentUDS(supabase: any, patientId: number) {
+  const thirtyDaysAgo = new Date()
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+  const { count, error } = await supabase
+    .from("lab_results")
+    .select("id", { head: true, count: "exact" })
+    .eq("patient_id", patientId)
+    .eq("test_type", "UDS")
+    .eq("result", "positive")
+    .gte("result_date", thirtyDaysAgo.toISOString())
+
+  if (error) {
+    console.warn("[takehome] UDS lookup failed", error)
+    return false
+  }
+
+  return (count ?? 0) > 0
+}
+
+async function logAuditEntry(supabase: any, entry: { action: string; patient_id: number; details: any }) {
+  await supabase.from("audit_trail").insert({
+    user_id: null,
+    patient_id: entry.patient_id,
+    action: entry.action,
+    table_name: "takehome_orders",
+    record_id: entry.details.order_id,
+    new_values: entry.details,
+  })
 }
