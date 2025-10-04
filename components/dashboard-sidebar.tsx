@@ -31,6 +31,7 @@ import {
   Beaker,
   Heart,
   TrendingUp,
+  Workflow,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -67,6 +68,7 @@ const navigationItems = [
   { icon: Building2, label: "Facility Management", href: "/facility", count: 4 },
   { icon: CreditCard, label: "Insurance Management", href: "/insurance", count: 4 },
   { icon: CreditCard, label: "Billing Center", href: "/billing-center" },
+  { icon: Workflow, label: "Clearinghouse", href: "/clearinghouse", count: 5 },
   { icon: UserCheck, label: "NPI Verification", href: "/npi-verification", count: 2 },
   { icon: Package, label: "OTP Bundle Billing", href: "/otp-billing" },
   { icon: Calculator, label: "Bundle Calculator", href: "/bundle-calculator" },

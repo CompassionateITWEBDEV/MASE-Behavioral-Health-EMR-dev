@@ -44,7 +44,7 @@ export default async function PatientsPage({
     .from("patients")
     .select(`
       *,
-      appointments!inner(
+      appointments(
         id,
         appointment_date,
         status,
