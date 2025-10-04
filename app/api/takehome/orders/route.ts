@@ -1,6 +1,76 @@
 import { createServiceRoleClient } from "@/lib/supabase/service-role"
 import { type NextRequest, NextResponse } from "next/server"
 
+export async function GET(request: NextRequest) {
+  try {
+    const supabase = await createServiceRoleClient()
+    const { searchParams } = new URL(request.url)
+    const status = searchParams.get("status")
+    const patientId = searchParams.get("patient_id")
+
+    let query = supabase
+      .from("takehome_orders")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(50)
+
+    if (status) {
+      query = query.eq("status", status)
+    }
+
+    if (patientId) {
+      query = query.eq("patient_id", patientId)
+    }
+
+    const { data: orders, error } = await query
+
+    if (error) {
+      console.error("[takehome] order fetch failed", error)
+      return NextResponse.json({ error: "Failed to load take-home orders" }, { status: 500 })
+    }
+
+    const patientIds = Array.from(new Set((orders ?? []).map((order: any) => order.patient_id).filter(Boolean)))
+    const patientNames = new Map<number | string, string>()
+
+    if (patientIds.length > 0) {
+      const { data: dispensingPatients, error: dispensingError } = await supabase
+        .from("patient_dispensing")
+        .select("id, name")
+        .in("id", patientIds)
+
+      if (!dispensingError) {
+        for (const patient of dispensingPatients ?? []) {
+          patientNames.set(patient.id, patient.name)
+        }
+      }
+
+      const missingIds = patientIds.filter((id) => !patientNames.has(id))
+      if (missingIds.length > 0) {
+        const { data: corePatients, error: patientsError } = await supabase
+          .from("patients")
+          .select("id, first_name, last_name")
+          .in("id", missingIds)
+
+        if (!patientsError) {
+          for (const patient of corePatients ?? []) {
+            patientNames.set(patient.id, `${patient.first_name} ${patient.last_name}`.trim())
+          }
+        }
+      }
+    }
+
+    const response = (orders ?? []).map((order: any) => ({
+      ...order,
+      patient_name: patientNames.get(order.patient_id) ?? "Unknown patient",
+    }))
+
+    return NextResponse.json({ orders: response })
+  } catch (error) {
+    console.error("[takehome] order list error", error)
+    return NextResponse.json({ error: "Failed to load take-home orders" }, { status: 500 })
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
