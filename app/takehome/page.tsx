@@ -100,83 +100,39 @@ export default function TakeHomePage() {
   }, [])
 
   const loadOrders = async () => {
-    // Mock data - replace with actual API call
-    setOrders([
-      {
-        id: 1,
-        patient_id: 101,
-        patient_name: "Sarah Johnson",
-        days: 7,
-        start_date: "2024-01-15",
-        end_date: "2024-01-21",
-        risk_level: "standard",
-        status: "active",
-        created_at: "2024-01-15T08:00:00Z",
-      },
-      {
-        id: 2,
-        patient_id: 102,
-        patient_name: "Michael Chen",
-        days: 3,
-        start_date: "2024-01-16",
-        end_date: "2024-01-18",
-        risk_level: "high",
-        status: "pending",
-        created_at: "2024-01-16T09:30:00Z",
-      },
-    ])
+    try {
+      const response = await fetch("/api/takehome/orders")
+      if (response.ok) {
+        const data = await response.json()
+        setOrders(data.orders || [])
+      }
+    } catch (error) {
+      console.error("[v0] Error loading take-home orders:", error)
+    }
   }
 
   const loadKits = async () => {
-    // Mock data - replace with actual API call
-    setKits([
-      {
-        id: 1,
-        takehome_order_id: 1,
-        issue_time: "2024-01-15T08:30:00Z",
-        issued_by: "Nurse Johnson",
-        seal_batch: "SB-2024-001",
-        status: "issued",
-        doses: [
-          {
-            id: 1,
-            kit_id: 1,
-            day_date: "2024-01-15",
-            dose_mg: 80,
-            dose_ml: 8.0,
-            bottle_uid: "BTL-001-20240115",
-            seal_uid: "SEAL-001",
-            status: "returned",
-          },
-          {
-            id: 2,
-            kit_id: 1,
-            day_date: "2024-01-16",
-            dose_mg: 80,
-            dose_ml: 8.0,
-            bottle_uid: "BTL-002-20240116",
-            seal_uid: "SEAL-002",
-            status: "sealed",
-          },
-        ],
-      },
-    ])
+    try {
+      const response = await fetch("/api/takehome/kits")
+      if (response.ok) {
+        const data = await response.json()
+        setKits(data.kits || [])
+      }
+    } catch (error) {
+      console.error("[v0] Error loading take-home kits:", error)
+    }
   }
 
   const loadHolds = async () => {
-    // Mock data - replace with actual API call
-    setHolds([
-      {
-        id: 1,
-        patient_id: 103,
-        patient_name: "David Wilson",
-        reason_code: "missed_return",
-        opened_by: "System Auto",
-        opened_time: "2024-01-16T10:00:00Z",
-        requires_counselor: true,
-        status: "open",
-      },
-    ])
+    try {
+      const response = await fetch("/api/takehome/holds")
+      if (response.ok) {
+        const data = await response.json()
+        setHolds(data.holds || [])
+      }
+    } catch (error) {
+      console.error("[v0] Error loading compliance holds:", error)
+    }
   }
 
   const handleReturnIntake = async () => {

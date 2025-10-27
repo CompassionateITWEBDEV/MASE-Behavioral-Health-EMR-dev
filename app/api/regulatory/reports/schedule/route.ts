@@ -1,19 +1,30 @@
-import { createServiceRoleClient } from "@/lib/supabase/service-role"
 import { type NextRequest, NextResponse } from "next/server"
+import { createServerClient } from "@supabase/ssr"
+import { cookies } from "next/headers"
 
-export async function GET(_request: NextRequest) {
-  try {
-    const supabase = await createServiceRoleClient()
-    const { data, error } = await supabase.from("report_schedules").select("*").order("created_at", { ascending: true })
+export async function GET(request: NextRequest) {
+  const cookieStore = await cookies()
+  const supabase = createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll()
+      },
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
+        } catch {
+          // Handle error if needed
+        }
+      },
+    },
+  })
 
-    if (error) {
-      console.error("[regulatory] schedule fetch failed", error)
-      return NextResponse.json({ error: "Failed to load report schedules" }, { status: 500 })
-    }
+  // Add logic to handle the request and generate the report schedule
+  const { data, error } = await supabase.from("report_schedules").select("*")
 
-    return NextResponse.json({ schedules: data ?? [] })
-  } catch (error) {
-    console.error("[regulatory] schedule list error", error)
-    return NextResponse.json({ error: "Failed to load report schedules" }, { status: 500 })
+  if (error) {
+    return NextResponse.error(error.message, 500)
   }
+
+  return NextResponse.json(data)
 }

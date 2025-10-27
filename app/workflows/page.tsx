@@ -104,145 +104,27 @@ export default function WorkflowsPage() {
   }, [])
 
   const loadTasks = async () => {
-    // Mock data - replace with actual API call
-    setTasks([
-      {
-        id: "task-001",
-        title: "Complete Patient Intake Assessment",
-        description: "New patient Sarah Johnson requires initial intake assessment and documentation",
-        assigned_to: "staff-001",
-        assigned_to_name: "Dr. Smith",
-        due_date: "2024-01-18T17:00:00Z",
-        priority: "high",
-        status: "pending",
-        workflow_type: "patient_intake",
-        patient_id: "pt-001",
-        patient_name: "Sarah Johnson",
-        created_at: "2024-01-17T08:00:00Z",
-      },
-      {
-        id: "task-002",
-        title: "Medication Reconciliation Review",
-        description: "Review and reconcile medications for patient Michael Chen after hospital discharge",
-        assigned_to: "staff-002",
-        assigned_to_name: "Nurse Wilson",
-        due_date: "2024-01-17T15:00:00Z",
-        priority: "urgent",
-        status: "in_progress",
-        workflow_type: "medication_review",
-        patient_id: "pt-002",
-        patient_name: "Michael Chen",
-        created_at: "2024-01-17T09:00:00Z",
-      },
-      {
-        id: "task-003",
-        title: "Monthly Compliance Check",
-        description: "Conduct monthly compliance review for take-home medication program",
-        assigned_to: "staff-003",
-        assigned_to_name: "Counselor Davis",
-        due_date: "2024-01-19T12:00:00Z",
-        priority: "medium",
-        status: "pending",
-        workflow_type: "compliance_check",
-        created_at: "2024-01-17T10:00:00Z",
-      },
-      {
-        id: "task-004",
-        title: "ASAM Assessment Update",
-        description: "Complete 6-month ASAM criteria reassessment for David Wilson",
-        assigned_to: "staff-001",
-        assigned_to_name: "Dr. Smith",
-        due_date: "2024-01-16T16:00:00Z",
-        priority: "high",
-        status: "overdue",
-        workflow_type: "assessment",
-        patient_id: "pt-003",
-        patient_name: "David Wilson",
-        created_at: "2024-01-15T08:00:00Z",
-      },
-    ])
+    try {
+      const response = await fetch("/api/workflows/tasks")
+      if (response.ok) {
+        const data = await response.json()
+        setTasks(data.tasks || [])
+      }
+    } catch (error) {
+      console.error("[v0] Error loading workflow tasks:", error)
+    }
   }
 
   const loadWorkflows = async () => {
-    // Mock data - replace with actual API call
-    setWorkflows([
-      {
-        id: "wf-001",
-        name: "New Patient Intake",
-        description: "Complete workflow for new patient onboarding and assessment",
-        type: "patient_intake",
-        steps: [
-          {
-            id: "step-001",
-            title: "Initial Screening",
-            description: "Conduct initial screening and eligibility assessment",
-            role_required: "intake",
-            estimated_duration: 30,
-            is_required: true,
-            order: 1,
-          },
-          {
-            id: "step-002",
-            title: "Medical Assessment",
-            description: "Complete medical history and physical examination",
-            role_required: "doctor",
-            estimated_duration: 45,
-            is_required: true,
-            order: 2,
-          },
-          {
-            id: "step-003",
-            title: "ASAM Assessment",
-            description: "Complete ASAM criteria assessment",
-            role_required: "counselor",
-            estimated_duration: 60,
-            is_required: true,
-            order: 3,
-          },
-        ],
-        is_active: true,
-        created_by: "admin-001",
-        created_at: "2024-01-01T00:00:00Z",
-      },
-      {
-        id: "wf-002",
-        name: "Medication Review Process",
-        description: "Systematic medication review and reconciliation workflow",
-        type: "medication_review",
-        steps: [
-          {
-            id: "step-004",
-            title: "Medication History Review",
-            description: "Review current medications and identify discrepancies",
-            role_required: "rn",
-            estimated_duration: 20,
-            is_required: true,
-            order: 1,
-          },
-          {
-            id: "step-005",
-            title: "Drug Interaction Check",
-            description: "Check for drug interactions and contraindications",
-            role_required: "doctor",
-            estimated_duration: 15,
-            is_required: true,
-            order: 2,
-          },
-          {
-            id: "step-006",
-            title: "Patient Education",
-            description: "Educate patient on medication changes",
-            role_required: "rn",
-            estimated_duration: 25,
-            is_required: false,
-            order: 3,
-          },
-        ],
-        is_active: true,
-        created_by: "admin-001",
-        created_at: "2024-01-01T00:00:00Z",
-      },
-    ])
+    try {
+      const response = await fetch("/api/workflows")
+      if (response.ok) {
+        const data = await response.json()
+        setWorkflows(data.workflows || [])
+      }
+    } catch (error) {
+      console.error("[v0] Error loading workflows:", error)
+    }
   }
 
   const handleCreateTask = async () => {
@@ -252,7 +134,7 @@ export default function WorkflowsPage() {
     }
 
     try {
-      const response = await fetch("/api/workflow-tasks", {
+      const response = await fetch("/api/workflows/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -281,7 +163,7 @@ export default function WorkflowsPage() {
 
   const handleUpdateTaskStatus = async (taskId: string, status: WorkflowTask["status"]) => {
     try {
-      const response = await fetch(`/api/workflow-tasks/${taskId}/status`, {
+      const response = await fetch(`/api/workflows/tasks/${taskId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),

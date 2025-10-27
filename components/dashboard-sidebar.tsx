@@ -32,6 +32,7 @@ import {
   Heart,
   TrendingUp,
   Workflow,
+  FileOutput,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -49,6 +50,7 @@ const navigationItems = [
   { icon: Archive, label: "Assessment Library", href: "/assessment-library", count: 19 },
   { icon: ClipboardCheck, label: "My Work", href: "/my-work", count: 6 },
   { icon: FileSignature, label: "Consent Forms", href: "/consent-forms", count: 19 },
+  { icon: FileOutput, label: "Discharge Summary", href: "/discharge-summary", count: 4 },
   { icon: Send, label: "E-Prescribing", href: "/e-prescribing", count: 3 },
   { icon: Beaker, label: "Lab Integration", href: "/lab-integration", count: 7 },
   { icon: Heart, label: "Clinical Protocols", href: "/clinical-protocols", count: 12 },

@@ -34,47 +34,21 @@ export function EPrescribingDashboard() {
   const [selectedPatient, setSelectedPatient] = useState("")
   const [isNewPrescriptionOpen, setIsNewPrescriptionOpen] = useState(false)
 
-  // Mock data - replace with actual API calls
   useEffect(() => {
-    const mockPrescriptions: Prescription[] = [
-      {
-        id: "1",
-        patientName: "John Smith",
-        medicationName: "Suboxone",
-        strength: "8mg/2mg",
-        quantity: 30,
-        daysSupply: 30,
-        refills: 0,
-        status: "sent",
-        prescribedDate: "2024-01-15",
-        pharmacyName: "CVS Pharmacy",
-      },
-      {
-        id: "2",
-        patientName: "Sarah Johnson",
-        medicationName: "Naltrexone",
-        strength: "50mg",
-        quantity: 30,
-        daysSupply: 30,
-        refills: 2,
-        status: "filled",
-        prescribedDate: "2024-01-14",
-        pharmacyName: "Walgreens",
-      },
-      {
-        id: "3",
-        patientName: "Mike Davis",
-        medicationName: "Clonidine",
-        strength: "0.1mg",
-        quantity: 60,
-        daysSupply: 30,
-        refills: 1,
-        status: "pending",
-        prescribedDate: "2024-01-16",
-      },
-    ]
-    setPrescriptions(mockPrescriptions)
+    loadPrescriptions()
   }, [])
+
+  const loadPrescriptions = async () => {
+    try {
+      const response = await fetch("/api/prescriptions")
+      if (response.ok) {
+        const data = await response.json()
+        setPrescriptions(data.prescriptions || [])
+      }
+    } catch (error) {
+      console.error("[v0] Error loading prescriptions:", error)
+    }
+  }
 
   const getStatusIcon = (status: string) => {
     switch (status) {

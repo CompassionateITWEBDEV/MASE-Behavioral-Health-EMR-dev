@@ -63,53 +63,27 @@ export function EPrescribingIntegration() {
   }, [])
 
   const loadStatus = async () => {
-    // Mock data - replace with actual API call
-    setStatus({
-      isConnected: true,
-      provider: "Surescripts",
-      lastSync: "2024-01-17T14:30:00Z",
-      pendingTransmissions: 3,
-      failedTransmissions: 1,
-      certificateExpiry: "2024-12-31",
-      systemVersion: "v2.1.3",
-    })
+    try {
+      const response = await fetch("/api/e-prescribing/status")
+      if (response.ok) {
+        const data = await response.json()
+        setStatus(data.status)
+      }
+    } catch (error) {
+      console.error("[v0] Error loading e-prescribing status:", error)
+    }
   }
 
   const loadTransmissionLogs = async () => {
-    // Mock data - replace with actual API call
-    setTransmissionLogs([
-      {
-        id: "tx-001",
-        prescription_id: "rx-001",
-        patient_name: "Sarah Johnson",
-        medication: "Lisinopril 10mg",
-        pharmacy: "CVS Pharmacy",
-        status: "success",
-        timestamp: "2024-01-17T14:25:00Z",
-        retry_count: 0,
-      },
-      {
-        id: "tx-002",
-        prescription_id: "rx-002",
-        patient_name: "Michael Chen",
-        medication: "Ibuprofen 400mg",
-        pharmacy: "Walgreens",
-        status: "pending",
-        timestamp: "2024-01-17T14:30:00Z",
-        retry_count: 0,
-      },
-      {
-        id: "tx-003",
-        prescription_id: "rx-003",
-        patient_name: "David Wilson",
-        medication: "Sertraline 50mg",
-        pharmacy: "Rite Aid",
-        status: "failed",
-        timestamp: "2024-01-17T14:20:00Z",
-        error_message: "Pharmacy system temporarily unavailable",
-        retry_count: 2,
-      },
-    ])
+    try {
+      const response = await fetch("/api/e-prescribing/transmissions")
+      if (response.ok) {
+        const data = await response.json()
+        setTransmissionLogs(data.transmissions || [])
+      }
+    } catch (error) {
+      console.error("[v0] Error loading transmission logs:", error)
+    }
   }
 
   const handleRefreshStatus = async () => {

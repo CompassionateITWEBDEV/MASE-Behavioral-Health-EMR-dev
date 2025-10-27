@@ -1,6 +1,5 @@
 import { createServerClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
-import { createFallbackClient } from "./fallback"
 
 /**
  * Helper that creates a Supabase client using the service role key.
@@ -15,7 +14,7 @@ export async function createServiceRoleClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 
   if (!supabaseUrl || !serviceRoleKey) {
-    return createFallbackClient("service-role")
+    throw new Error("Supabase environment variables are not configured")
   }
 
   const cookieStore = await cookies()

@@ -123,4 +123,28 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Add print styles for discharge summaries */
+  @media print {
+    .print\:hidden {
+      display: none !important;
+    }
+
+    .print\:block {
+      display: block !important;
+    }
+
+    body {
+      print-color-adjust: exact;
+      -webkit-print-color-adjust: exact;
+    }
+
+    .pl-64 {
+      padding-left: 0 !important;
+    }
+
+    main {
+      padding: 1rem !important;
+    }
+  }
 }

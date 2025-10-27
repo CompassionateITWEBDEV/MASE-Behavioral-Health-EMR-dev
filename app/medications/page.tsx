@@ -83,87 +83,35 @@ export default function MedicationsPage() {
   useEffect(() => {
     loadMedications()
     checkInteractions()
-  }, [])
+  }, [selectedPatient])
 
   const loadMedications = async () => {
-    // Mock data - replace with actual API call
-    setMedications([
-      {
-        id: "1",
-        patient_id: "pt-001",
-        patient_name: "Sarah Johnson",
-        medication_name: "Lisinopril",
-        generic_name: "Lisinopril",
-        dosage: "10mg",
-        frequency: "Once daily",
-        route: "oral",
-        start_date: "2024-01-15",
-        prescribed_by: "dr-001",
-        prescriber_name: "Dr. Smith",
-        medication_type: "regular",
-        ndc_number: "12345-678-90",
-        pharmacy_name: "CVS Pharmacy",
-        pharmacy_phone: "(555) 123-4567",
-        refills_remaining: 3,
-        status: "active",
-        notes: "For hypertension management",
-        created_at: "2024-01-15T08:00:00Z",
-        updated_at: "2024-01-15T08:00:00Z",
-      },
-      {
-        id: "2",
-        patient_id: "pt-001",
-        patient_name: "Sarah Johnson",
-        medication_name: "Sertraline",
-        generic_name: "Sertraline HCl",
-        dosage: "50mg",
-        frequency: "Once daily",
-        route: "oral",
-        start_date: "2024-01-10",
-        prescribed_by: "dr-002",
-        prescriber_name: "Dr. Wilson",
-        medication_type: "regular",
-        pharmacy_name: "Walgreens",
-        pharmacy_phone: "(555) 987-6543",
-        refills_remaining: 5,
-        status: "active",
-        notes: "For depression, monitor for side effects",
-        created_at: "2024-01-10T09:00:00Z",
-        updated_at: "2024-01-10T09:00:00Z",
-      },
-      {
-        id: "3",
-        patient_id: "pt-002",
-        patient_name: "Michael Chen",
-        medication_name: "Ibuprofen",
-        generic_name: "Ibuprofen",
-        dosage: "400mg",
-        frequency: "As needed",
-        route: "oral",
-        start_date: "2024-01-12",
-        end_date: "2024-02-12",
-        prescribed_by: "dr-001",
-        prescriber_name: "Dr. Smith",
-        medication_type: "prn",
-        refills_remaining: 2,
-        status: "active",
-        notes: "For pain management, max 3 times daily",
-        created_at: "2024-01-12T10:00:00Z",
-        updated_at: "2024-01-12T10:00:00Z",
-      },
-    ])
+    try {
+      const params = new URLSearchParams()
+      if (selectedPatient !== "all") {
+        params.append("patient_id", selectedPatient)
+      }
+
+      const response = await fetch(`/api/medications?${params.toString()}`)
+      if (response.ok) {
+        const data = await response.json()
+        setMedications(data.medications || [])
+      }
+    } catch (error) {
+      console.error("[v0] Error loading medications:", error)
+    }
   }
 
   const checkInteractions = async () => {
-    // Mock interaction checking - in real app, integrate with drug interaction API
-    setInteractions([
-      {
-        medication1: "Sertraline",
-        medication2: "Ibuprofen",
-        severity: "moderate",
-        description: "May increase risk of bleeding when used together",
-      },
-    ])
+    try {
+      const response = await fetch("/api/medications/interactions")
+      if (response.ok) {
+        const data = await response.json()
+        setInteractions(data.interactions || [])
+      }
+    } catch (error) {
+      console.error("[v0] Error checking drug interactions:", error)
+    }
   }
 
   const handleAddMedication = async () => {

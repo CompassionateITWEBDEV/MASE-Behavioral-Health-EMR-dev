@@ -52,61 +52,18 @@ export function MedicationReconciliation({ patientId }: { patientId: string }) {
   }, [patientId])
 
   const loadReconciliationSession = async () => {
-    // Mock data - replace with actual API call
-    setSession({
-      id: "rec-001",
-      patient_id: patientId,
-      patient_name: "Sarah Johnson",
-      session_type: "admission",
-      created_by: "Dr. Smith",
-      created_at: "2024-01-15T10:00:00Z",
-      status: "in_progress",
-      medications: [
-        {
-          id: "med-1",
-          medication_name: "Lisinopril 10mg",
-          dosage: "10mg",
-          frequency: "Once daily",
-          route: "oral",
-          source: "home",
-          verified: true,
-          action: "continue",
-          notes: "Patient reports taking regularly",
-        },
-        {
-          id: "med-2",
-          medication_name: "Sertraline 50mg",
-          dosage: "50mg",
-          frequency: "Once daily",
-          route: "oral",
-          source: "home",
-          verified: true,
-          action: "continue",
-        },
-        {
-          id: "med-3",
-          medication_name: "Ibuprofen 400mg",
-          dosage: "400mg",
-          frequency: "As needed",
-          route: "oral",
-          source: "home",
-          verified: false,
-          action: "pending",
-          notes: "Patient unsure of exact dosage",
-        },
-        {
-          id: "med-4",
-          medication_name: "Methadone 80mg",
-          dosage: "80mg",
-          frequency: "Daily",
-          route: "oral",
-          source: "provider",
-          verified: true,
-          action: "continue",
-          notes: "OTP medication - continue current dose",
-        },
-      ],
-    })
+    try {
+      const response = await fetch(`/api/medication-reconciliation?patient_id=${patientId}&status=in_progress`)
+      if (response.ok) {
+        const data = await response.json()
+        // Get the most recent session
+        if (data.sessions && data.sessions.length > 0) {
+          setSession(data.sessions[0])
+        }
+      }
+    } catch (error) {
+      console.error("[v0] Error loading reconciliation session:", error)
+    }
   }
 
   const updateMedicationAction = (medicationId: string, action: MedicationItem["action"]) => {

@@ -1,70 +1,43 @@
-import { createServiceRoleClient } from "@/lib/supabase/service-role"
-import { type NextRequest, NextResponse } from "next/server"
+import { createServerClient } from "@/lib/supabase/server"
+import { NextResponse } from "next/server"
 
-interface PharmacyPayload {
-  name: string
-  address: string
-  phone: string
-  npi: string
-  fax?: string
-  email?: string
-  is_preferred?: boolean
-}
+export async function GET(request: Request) {
+  const supabase = await createServerClient()
+  const { searchParams } = new URL(request.url)
 
-export async function GET() {
-  try {
-    const supabase = await createServiceRoleClient()
-    const { data: pharmacies, error } = await supabase
-      .from("pharmacies")
-      .select("*")
-      .order("name", { ascending: true })
+  const isActive = searchParams.get("is_active")
+  const acceptsEPrescribing = searchParams.get("accepts_e_prescribing")
 
-    if (error) {
-      console.error("[pharmacies] fetch failed", error)
-      return NextResponse.json({ error: "Failed to load pharmacies" }, { status: 500 })
-    }
+  let query = supabase.from("pharmacies").select("*").order("name", { ascending: true })
 
-    return NextResponse.json({ pharmacies: pharmacies ?? [] })
-  } catch (error) {
-    console.error("[pharmacies] list error", error)
-    return NextResponse.json({ error: "Failed to load pharmacies" }, { status: 500 })
+  if (isActive !== null) {
+    query = query.eq("is_active", isActive === "true")
   }
-}
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = (await request.json()) as PharmacyPayload
-    const validationError = validate(body)
-    if (validationError) {
-      return NextResponse.json({ error: validationError }, { status: 400 })
-    }
-
-    const supabase = await createServiceRoleClient()
-    const { data: pharmacy, error } = await supabase
-      .from("pharmacies")
-      .insert({
-        ...body,
-        is_preferred: body.is_preferred ?? false,
-      })
-      .select("*")
-      .single()
-
-    if (error || !pharmacy) {
-      console.error("[pharmacies] insert failed", error)
-      return NextResponse.json({ error: "Failed to create pharmacy" }, { status: 500 })
-    }
-
-    return NextResponse.json({ pharmacy })
-  } catch (error) {
-    console.error("[pharmacies] create error", error)
-    return NextResponse.json({ error: "Failed to create pharmacy" }, { status: 500 })
+  if (acceptsEPrescribing !== null) {
+    query = query.eq("accepts_e_prescribing", acceptsEPrescribing === "true")
   }
+
+  const { data, error } = await query
+
+  if (error) {
+    console.error("[v0] Error fetching pharmacies:", error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ pharmacies: data })
 }
 
-function validate(body: PharmacyPayload) {
-  if (!body.name) return "Pharmacy name is required"
-  if (!body.address) return "Address is required"
-  if (!body.phone) return "Phone number is required"
-  if (!body.npi) return "NPI is required"
-  return null
+export async function POST(request: Request) {
+  const supabase = await createServerClient()
+  const body = await request.json()
+
+  const { data, error } = await supabase.from("pharmacies").insert([body]).select().single()
+
+  if (error) {
+    console.error("[v0] Error creating pharmacy:", error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ pharmacy: data })
 }
