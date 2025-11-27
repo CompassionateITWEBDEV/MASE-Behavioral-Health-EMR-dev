@@ -435,7 +435,7 @@ export default function SubscriptionPage() {
                 <DialogContent className="max-w-[95vw] md:max-w-4xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Choose Your Plan</DialogTitle>
-                    <DialogDescription>Select the plan that best fits your clinic's needs</DialogDescription>
+                    <DialogDescription>{"Select the plan that best fits your clinic's needs"}</DialogDescription>
                   </DialogHeader>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-4">
                     {subscriptionPlans.map((plan) => (
@@ -829,9 +829,7 @@ export default function SubscriptionPage() {
             <DialogContent className="max-w-[95vw] sm:max-w-md">
               <DialogHeader>
                 <DialogTitle className="text-base md:text-lg">Enable {selectedAddOn?.name}</DialogTitle>
-                <DialogDescription className="text-xs md:text-sm">
-                  This feature requires an upgrade or add-on purchase
-                </DialogDescription>
+                <DialogDescription>This feature requires an upgrade or add-on purchase</DialogDescription>
               </DialogHeader>
               {selectedAddOn && (
                 <div className="py-4 space-y-4">

@@ -14,7 +14,7 @@ export function AppointmentStats({ stats }: AppointmentStatsProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg">Today's Summary</CardTitle>
+        <CardTitle className="text-lg">{"Today's Summary"}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between">

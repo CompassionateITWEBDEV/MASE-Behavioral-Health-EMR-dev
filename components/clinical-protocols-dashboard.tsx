@@ -1,9 +1,9 @@
 "use client"
 
 import type React from "react"
-
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState, useCallback } from "react"
+import useSWR from "swr"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -13,108 +13,54 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { AlertCircle, Plus, Activity, Heart, TrendingUp } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
+import { Skeleton } from "@/components/ui/skeleton"
+import {
+  AlertCircle,
+  Plus,
+  Activity,
+  Heart,
+  TrendingUp,
+  Settings,
+  Trash2,
+  Edit,
+  RefreshCw,
+  CheckCircle2,
+} from "lucide-react"
 
-interface COWSAssessment {
+interface Patient {
   id: string
-  patientName: string
-  totalScore: number
-  severityLevel: string
-  assessmentDate: string
-  providerId: string
+  first_name: string
+  last_name: string
 }
 
-interface CIWAAssessment {
+interface Protocol {
   id: string
-  patientName: string
-  totalScore: number
-  severityLevel: string
-  assessmentDate: string
-  providerId: string
+  name: string
+  category: string
+  description: string
+  frequency: string
+  protocol_steps: Array<{ step: number; action: string; timing?: string }>
+  triggers: Record<string, unknown>
+  is_active: boolean
+  created_at: string
 }
 
-interface VitalSigns {
-  id: string
-  patientName: string
-  systolicBp: number
-  diastolicBp: number
-  heartRate: number
-  temperature: number
-  oxygenSaturation: number
-  measurementDate: string
-}
+const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
 export function ClinicalProtocolsDashboard() {
-  const [cowsAssessments, setCowsAssessments] = useState<COWSAssessment[]>([])
-  const [ciwaAssessments, setCiwaAssessments] = useState<CIWAAssessment[]>([])
-  const [vitalSigns, setVitalSigns] = useState<VitalSigns[]>([])
-  const [searchTerm, setSearchTerm] = useState("")
+  const { data, error, isLoading, mutate } = useSWR("/api/clinical-protocols", fetcher, {
+    refreshInterval: 30000,
+  })
+
   const [isNewCowsOpen, setIsNewCowsOpen] = useState(false)
   const [isNewCiwaOpen, setIsNewCiwaOpen] = useState(false)
   const [isNewVitalsOpen, setIsNewVitalsOpen] = useState(false)
-
-  // Mock data - replace with actual API calls
-  useEffect(() => {
-    const mockCows: COWSAssessment[] = [
-      {
-        id: "1",
-        patientName: "John Smith",
-        totalScore: 18,
-        severityLevel: "Moderate",
-        assessmentDate: "2024-01-16",
-        providerId: "1",
-      },
-      {
-        id: "2",
-        patientName: "Mike Davis",
-        totalScore: 8,
-        severityLevel: "Mild",
-        assessmentDate: "2024-01-15",
-        providerId: "1",
-      },
-    ]
-
-    const mockCiwa: CIWAAssessment[] = [
-      {
-        id: "1",
-        patientName: "Sarah Johnson",
-        totalScore: 12,
-        severityLevel: "Mild to Moderate",
-        assessmentDate: "2024-01-16",
-        providerId: "1",
-      },
-    ]
-
-    const mockVitals: VitalSigns[] = [
-      {
-        id: "1",
-        patientName: "John Smith",
-        systolicBp: 140,
-        diastolicBp: 90,
-        heartRate: 88,
-        temperature: 98.6,
-        oxygenSaturation: 98,
-        measurementDate: "2024-01-16",
-      },
-      {
-        id: "2",
-        patientName: "Sarah Johnson",
-        systolicBp: 120,
-        diastolicBp: 80,
-        heartRate: 72,
-        temperature: 98.2,
-        oxygenSaturation: 99,
-        measurementDate: "2024-01-16",
-      },
-    ]
-
-    setCowsAssessments(mockCows)
-    setCiwaAssessments(mockCiwa)
-    setVitalSigns(mockVitals)
-  }, [])
+  const [isNewProtocolOpen, setIsNewProtocolOpen] = useState(false)
+  const [editingProtocol, setEditingProtocol] = useState<Protocol | null>(null)
 
   const getSeverityColor = (severity: string) => {
-    switch (severity.toLowerCase()) {
+    switch (severity?.toLowerCase()) {
       case "mild":
       case "minimal":
         return "bg-green-100 text-green-800"
@@ -129,12 +75,55 @@ export function ClinicalProtocolsDashboard() {
     }
   }
 
-  const totalCowsAssessments = cowsAssessments.length
-  const totalCiwaAssessments = ciwaAssessments.length
-  const totalVitalsToday = vitalSigns.filter(
-    (v) => new Date(v.measurementDate).toDateString() === new Date().toDateString(),
-  ).length
-  const averageHeartRate = Math.round(vitalSigns.reduce((sum, v) => sum + v.heartRate, 0) / vitalSigns.length)
+  const handleRefresh = useCallback(() => {
+    mutate()
+  }, [mutate])
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          {[...Array(4)].map((_, i) => (
+            <Card key={i}>
+              <CardHeader className="pb-2">
+                <Skeleton className="h-4 w-24" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-16" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <Skeleton className="h-96 w-full" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <Card className="border-red-200 bg-red-50">
+        <CardContent className="p-6">
+          <div className="flex items-center gap-2 text-red-600">
+            <AlertCircle className="h-5 w-5" />
+            <span>Failed to load clinical protocols data</span>
+          </div>
+          <Button onClick={handleRefresh} className="mt-4 bg-transparent" variant="outline">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const {
+    cowsAssessments = [],
+    ciwaAssessments = [],
+    vitalSigns = [],
+    protocols = [],
+    patients = [],
+    stats = {},
+  } = data || {}
 
   return (
     <div className="space-y-6">
@@ -146,7 +135,7 @@ export function ClinicalProtocolsDashboard() {
             <Activity className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalCowsAssessments}</div>
+            <div className="text-2xl font-bold">{stats.cowsThisWeek || 0}</div>
             <p className="text-xs text-muted-foreground">This week</p>
           </CardContent>
         </Card>
@@ -157,7 +146,7 @@ export function ClinicalProtocolsDashboard() {
             <AlertCircle className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalCiwaAssessments}</div>
+            <div className="text-2xl font-bold">{stats.ciwaThisWeek || 0}</div>
             <p className="text-xs text-muted-foreground">This week</p>
           </CardContent>
         </Card>
@@ -168,7 +157,7 @@ export function ClinicalProtocolsDashboard() {
             <Heart className="h-4 w-4 text-red-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalVitalsToday}</div>
+            <div className="text-2xl font-bold">{stats.vitalsToday || 0}</div>
             <p className="text-xs text-muted-foreground">Measurements taken</p>
           </CardContent>
         </Card>
@@ -179,10 +168,17 @@ export function ClinicalProtocolsDashboard() {
             <TrendingUp className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{averageHeartRate}</div>
+            <div className="text-2xl font-bold">{stats.avgHeartRate || "--"}</div>
             <p className="text-xs text-muted-foreground">BPM across patients</p>
           </CardContent>
         </Card>
+      </div>
+
+      <div className="flex justify-end">
+        <Button onClick={handleRefresh} variant="outline" size="sm">
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Refresh
+        </Button>
       </div>
 
       <Tabs defaultValue="cows" className="space-y-4">
@@ -197,7 +193,10 @@ export function ClinicalProtocolsDashboard() {
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>COWS (Clinical Opiate Withdrawal Scale)</CardTitle>
+                <div>
+                  <CardTitle>COWS (Clinical Opiate Withdrawal Scale)</CardTitle>
+                  <CardDescription>Assess opioid withdrawal severity</CardDescription>
+                </div>
                 <Dialog open={isNewCowsOpen} onOpenChange={setIsNewCowsOpen}>
                   <DialogTrigger asChild>
                     <Button>
@@ -205,45 +204,62 @@ export function ClinicalProtocolsDashboard() {
                       New COWS Assessment
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-4xl">
+                  <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                       <DialogTitle>COWS Assessment</DialogTitle>
                     </DialogHeader>
-                    <COWSAssessmentForm onClose={() => setIsNewCowsOpen(false)} />
+                    <COWSAssessmentForm
+                      patients={patients}
+                      onClose={() => setIsNewCowsOpen(false)}
+                      onSuccess={() => {
+                        setIsNewCowsOpen(false)
+                        mutate()
+                      }}
+                    />
                   </DialogContent>
                 </Dialog>
               </div>
             </CardHeader>
 
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Patient</TableHead>
-                    <TableHead>Total Score</TableHead>
-                    <TableHead>Severity Level</TableHead>
-                    <TableHead>Assessment Date</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {cowsAssessments.map((assessment) => (
-                    <TableRow key={assessment.id}>
-                      <TableCell className="font-medium">{assessment.patientName}</TableCell>
-                      <TableCell className="font-mono text-lg">{assessment.totalScore}</TableCell>
-                      <TableCell>
-                        <Badge className={getSeverityColor(assessment.severityLevel)}>{assessment.severityLevel}</Badge>
-                      </TableCell>
-                      <TableCell>{new Date(assessment.assessmentDate).toLocaleDateString()}</TableCell>
-                      <TableCell>
-                        <Button variant="outline" size="sm">
-                          View Details
-                        </Button>
-                      </TableCell>
+              {cowsAssessments.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No COWS assessments recorded yet</p>
+                  <p className="text-sm">Click the button above to record a new assessment</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Patient</TableHead>
+                      <TableHead>Total Score</TableHead>
+                      <TableHead>Severity Level</TableHead>
+                      <TableHead>Assessment Date</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {cowsAssessments.map((assessment: any) => (
+                      <TableRow key={assessment.id}>
+                        <TableCell className="font-medium">{assessment.patientName}</TableCell>
+                        <TableCell className="font-mono text-lg">{assessment.totalScore}</TableCell>
+                        <TableCell>
+                          <Badge className={getSeverityColor(assessment.severityLevel)}>
+                            {assessment.severityLevel}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{new Date(assessment.assessmentDate).toLocaleDateString()}</TableCell>
+                        <TableCell>
+                          <Button variant="outline" size="sm">
+                            View Details
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -252,7 +268,10 @@ export function ClinicalProtocolsDashboard() {
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>CIWA (Clinical Institute Withdrawal Assessment)</CardTitle>
+                <div>
+                  <CardTitle>CIWA (Clinical Institute Withdrawal Assessment)</CardTitle>
+                  <CardDescription>Assess alcohol withdrawal severity</CardDescription>
+                </div>
                 <Dialog open={isNewCiwaOpen} onOpenChange={setIsNewCiwaOpen}>
                   <DialogTrigger asChild>
                     <Button>
@@ -260,45 +279,62 @@ export function ClinicalProtocolsDashboard() {
                       New CIWA Assessment
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-4xl">
+                  <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                       <DialogTitle>CIWA Assessment</DialogTitle>
                     </DialogHeader>
-                    <CIWAAssessmentForm onClose={() => setIsNewCiwaOpen(false)} />
+                    <CIWAAssessmentForm
+                      patients={patients}
+                      onClose={() => setIsNewCiwaOpen(false)}
+                      onSuccess={() => {
+                        setIsNewCiwaOpen(false)
+                        mutate()
+                      }}
+                    />
                   </DialogContent>
                 </Dialog>
               </div>
             </CardHeader>
 
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Patient</TableHead>
-                    <TableHead>Total Score</TableHead>
-                    <TableHead>Severity Level</TableHead>
-                    <TableHead>Assessment Date</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {ciwaAssessments.map((assessment) => (
-                    <TableRow key={assessment.id}>
-                      <TableCell className="font-medium">{assessment.patientName}</TableCell>
-                      <TableCell className="font-mono text-lg">{assessment.totalScore}</TableCell>
-                      <TableCell>
-                        <Badge className={getSeverityColor(assessment.severityLevel)}>{assessment.severityLevel}</Badge>
-                      </TableCell>
-                      <TableCell>{new Date(assessment.assessmentDate).toLocaleDateString()}</TableCell>
-                      <TableCell>
-                        <Button variant="outline" size="sm">
-                          View Details
-                        </Button>
-                      </TableCell>
+              {ciwaAssessments.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <AlertCircle className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No CIWA assessments recorded yet</p>
+                  <p className="text-sm">Click the button above to record a new assessment</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Patient</TableHead>
+                      <TableHead>Total Score</TableHead>
+                      <TableHead>Severity Level</TableHead>
+                      <TableHead>Assessment Date</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {ciwaAssessments.map((assessment: any) => (
+                      <TableRow key={assessment.id}>
+                        <TableCell className="font-medium">{assessment.patientName}</TableCell>
+                        <TableCell className="font-mono text-lg">{assessment.totalScore}</TableCell>
+                        <TableCell>
+                          <Badge className={getSeverityColor(assessment.severityLevel)}>
+                            {assessment.severityLevel}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{new Date(assessment.assessmentDate).toLocaleDateString()}</TableCell>
+                        <TableCell>
+                          <Button variant="outline" size="sm">
+                            View Details
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -307,7 +343,10 @@ export function ClinicalProtocolsDashboard() {
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>Vital Signs</CardTitle>
+                <div>
+                  <CardTitle>Vital Signs</CardTitle>
+                  <CardDescription>Track patient vital signs measurements</CardDescription>
+                </div>
                 <Dialog open={isNewVitalsOpen} onOpenChange={setIsNewVitalsOpen}>
                   <DialogTrigger asChild>
                     <Button>
@@ -319,45 +358,68 @@ export function ClinicalProtocolsDashboard() {
                     <DialogHeader>
                       <DialogTitle>Record Vital Signs</DialogTitle>
                     </DialogHeader>
-                    <VitalSignsForm onClose={() => setIsNewVitalsOpen(false)} />
+                    <VitalSignsForm
+                      patients={patients}
+                      onClose={() => setIsNewVitalsOpen(false)}
+                      onSuccess={() => {
+                        setIsNewVitalsOpen(false)
+                        mutate()
+                      }}
+                    />
                   </DialogContent>
                 </Dialog>
               </div>
             </CardHeader>
 
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Patient</TableHead>
-                    <TableHead>Blood Pressure</TableHead>
-                    <TableHead>Heart Rate</TableHead>
-                    <TableHead>Temperature</TableHead>
-                    <TableHead>O2 Sat</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {vitalSigns.map((vitals) => (
-                    <TableRow key={vitals.id}>
-                      <TableCell className="font-medium">{vitals.patientName}</TableCell>
-                      <TableCell className="font-mono">
-                        {vitals.systolicBp}/{vitals.diastolicBp}
-                      </TableCell>
-                      <TableCell className="font-mono">{vitals.heartRate} BPM</TableCell>
-                      <TableCell className="font-mono">{vitals.temperature}°F</TableCell>
-                      <TableCell className="font-mono">{vitals.oxygenSaturation}%</TableCell>
-                      <TableCell>{new Date(vitals.measurementDate).toLocaleDateString()}</TableCell>
-                      <TableCell>
-                        <Button variant="outline" size="sm">
-                          View Trends
-                        </Button>
-                      </TableCell>
+              {vitalSigns.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Heart className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No vital signs recorded yet</p>
+                  <p className="text-sm">Click the button above to record vitals</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Patient</TableHead>
+                      <TableHead>Blood Pressure</TableHead>
+                      <TableHead>Heart Rate</TableHead>
+                      <TableHead>Temperature</TableHead>
+                      <TableHead>O2 Sat</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {vitalSigns.map((vitals: any) => (
+                      <TableRow key={vitals.id}>
+                        <TableCell className="font-medium">{vitals.patientName}</TableCell>
+                        <TableCell className="font-mono">
+                          {vitals.systolicBp && vitals.diastolicBp
+                            ? `${vitals.systolicBp}/${vitals.diastolicBp}`
+                            : "--"}
+                        </TableCell>
+                        <TableCell className="font-mono">
+                          {vitals.heartRate ? `${vitals.heartRate} BPM` : "--"}
+                        </TableCell>
+                        <TableCell className="font-mono">
+                          {vitals.temperature ? `${vitals.temperature}°F` : "--"}
+                        </TableCell>
+                        <TableCell className="font-mono">
+                          {vitals.oxygenSaturation ? `${vitals.oxygenSaturation}%` : "--"}
+                        </TableCell>
+                        <TableCell>{new Date(vitals.measurementDate).toLocaleDateString()}</TableCell>
+                        <TableCell>
+                          <Button variant="outline" size="sm">
+                            View Trends
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -365,42 +427,160 @@ export function ClinicalProtocolsDashboard() {
         <TabsContent value="protocols">
           <Card>
             <CardHeader>
-              <CardTitle>Clinical Protocol Templates</CardTitle>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Clinical Protocol Templates</CardTitle>
+                  <CardDescription>
+                    Configure and manage clinical protocols for opioid withdrawal, alcohol withdrawal, and routine
+                    vitals
+                  </CardDescription>
+                </div>
+                <Dialog open={isNewProtocolOpen} onOpenChange={setIsNewProtocolOpen}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="h-4 w-4 mr-2" />
+                      New Protocol
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>Create New Protocol</DialogTitle>
+                    </DialogHeader>
+                    <ProtocolForm
+                      onClose={() => setIsNewProtocolOpen(false)}
+                      onSuccess={() => {
+                        setIsNewProtocolOpen(false)
+                        mutate()
+                      }}
+                    />
+                  </DialogContent>
+                </Dialog>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Opioid Withdrawal Protocol</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-gray-600 mb-4">
-                      COWS assessment every 4 hours with medication management
-                    </p>
-                    <Button size="sm">Configure</Button>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Alcohol Withdrawal Protocol</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-gray-600 mb-4">CIWA assessment every 2 hours with seizure precautions</p>
-                    <Button size="sm">Configure</Button>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Daily Vitals Protocol</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-gray-600 mb-4">Routine vital signs monitoring for all patients</p>
-                    <Button size="sm">Configure</Button>
-                  </CardContent>
-                </Card>
-              </div>
+              {protocols.length === 0 ? (
+                <div className="space-y-4">
+                  <p className="text-muted-foreground text-center py-4">
+                    No custom protocols configured. Use the default protocols below or create your own.
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <DefaultProtocolCard
+                      title="Opioid Withdrawal Protocol"
+                      description="COWS assessment every 4 hours with medication management based on severity score"
+                      category="opioid"
+                      onConfigure={() => setIsNewProtocolOpen(true)}
+                    />
+                    <DefaultProtocolCard
+                      title="Alcohol Withdrawal Protocol"
+                      description="CIWA assessment every 2 hours with seizure precautions and benzodiazepine taper"
+                      category="alcohol"
+                      onConfigure={() => setIsNewProtocolOpen(true)}
+                    />
+                    <DefaultProtocolCard
+                      title="Daily Vitals Protocol"
+                      description="Routine vital signs monitoring for all patients - BP, HR, Temp, O2 Sat, Weight"
+                      category="vitals"
+                      onConfigure={() => setIsNewProtocolOpen(true)}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {protocols.map((protocol: Protocol) => (
+                    <Card key={protocol.id} className={!protocol.is_active ? "opacity-60" : ""}>
+                      <CardHeader className="pb-2">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <CardTitle className="text-lg">{protocol.name}</CardTitle>
+                            <Badge variant="outline" className="mt-1">
+                              {protocol.category}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {protocol.is_active && <Badge className="bg-green-100 text-green-800">Active</Badge>}
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm text-muted-foreground mb-2">{protocol.description}</p>
+                        <p className="text-xs text-muted-foreground mb-4">
+                          Frequency: {protocol.frequency || "As needed"}
+                        </p>
+                        {protocol.protocol_steps && protocol.protocol_steps.length > 0 && (
+                          <div className="mb-4">
+                            <p className="text-xs font-medium mb-1">Protocol Steps:</p>
+                            <ul className="text-xs text-muted-foreground space-y-1">
+                              {protocol.protocol_steps.slice(0, 3).map((step, idx) => (
+                                <li key={idx} className="flex items-start gap-1">
+                                  <CheckCircle2 className="h-3 w-3 mt-0.5 text-green-500" />
+                                  <span>{step.action}</span>
+                                </li>
+                              ))}
+                              {protocol.protocol_steps.length > 3 && (
+                                <li className="text-muted-foreground">
+                                  +{protocol.protocol_steps.length - 3} more steps
+                                </li>
+                              )}
+                            </ul>
+                          </div>
+                        )}
+                        <div className="flex gap-2">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button size="sm" variant="outline" onClick={() => setEditingProtocol(protocol)}>
+                                <Edit className="h-3 w-3 mr-1" />
+                                Configure
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                              <DialogHeader>
+                                <DialogTitle>Edit Protocol: {protocol.name}</DialogTitle>
+                              </DialogHeader>
+                              <ProtocolForm
+                                protocol={protocol}
+                                onClose={() => setEditingProtocol(null)}
+                                onSuccess={() => {
+                                  setEditingProtocol(null)
+                                  mutate()
+                                }}
+                              />
+                            </DialogContent>
+                          </Dialog>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  {/* Add default protocol cards if less than 3 custom protocols */}
+                  {protocols.length < 3 && (
+                    <>
+                      {!protocols.some((p: Protocol) => p.category === "opioid") && (
+                        <DefaultProtocolCard
+                          title="Opioid Withdrawal Protocol"
+                          description="COWS assessment every 4 hours with medication management"
+                          category="opioid"
+                          onConfigure={() => setIsNewProtocolOpen(true)}
+                        />
+                      )}
+                      {!protocols.some((p: Protocol) => p.category === "alcohol") && (
+                        <DefaultProtocolCard
+                          title="Alcohol Withdrawal Protocol"
+                          description="CIWA assessment every 2 hours with seizure precautions"
+                          category="alcohol"
+                          onConfigure={() => setIsNewProtocolOpen(true)}
+                        />
+                      )}
+                      {!protocols.some((p: Protocol) => p.category === "vitals") && (
+                        <DefaultProtocolCard
+                          title="Daily Vitals Protocol"
+                          description="Routine vital signs monitoring for all patients"
+                          category="vitals"
+                          onConfigure={() => setIsNewProtocolOpen(true)}
+                        />
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -409,7 +589,232 @@ export function ClinicalProtocolsDashboard() {
   )
 }
 
-function COWSAssessmentForm({ onClose }: { onClose: () => void }) {
+function DefaultProtocolCard({
+  title,
+  description,
+  category,
+  onConfigure,
+}: {
+  title: string
+  description: string
+  category: string
+  onConfigure: () => void
+}) {
+  return (
+    <Card className="border-dashed">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-lg">{title}</CardTitle>
+        <Badge variant="outline" className="w-fit">
+          {category}
+        </Badge>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-muted-foreground mb-4">{description}</p>
+        <Button size="sm" onClick={onConfigure}>
+          <Settings className="h-4 w-4 mr-2" />
+          Configure
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+function ProtocolForm({
+  protocol,
+  onClose,
+  onSuccess,
+}: {
+  protocol?: Protocol
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const [formData, setFormData] = useState({
+    name: protocol?.name || "",
+    category: protocol?.category || "opioid",
+    description: protocol?.description || "",
+    frequency: protocol?.frequency || "Every 4 hours",
+    isActive: protocol?.is_active ?? true,
+    protocolSteps: protocol?.protocol_steps || [{ step: 1, action: "", timing: "" }],
+  })
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const addStep = () => {
+    setFormData({
+      ...formData,
+      protocolSteps: [...formData.protocolSteps, { step: formData.protocolSteps.length + 1, action: "", timing: "" }],
+    })
+  }
+
+  const removeStep = (index: number) => {
+    const newSteps = formData.protocolSteps.filter((_, i) => i !== index)
+    setFormData({
+      ...formData,
+      protocolSteps: newSteps.map((s, i) => ({ ...s, step: i + 1 })),
+    })
+  }
+
+  const updateStep = (index: number, field: string, value: string) => {
+    const newSteps = [...formData.protocolSteps]
+    newSteps[index] = { ...newSteps[index], [field]: value }
+    setFormData({ ...formData, protocolSteps: newSteps })
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+
+    try {
+      const method = protocol ? "PUT" : "POST"
+      const body = protocol ? { id: protocol.id, data: formData } : { type: "protocol", data: formData }
+
+      const res = await fetch("/api/clinical-protocols", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+
+      if (res.ok) {
+        onSuccess()
+      } else {
+        alert("Failed to save protocol")
+      }
+    } catch (error) {
+      console.error("Error saving protocol:", error)
+      alert("Error saving protocol")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="name">Protocol Name</Label>
+          <Input
+            id="name"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            placeholder="e.g., Opioid Withdrawal Management"
+            required
+          />
+        </div>
+        <div>
+          <Label htmlFor="category">Category</Label>
+          <Select value={formData.category} onValueChange={(value) => setFormData({ ...formData, category: value })}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="opioid">Opioid Withdrawal</SelectItem>
+              <SelectItem value="alcohol">Alcohol Withdrawal</SelectItem>
+              <SelectItem value="vitals">Vital Signs</SelectItem>
+              <SelectItem value="assessment">General Assessment</SelectItem>
+              <SelectItem value="medication">Medication Management</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div>
+        <Label htmlFor="description">Description</Label>
+        <Textarea
+          id="description"
+          value={formData.description}
+          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          placeholder="Describe the protocol purpose and when to use it..."
+          rows={2}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="frequency">Assessment Frequency</Label>
+          <Select value={formData.frequency} onValueChange={(value) => setFormData({ ...formData, frequency: value })}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Every 1 hour">Every 1 hour</SelectItem>
+              <SelectItem value="Every 2 hours">Every 2 hours</SelectItem>
+              <SelectItem value="Every 4 hours">Every 4 hours</SelectItem>
+              <SelectItem value="Every 6 hours">Every 6 hours</SelectItem>
+              <SelectItem value="Every 8 hours">Every 8 hours</SelectItem>
+              <SelectItem value="Every 12 hours">Every 12 hours</SelectItem>
+              <SelectItem value="Once daily">Once daily</SelectItem>
+              <SelectItem value="As needed">As needed (PRN)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex items-center space-x-2 pt-6">
+          <Switch
+            id="isActive"
+            checked={formData.isActive}
+            onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })}
+          />
+          <Label htmlFor="isActive">Protocol Active</Label>
+        </div>
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <Label>Protocol Steps</Label>
+          <Button type="button" variant="outline" size="sm" onClick={addStep}>
+            <Plus className="h-4 w-4 mr-1" />
+            Add Step
+          </Button>
+        </div>
+        {formData.protocolSteps.map((step, index) => (
+          <div key={index} className="flex gap-2 items-start p-3 border rounded-lg bg-muted/50">
+            <span className="text-sm font-medium text-muted-foreground pt-2 w-8">{step.step}.</span>
+            <div className="flex-1 space-y-2">
+              <Input
+                placeholder="Action (e.g., Perform COWS assessment)"
+                value={step.action}
+                onChange={(e) => updateStep(index, "action", e.target.value)}
+              />
+              <Input
+                placeholder="Timing/Trigger (e.g., If score >= 13)"
+                value={step.timing || ""}
+                onChange={(e) => updateStep(index, "timing", e.target.value)}
+              />
+            </div>
+            {formData.protocolSteps.length > 1 && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => removeStep(index)}
+                className="text-red-500 hover:text-red-700"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="flex justify-end space-x-2 pt-4 border-t">
+        <Button type="button" variant="outline" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? "Saving..." : protocol ? "Update Protocol" : "Create Protocol"}
+        </Button>
+      </div>
+    </form>
+  )
+}
+
+function COWSAssessmentForm({
+  patients,
+  onClose,
+  onSuccess,
+}: {
+  patients: Patient[]
+  onClose: () => void
+  onSuccess: () => void
+}) {
   const [formData, setFormData] = useState({
     patientId: "",
     restingPulseRate: 0,
@@ -425,22 +830,26 @@ function COWSAssessmentForm({ onClose }: { onClose: () => void }) {
     goosefleshSkin: 0,
     notes: "",
   })
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const cowsItems = [
-    { key: "restingPulseRate", label: "Resting Pulse Rate" },
-    { key: "sweating", label: "Sweating" },
-    { key: "restlessness", label: "Restlessness" },
-    { key: "pupilSize", label: "Pupil Size" },
-    { key: "boneJointAches", label: "Bone/Joint Aches" },
-    { key: "runnyNoseTearing", label: "Runny Nose/Tearing" },
-    { key: "giUpset", label: "GI Upset" },
-    { key: "tremor", label: "Tremor" },
-    { key: "yawning", label: "Yawning" },
-    { key: "anxietyIrritability", label: "Anxiety/Irritability" },
-    { key: "goosefleshSkin", label: "Gooseflesh Skin" },
+    { key: "restingPulseRate", label: "Resting Pulse Rate", description: "Pulse rate at rest" },
+    { key: "sweating", label: "Sweating", description: "Over past half hour" },
+    { key: "restlessness", label: "Restlessness", description: "Observation during assessment" },
+    { key: "pupilSize", label: "Pupil Size", description: "Compared to normal room light" },
+    { key: "boneJointAches", label: "Bone/Joint Aches", description: "If patient was having pain" },
+    { key: "runnyNoseTearing", label: "Runny Nose/Tearing", description: "Not accounted for by cold" },
+    { key: "giUpset", label: "GI Upset", description: "Over last half hour" },
+    { key: "tremor", label: "Tremor", description: "Observation of outstretched hands" },
+    { key: "yawning", label: "Yawning", description: "Observation during assessment" },
+    { key: "anxietyIrritability", label: "Anxiety/Irritability", description: "Current presentation" },
+    { key: "goosefleshSkin", label: "Gooseflesh Skin", description: "Observation" },
   ]
 
-  const totalScore = Object.values(formData).reduce((sum, val) => (typeof val === "number" ? sum + val : sum), 0)
+  const totalScore = Object.entries(formData).reduce(
+    (sum, [key, val]) => (typeof val === "number" && key !== "patientId" ? sum + val : sum),
+    0,
+  )
 
   const getSeverityLevel = (score: number) => {
     if (score <= 12) return "Mild"
@@ -449,10 +858,32 @@ function COWSAssessmentForm({ onClose }: { onClose: () => void }) {
     return "Severe"
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("COWS Assessment:", formData, "Total Score:", totalScore)
-    onClose()
+    if (!formData.patientId) {
+      alert("Please select a patient")
+      return
+    }
+    setIsSubmitting(true)
+
+    try {
+      const res = await fetch("/api/clinical-protocols", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "cows", data: formData }),
+      })
+
+      if (res.ok) {
+        onSuccess()
+      } else {
+        alert("Failed to save COWS assessment")
+      }
+    } catch (error) {
+      console.error("Error saving COWS:", error)
+      alert("Error saving assessment")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -464,9 +895,11 @@ function COWSAssessmentForm({ onClose }: { onClose: () => void }) {
             <SelectValue placeholder="Select patient" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="1">John Smith</SelectItem>
-            <SelectItem value="2">Sarah Johnson</SelectItem>
-            <SelectItem value="3">Mike Davis</SelectItem>
+            {patients.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.first_name} {p.last_name}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -474,9 +907,10 @@ function COWSAssessmentForm({ onClose }: { onClose: () => void }) {
       <div className="grid grid-cols-2 gap-4">
         {cowsItems.map((item) => (
           <div key={item.key}>
-            <Label>{item.label}</Label>
+            <Label className="text-sm">{item.label}</Label>
+            <p className="text-xs text-muted-foreground mb-1">{item.description}</p>
             <Select
-              value={formData[item.key as keyof typeof formData].toString()}
+              value={formData[item.key as keyof typeof formData]?.toString()}
               onValueChange={(value) => setFormData({ ...formData, [item.key]: Number.parseInt(value) })}
             >
               <SelectTrigger>
@@ -494,7 +928,7 @@ function COWSAssessmentForm({ onClose }: { onClose: () => void }) {
         ))}
       </div>
 
-      <div className="bg-gray-50 p-4 rounded-lg">
+      <div className="bg-muted p-4 rounded-lg">
         <div className="flex justify-between items-center">
           <span className="font-medium">Total COWS Score:</span>
           <span className="text-2xl font-bold">{totalScore}</span>
@@ -532,13 +966,23 @@ function COWSAssessmentForm({ onClose }: { onClose: () => void }) {
         <Button type="button" variant="outline" onClick={onClose}>
           Cancel
         </Button>
-        <Button type="submit">Save Assessment</Button>
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? "Saving..." : "Save Assessment"}
+        </Button>
       </div>
     </form>
   )
 }
 
-function CIWAAssessmentForm({ onClose }: { onClose: () => void }) {
+function CIWAAssessmentForm({
+  patients,
+  onClose,
+  onSuccess,
+}: {
+  patients: Patient[]
+  onClose: () => void
+  onSuccess: () => void
+}) {
   const [formData, setFormData] = useState({
     patientId: "",
     nauseaVomiting: 0,
@@ -553,6 +997,7 @@ function CIWAAssessmentForm({ onClose }: { onClose: () => void }) {
     orientation: 0,
     notes: "",
   })
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const ciwaItems = [
     { key: "nauseaVomiting", label: "Nausea/Vomiting", max: 7 },
@@ -567,7 +1012,10 @@ function CIWAAssessmentForm({ onClose }: { onClose: () => void }) {
     { key: "orientation", label: "Orientation", max: 4 },
   ]
 
-  const totalScore = Object.values(formData).reduce((sum, val) => (typeof val === "number" ? sum + val : sum), 0)
+  const totalScore = Object.entries(formData).reduce(
+    (sum, [key, val]) => (typeof val === "number" && key !== "patientId" ? sum + val : sum),
+    0,
+  )
 
   const getSeverityLevel = (score: number) => {
     if (score <= 9) return "Minimal"
@@ -575,10 +1023,32 @@ function CIWAAssessmentForm({ onClose }: { onClose: () => void }) {
     return "Severe"
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("CIWA Assessment:", formData, "Total Score:", totalScore)
-    onClose()
+    if (!formData.patientId) {
+      alert("Please select a patient")
+      return
+    }
+    setIsSubmitting(true)
+
+    try {
+      const res = await fetch("/api/clinical-protocols", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "ciwa", data: formData }),
+      })
+
+      if (res.ok) {
+        onSuccess()
+      } else {
+        alert("Failed to save CIWA assessment")
+      }
+    } catch (error) {
+      console.error("Error saving CIWA:", error)
+      alert("Error saving assessment")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -590,9 +1060,11 @@ function CIWAAssessmentForm({ onClose }: { onClose: () => void }) {
             <SelectValue placeholder="Select patient" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="1">John Smith</SelectItem>
-            <SelectItem value="2">Sarah Johnson</SelectItem>
-            <SelectItem value="3">Mike Davis</SelectItem>
+            {patients.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.first_name} {p.last_name}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -602,7 +1074,7 @@ function CIWAAssessmentForm({ onClose }: { onClose: () => void }) {
           <div key={item.key}>
             <Label>{item.label}</Label>
             <Select
-              value={formData[item.key as keyof typeof formData].toString()}
+              value={formData[item.key as keyof typeof formData]?.toString()}
               onValueChange={(value) => setFormData({ ...formData, [item.key]: Number.parseInt(value) })}
             >
               <SelectTrigger>
@@ -620,7 +1092,7 @@ function CIWAAssessmentForm({ onClose }: { onClose: () => void }) {
         ))}
       </div>
 
-      <div className="bg-gray-50 p-4 rounded-lg">
+      <div className="bg-muted p-4 rounded-lg">
         <div className="flex justify-between items-center">
           <span className="font-medium">Total CIWA Score:</span>
           <span className="text-2xl font-bold">{totalScore}</span>
@@ -656,13 +1128,23 @@ function CIWAAssessmentForm({ onClose }: { onClose: () => void }) {
         <Button type="button" variant="outline" onClick={onClose}>
           Cancel
         </Button>
-        <Button type="submit">Save Assessment</Button>
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? "Saving..." : "Save Assessment"}
+        </Button>
       </div>
     </form>
   )
 }
 
-function VitalSignsForm({ onClose }: { onClose: () => void }) {
+function VitalSignsForm({
+  patients,
+  onClose,
+  onSuccess,
+}: {
+  patients: Patient[]
+  onClose: () => void
+  onSuccess: () => void
+}) {
   const [formData, setFormData] = useState({
     patientId: "",
     systolicBp: "",
@@ -675,11 +1157,34 @@ function VitalSignsForm({ onClose }: { onClose: () => void }) {
     painScale: "",
     notes: "",
   })
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("Vital Signs:", formData)
-    onClose()
+    if (!formData.patientId) {
+      alert("Please select a patient")
+      return
+    }
+    setIsSubmitting(true)
+
+    try {
+      const res = await fetch("/api/clinical-protocols", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "vitals", data: formData }),
+      })
+
+      if (res.ok) {
+        onSuccess()
+      } else {
+        alert("Failed to save vital signs")
+      }
+    } catch (error) {
+      console.error("Error saving vitals:", error)
+      alert("Error saving vital signs")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -691,9 +1196,11 @@ function VitalSignsForm({ onClose }: { onClose: () => void }) {
             <SelectValue placeholder="Select patient" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="1">John Smith</SelectItem>
-            <SelectItem value="2">Sarah Johnson</SelectItem>
-            <SelectItem value="3">Mike Davis</SelectItem>
+            {patients.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.first_name} {p.last_name}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -811,7 +1318,9 @@ function VitalSignsForm({ onClose }: { onClose: () => void }) {
         <Button type="button" variant="outline" onClick={onClose}>
           Cancel
         </Button>
-        <Button type="submit">Save Vitals</Button>
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? "Saving..." : "Save Vitals"}
+        </Button>
       </div>
     </form>
   )

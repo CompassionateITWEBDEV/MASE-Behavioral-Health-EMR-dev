@@ -2,86 +2,140 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Progress } from "@/components/ui/progress"
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  LineChart,
-  Line,
-} from "recharts"
-import { Download, TrendingUp } from "lucide-react"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
+import { Download, TrendingUp, AlertTriangle } from "lucide-react"
 
-const completionData = [
-  { category: "Health Screening", completion: 95, total: 247 },
-  { category: "Treatment Consent", completion: 92, total: 247 },
-  { category: "Program Policies", completion: 88, total: 247 },
-  { category: "Testing Procedures", completion: 90, total: 247 },
-  { category: "Medication Mgmt", completion: 81, total: 247 },
-  { category: "Privacy & Info", completion: 85, total: 247 },
-  { category: "Media Release", completion: 64, total: 247 },
-  { category: "Assessment", completion: 90, total: 247 },
-  { category: "Patient Rights", completion: 88, total: 247 },
-  { category: "Telemedicine", completion: 72, total: 247 },
-]
+interface ConsentReportsProps {
+  data: {
+    categoryCompletion: Array<{
+      category: string
+      completion: number
+      total: number
+    }>
+    statusDistribution: Array<{
+      name: string
+      value: number
+      color: string
+    }>
+    metrics: {
+      overallCompletionRate: number
+      totalForms: number
+      pendingSignatures: number
+      completedToday: number
+    }
+  } | null
+  isLoading: boolean
+  error: Error | null
+}
 
-const statusData = [
-  { name: "Completed", value: 1847, color: "#22c55e" },
-  { name: "Pending", value: 234, color: "#f59e0b" },
-  { name: "Overdue", value: 89, color: "#ef4444" },
-  { name: "Expired", value: 23, color: "#6b7280" },
-]
+export function ConsentReports({ data, isLoading, error }: ConsentReportsProps) {
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-12">
+          <AlertTriangle className="h-12 w-12 text-red-500 mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Error Loading Reports</h3>
+          <p className="text-muted-foreground text-center">Failed to load report data. Please try again.</p>
+        </CardContent>
+      </Card>
+    )
+  }
 
-const trendData = [
-  { month: "Jul", completed: 156, pending: 45 },
-  { month: "Aug", completed: 189, pending: 38 },
-  { month: "Sep", completed: 234, pending: 42 },
-  { month: "Oct", completed: 267, pending: 35 },
-  { month: "Nov", completed: 298, pending: 29 },
-  { month: "Dec", completed: 321, pending: 31 },
-  { month: "Jan", completed: 342, pending: 28 },
-]
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-64 mt-2" />
+          </div>
+          <div className="flex items-center space-x-2">
+            <Skeleton className="h-10 w-40" />
+            <Skeleton className="h-10 w-32" />
+          </div>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i}>
+              <CardHeader>
+                <Skeleton className="h-4 w-24" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-16" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <div className="grid gap-6 lg:grid-cols-2">
+          {[1, 2].map((i) => (
+            <Card key={i}>
+              <CardHeader>
+                <Skeleton className="h-6 w-48" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-[300px] w-full" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
-const complianceMetrics = [
-  {
-    metric: "Overall Completion Rate",
-    value: "87.2%",
-    change: "+2.3%",
-    trend: "up",
-    description: "Average completion across all forms",
-  },
-  {
-    metric: "Required Forms Compliance",
-    value: "94.1%",
-    change: "+1.8%",
-    trend: "up",
-    description: "Completion rate for mandatory forms",
-  },
-  {
-    metric: "Average Time to Complete",
-    value: "3.2 days",
-    change: "-0.5 days",
-    trend: "up",
-    description: "From assignment to signature",
-  },
-  {
-    metric: "Forms Expiring This Month",
-    value: "23",
-    change: "-12",
-    trend: "up",
-    description: "Requiring renewal or update",
-  },
-]
+  const categoryCompletion = data?.categoryCompletion || []
+  const statusDistribution = data?.statusDistribution || []
+  const metrics = data?.metrics || { overallCompletionRate: 0, totalForms: 0, pendingSignatures: 0, completedToday: 0 }
 
-export function ConsentReports() {
+  const complianceMetrics = [
+    {
+      metric: "Overall Completion Rate",
+      value: `${metrics.overallCompletionRate}%`,
+      change: "+0%",
+      trend: "up" as const,
+      description: "Average completion across all forms",
+    },
+    {
+      metric: "Total Forms",
+      value: metrics.totalForms.toString(),
+      change: "0",
+      trend: "up" as const,
+      description: "Active form templates",
+    },
+    {
+      metric: "Pending Signatures",
+      value: metrics.pendingSignatures.toString(),
+      change: "0",
+      trend: "up" as const,
+      description: "Awaiting patient action",
+    },
+    {
+      metric: "Completed Forms",
+      value: metrics.completedToday.toString(),
+      change: "0",
+      trend: "up" as const,
+      description: "Total completed",
+    },
+  ]
+
+  const handleExportReport = () => {
+    const reportData = {
+      generatedAt: new Date().toISOString(),
+      metrics,
+      categoryCompletion,
+      statusDistribution,
+    }
+    const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: "application/json" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `consent-forms-report-${new Date().toISOString().split("T")[0]}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -101,7 +155,7 @@ export function ConsentReports() {
               <SelectItem value="1year">Last year</SelectItem>
             </SelectContent>
           </Select>
-          <Button>
+          <Button onClick={handleExportReport}>
             <Download className="mr-2 h-4 w-4" />
             Export Report
           </Button>
@@ -113,18 +167,11 @@ export function ConsentReports() {
           <Card key={metric.metric}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">{metric.metric}</CardTitle>
-              {metric.trend === "up" ? (
-                <TrendingUp className="h-4 w-4 text-green-600" />
-              ) : (
-                <TrendingUp className="h-4 w-4 text-red-600 rotate-180" />
-              )}
+              <TrendingUp className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{metric.value}</div>
-              <p className="text-xs text-muted-foreground">
-                <span className={metric.trend === "up" ? "text-green-600" : "text-red-600"}>{metric.change}</span>{" "}
-                {metric.description}
-              </p>
+              <p className="text-xs text-muted-foreground">{metric.description}</p>
             </CardContent>
           </Card>
         ))}
@@ -137,15 +184,21 @@ export function ConsentReports() {
             <CardDescription>Form completion percentages across different categories</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={completionData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="category" angle={-45} textAnchor="end" height={80} />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="completion" fill="#3b82f6" />
-              </BarChart>
-            </ResponsiveContainer>
+            {categoryCompletion.length === 0 ? (
+              <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                No category data available
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={categoryCompletion}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="category" angle={-45} textAnchor="end" height={80} fontSize={12} />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="completion" fill="#3b82f6" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
 
@@ -155,45 +208,34 @@ export function ConsentReports() {
             <CardDescription>Current status of all consent forms</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={statusData}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={80}
-                  dataKey="value"
-                  label={({ name, value }) => `${name}: ${value}`}
-                >
-                  {statusData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+            {statusDistribution.length === 0 || statusDistribution.every((s) => s.value === 0) ? (
+              <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                No status data available
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={statusDistribution.filter((s) => s.value > 0)}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    dataKey="value"
+                    label={({ name, value }) => `${name}: ${value}`}
+                  >
+                    {statusDistribution
+                      .filter((s) => s.value > 0)
+                      .map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </CardContent>
         </Card>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Completion Trends</CardTitle>
-          <CardDescription>Monthly trends in form completion and pending forms</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={trendData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
-              <Line type="monotone" dataKey="completed" stroke="#22c55e" strokeWidth={2} />
-              <Line type="monotone" dataKey="pending" stroke="#f59e0b" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
 
       <Card>
         <CardHeader>
@@ -201,25 +243,29 @@ export function ConsentReports() {
           <CardDescription>In-depth analysis of form completion by category</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {completionData.map((category) => (
-              <div key={category.category} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="space-y-1">
-                  <div className="font-medium">{category.category}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {Math.round((category.completion / 100) * category.total)} of {category.total} patients completed
+          {categoryCompletion.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">No category data available</div>
+          ) : (
+            <div className="space-y-4">
+              {categoryCompletion.map((category) => (
+                <div key={category.category} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div className="space-y-1">
+                    <div className="font-medium">{category.category}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {Math.round((category.completion / 100) * category.total)} of {category.total} patients completed
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    <Progress value={category.completion} className="w-32" />
+                    <div className="text-right">
+                      <div className="font-medium">{category.completion}%</div>
+                      <div className="text-sm text-muted-foreground">completion</div>
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center space-x-4">
-                  <Progress value={category.completion} className="w-32" />
-                  <div className="text-right">
-                    <div className="font-medium">{category.completion}%</div>
-                    <div className="text-sm text-muted-foreground">completion</div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

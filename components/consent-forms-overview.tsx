@@ -4,85 +4,104 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
+import { Skeleton } from "@/components/ui/skeleton"
 import { FileSignature, AlertTriangle, Eye, Edit, Users, TrendingUp } from "lucide-react"
 
-const consentFormCategories = [
-  {
-    category: "Health Screening",
-    forms: [{ name: "COVID-19 Patient Screening Form", required: true, completion: 95 }],
-  },
-  {
-    category: "Program Policies",
-    forms: [
-      { name: "Take Home Policy", required: true, completion: 88 },
-      { name: "Program Description", required: true, completion: 92 },
-      { name: "Program Rules and Expectations", required: true, completion: 85 },
-      { name: "Drug and Alcohol Use Policy", required: true, completion: 90 },
-    ],
-  },
-  {
-    category: "Treatment Consent",
-    forms: [
-      { name: "Consent for Treatment", required: true, completion: 98 },
-      { name: "Safety Contract", required: true, completion: 87 },
-      { name: "Patient Orientation Checklist", required: true, completion: 93 },
-    ],
-  },
-  {
-    category: "Testing Procedures",
-    forms: [
-      { name: "Random Drug Testing", required: true, completion: 91 },
-      { name: "Urine Drug Screen Policy", required: true, completion: 89 },
-    ],
-  },
-  {
-    category: "Medication Management",
-    forms: [
-      { name: "Locked Boxes for Take-Outs Policy/Agreement Certification", required: true, completion: 84 },
-      { name: "Medication Destruction", required: true, completion: 78 },
-    ],
-  },
-  {
-    category: "Privacy & Information",
-    forms: [
-      { name: "Release of Information", required: false, completion: 65 },
-      { name: "Confidentiality, HIPAA, and Privacy Practice Notice", required: true, completion: 96 },
-    ],
-  },
-  {
-    category: "Media Release",
-    forms: [
-      { name: "Video Testimonial Release Form", required: false, completion: 45 },
-      { name: "Consent for Camera Surveillance & Therapeutic Photograph", required: true, completion: 82 },
-    ],
-  },
-  {
-    category: "Assessment",
-    forms: [
-      { name: "Pre-Admission Assessment", required: true, completion: 94 },
-      { name: "Universal Infection Control and HIV Assessment", required: true, completion: 86 },
-    ],
-  },
-  {
-    category: "Patient Rights",
-    forms: [{ name: "Client Grievance and Complaint Process", required: true, completion: 88 }],
-  },
-  {
-    category: "Telemedicine",
-    forms: [{ name: "Informed Consent for Telemedicine Services", required: false, completion: 72 }],
-  },
-]
+interface ConsentFormsOverviewProps {
+  data: {
+    categorizedForms: Record<
+      string,
+      Array<{
+        id: number
+        name: string
+        required: boolean
+        completion: number
+      }>
+    >
+    metrics: {
+      totalForms: number
+      totalPatients: number
+      overallCompletionRate: number
+    }
+  } | null
+  isLoading: boolean
+  error: Error | null
+}
 
-export function ConsentFormsOverview() {
-  const totalForms = consentFormCategories.reduce((acc, cat) => acc + cat.forms.length, 0)
-  const requiredForms = consentFormCategories.reduce(
-    (acc, cat) => acc + cat.forms.filter((form) => form.required).length,
+export function ConsentFormsOverview({ data, isLoading, error }: ConsentFormsOverviewProps) {
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-12">
+          <AlertTriangle className="h-12 w-12 text-red-500 mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Error Loading Data</h3>
+          <p className="text-muted-foreground text-center">Failed to load consent forms data. Please try again.</p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="grid gap-4 md:grid-cols-3">
+          {[1, 2, 3].map((i) => (
+            <Card key={i}>
+              <CardHeader>
+                <Skeleton className="h-4 w-24" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-16 mb-2" />
+                <Skeleton className="h-2 w-full" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        {[1, 2, 3].map((i) => (
+          <Card key={i}>
+            <CardHeader>
+              <Skeleton className="h-6 w-32" />
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {[1, 2].map((j) => (
+                  <Skeleton key={j} className="h-16 w-full" />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    )
+  }
+
+  const categorizedForms = data?.categorizedForms || {}
+  const metrics = data?.metrics || { totalForms: 0, totalPatients: 0, overallCompletionRate: 0 }
+
+  const totalForms = Object.values(categorizedForms).reduce((acc, forms) => acc + forms.length, 0)
+  const requiredForms = Object.values(categorizedForms).reduce(
+    (acc, forms) => acc + forms.filter((form) => form.required).length,
     0,
   )
-  const averageCompletion = Math.round(
-    consentFormCategories.reduce((acc, cat) => acc + cat.forms.reduce((sum, form) => sum + form.completion, 0), 0) /
-      totalForms,
-  )
+
+  // Handle empty state
+  if (totalForms === 0) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-12">
+          <FileSignature className="h-12 w-12 text-muted-foreground mb-4" />
+          <h3 className="text-lg font-semibold mb-2">No Form Templates Found</h3>
+          <p className="text-muted-foreground text-center mb-4">
+            Create your first consent form template to get started.
+          </p>
+          <Button>
+            <FileSignature className="mr-2 h-4 w-4" />
+            Create Template
+          </Button>
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -93,8 +112,8 @@ export function ConsentFormsOverview() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{averageCompletion}%</div>
-            <Progress value={averageCompletion} className="mt-2" />
+            <div className="text-2xl font-bold">{metrics.overallCompletionRate}%</div>
+            <Progress value={metrics.overallCompletionRate} className="mt-2" />
             <p className="text-xs text-muted-foreground mt-2">Average across all forms</p>
           </CardContent>
         </Card>
@@ -114,25 +133,25 @@ export function ConsentFormsOverview() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">247</div>
+            <div className="text-2xl font-bold">{metrics.totalPatients}</div>
             <p className="text-xs text-muted-foreground">Requiring consent tracking</p>
           </CardContent>
         </Card>
       </div>
 
       <div className="space-y-4">
-        {consentFormCategories.map((category) => (
-          <Card key={category.category}>
+        {Object.entries(categorizedForms).map(([category, forms]) => (
+          <Card key={category}>
             <CardHeader>
-              <CardTitle className="text-lg">{category.category}</CardTitle>
+              <CardTitle className="text-lg">{category}</CardTitle>
               <CardDescription>
-                {category.forms.length} form{category.forms.length !== 1 ? "s" : ""} in this category
+                {forms.length} form{forms.length !== 1 ? "s" : ""} in this category
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {category.forms.map((form) => (
-                  <div key={form.name} className="flex items-center justify-between p-3 border rounded-lg">
+                {forms.map((form) => (
+                  <div key={form.id} className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="flex items-center space-x-3">
                       <FileSignature className="h-5 w-5 text-muted-foreground" />
                       <div>

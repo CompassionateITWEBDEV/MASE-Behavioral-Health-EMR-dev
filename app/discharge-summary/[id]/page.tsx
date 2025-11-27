@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useEffect, useState, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardSidebar } from "@/components/dashboard-sidebar"
@@ -25,17 +25,12 @@ import {
 import { toast } from "sonner"
 import Link from "next/link"
 
-export default function ViewDischargeSummaryPage() {
-  const params = useParams()
+export default function DischargeSummaryDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const [summary, setSummary] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  useEffect(() => {
-    loadSummary()
-  }, [params.id])
-
-  const loadSummary = async () => {
+  const loadSummary = useCallback(async () => {
     try {
       const supabase = createClient()
 
@@ -49,18 +44,13 @@ export default function ViewDischargeSummaryPage() {
             first_name,
             last_name,
             date_of_birth,
-            phone,
-            email
+            patient_number
           ),
           providers!discharge_summaries_provider_id_fkey(
             id,
             first_name,
-            last_name
-          ),
-          finalized_by_provider:providers!discharge_summaries_finalized_by_fkey(
-            id,
-            first_name,
-            last_name
+            last_name,
+            specialty
           )
         `,
         )
@@ -68,24 +58,17 @@ export default function ViewDischargeSummaryPage() {
         .single()
 
       if (error) throw error
-
-      const transformedSummary = {
-        ...data,
-        patient_name: `${data.patients.first_name} ${data.patients.last_name}`,
-        provider_name: `${data.providers.first_name} ${data.providers.last_name}`,
-        finalized_by_name: data.finalized_by_provider
-          ? `${data.finalized_by_provider.first_name} ${data.finalized_by_provider.last_name}`
-          : null,
-      }
-
-      setSummary(transformedSummary)
+      setSummary(data)
     } catch (error) {
       console.error("Error loading discharge summary:", error)
-      toast.error("Failed to load discharge summary")
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [params.id])
+
+  useEffect(() => {
+    loadSummary()
+  }, [loadSummary])
 
   const handlePrint = () => {
     window.print()
@@ -180,7 +163,8 @@ export default function ViewDischargeSummaryPage() {
                   Discharge Summary
                 </h1>
                 <p className="text-muted-foreground">
-                  Patient: {summary.patient_name} • Provider: {summary.provider_name}
+                  Patient: {summary.patients.first_name} {summary.patients.last_name} • Provider:{" "}
+                  {summary.providers.first_name} {summary.providers.last_name}
                 </p>
               </div>
               <Badge variant={summary.status === "finalized" ? "default" : "secondary"}>{summary.status}</Badge>
@@ -209,7 +193,8 @@ export default function ViewDischargeSummaryPage() {
           <div className="hidden print:block mb-6">
             <h1 className="text-2xl font-bold">Discharge Summary</h1>
             <p className="text-sm text-muted-foreground">
-              Patient: {summary.patient_name} • Provider: {summary.provider_name}
+              Patient: {summary.patients.first_name} {summary.patients.last_name} • Provider:{" "}
+              {summary.providers.first_name} {summary.providers.last_name}
             </p>
             <p className="text-sm text-muted-foreground">Generated: {new Date().toLocaleString()}</p>
           </div>
@@ -540,7 +525,8 @@ export default function ViewDischargeSummaryPage() {
                     <p className="text-sm font-medium text-muted-foreground">Finalized</p>
                     <p className="text-sm">
                       {formatDateTime(summary.finalized_at)}
-                      {summary.finalized_by_name && ` by ${summary.finalized_by_name}`}
+                      {summary.finalized_by_provider &&
+                        ` by ${summary.finalized_by_provider.first_name} ${summary.finalized_by_provider.last_name}`}
                     </p>
                   </div>
                 )}

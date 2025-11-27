@@ -235,7 +235,7 @@ export function AppointmentList({
       <TabsContent value="today">
         <Card>
           <CardHeader>
-            <CardTitle>Today's Appointments</CardTitle>
+            <CardTitle>{"Today's Appointments"}</CardTitle>
             <CardDescription>
               {new Date(selectedDate).toLocaleDateString("en-US", {
                 weekday: "long",

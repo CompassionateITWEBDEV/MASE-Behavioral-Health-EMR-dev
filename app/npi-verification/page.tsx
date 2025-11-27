@@ -2,22 +2,37 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Shield, UserCheck, FileCheck, AlertTriangle } from "lucide-react"
+import { Shield, UserCheck, FileCheck, AlertTriangle, RefreshCw } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
+import { DashboardSidebar } from "@/components/dashboard-sidebar"
 import { NPIVerificationDashboard } from "@/components/npi-verification-dashboard"
 import { LicenseVerificationDashboard } from "@/components/license-verification-dashboard"
 import { ProviderCredentialManagement } from "@/components/provider-credential-management"
+import useSWR from "swr"
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
 export default function NPIVerificationPage() {
+  const { data, error, isLoading, mutate } = useSWR("/api/provider-verification", fetcher)
+
   return (
     <div className="min-h-screen bg-background">
-      <div className="flex">
-        <main className="flex-1 ml-64 p-8">
+      <DashboardSidebar />
+      <div className="lg:pl-64">
+        <main className="p-8">
           <div className="space-y-6">
-            <div>
-              <h1 className="text-3xl font-bold">Provider Verification & Licensing</h1>
-              <p className="text-muted-foreground">
-                NPI verification, license tracking, and provider credential management
-              </p>
+            <div className="flex justify-between items-center">
+              <div>
+                <h1 className="text-3xl font-bold">Provider Verification & Licensing</h1>
+                <p className="text-muted-foreground">
+                  NPI verification, license tracking, and provider credential management
+                </p>
+              </div>
+              <Button variant="outline" onClick={() => mutate()} disabled={isLoading}>
+                <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
             </div>
 
             {/* Key Metrics */}
@@ -28,10 +43,16 @@ export default function NPIVerificationPage() {
                   <UserCheck className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">24</div>
-                  <p className="text-xs text-muted-foreground">
-                    <span className="text-green-600">100%</span> verified
-                  </p>
+                  {isLoading ? (
+                    <Skeleton className="h-8 w-16" />
+                  ) : (
+                    <>
+                      <div className="text-2xl font-bold">{data?.metrics?.activeProviders || 0}</div>
+                      <p className="text-xs text-muted-foreground">
+                        <span className="text-green-600">100%</span> in system
+                      </p>
+                    </>
+                  )}
                 </CardContent>
               </Card>
 
@@ -41,10 +62,16 @@ export default function NPIVerificationPage() {
                   <Shield className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">22</div>
-                  <p className="text-xs text-muted-foreground">
-                    <span className="text-yellow-600">2</span> pending
-                  </p>
+                  {isLoading ? (
+                    <Skeleton className="h-8 w-16" />
+                  ) : (
+                    <>
+                      <div className="text-2xl font-bold">{data?.metrics?.verifiedNPI || 0}</div>
+                      <p className="text-xs text-muted-foreground">
+                        <span className="text-yellow-600">{data?.metrics?.pendingNPI || 0}</span> pending
+                      </p>
+                    </>
+                  )}
                 </CardContent>
               </Card>
 
@@ -54,8 +81,14 @@ export default function NPIVerificationPage() {
                   <AlertTriangle className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">3</div>
-                  <p className="text-xs text-muted-foreground">Next 90 days</p>
+                  {isLoading ? (
+                    <Skeleton className="h-8 w-16" />
+                  ) : (
+                    <>
+                      <div className="text-2xl font-bold">{data?.metrics?.expiringLicenses || 0}</div>
+                      <p className="text-xs text-muted-foreground">Next 90 days</p>
+                    </>
+                  )}
                 </CardContent>
               </Card>
 
@@ -65,10 +98,18 @@ export default function NPIVerificationPage() {
                   <FileCheck className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">98%</div>
-                  <p className="text-xs text-muted-foreground">
-                    <span className="text-green-600">Excellent</span>
-                  </p>
+                  {isLoading ? (
+                    <Skeleton className="h-8 w-16" />
+                  ) : (
+                    <>
+                      <div className="text-2xl font-bold">{data?.metrics?.complianceScore || 0}%</div>
+                      <p className="text-xs text-muted-foreground">
+                        <span className={data?.metrics?.complianceScore >= 90 ? "text-green-600" : "text-yellow-600"}>
+                          {data?.metrics?.complianceScore >= 90 ? "Excellent" : "Needs Attention"}
+                        </span>
+                      </p>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -91,15 +132,31 @@ export default function NPIVerificationPage() {
               </TabsList>
 
               <TabsContent value="npi-verification">
-                <NPIVerificationDashboard />
+                <NPIVerificationDashboard
+                  npiRecords={data?.npiRecords || []}
+                  providers={data?.providers || []}
+                  isLoading={isLoading}
+                  onRefresh={mutate}
+                />
               </TabsContent>
 
               <TabsContent value="license-tracking">
-                <LicenseVerificationDashboard />
+                <LicenseVerificationDashboard
+                  licenses={data?.licenses || []}
+                  providers={data?.providers || []}
+                  isLoading={isLoading}
+                  onRefresh={mutate}
+                />
               </TabsContent>
 
               <TabsContent value="credential-management">
-                <ProviderCredentialManagement />
+                <ProviderCredentialManagement
+                  licenses={data?.licenses || []}
+                  npiRecords={data?.npiRecords || []}
+                  providers={data?.providers || []}
+                  isLoading={isLoading}
+                  onRefresh={mutate}
+                />
               </TabsContent>
             </Tabs>
           </div>

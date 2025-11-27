@@ -9,74 +9,34 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { Building2, Plus, Edit, Trash2, Phone, Mail, MapPin, Search } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Building2, Plus, Edit, Trash2, Phone, Mail, MapPin, Search, Loader2 } from "lucide-react"
+import useSWR from "swr"
 
 interface InsurancePayer {
   id: string
-  payerName: string
-  payerId: string
-  contactName?: string
-  contactPhone?: string
-  contactEmail?: string
-  billingAddress?: string
-  electronicPayerId?: string
-  claimSubmissionMethod: string
-  priorAuthRequired: boolean
-  networkType: string
-  isActive: boolean
+  payer_name: string
+  payer_id: string
+  contact_name?: string
+  contact_phone?: string
+  contact_email?: string
+  billing_address?: string
+  electronic_payer_id?: string
+  claim_submission_method: string
+  prior_auth_required: boolean
+  network_type: string
+  is_active: boolean
 }
 
-const mockPayers: InsurancePayer[] = [
-  {
-    id: "1",
-    payerName: "Blue Cross Blue Shield",
-    payerId: "BCBS001",
-    contactName: "Provider Relations",
-    contactPhone: "(800) 555-0001",
-    contactEmail: "provider@bcbs.com",
-    billingAddress: "123 Insurance Way, Detroit, MI 48201",
-    electronicPayerId: "BCBS",
-    claimSubmissionMethod: "electronic",
-    priorAuthRequired: true,
-    networkType: "in-network",
-    isActive: true,
-  },
-  {
-    id: "2",
-    payerName: "Aetna",
-    payerId: "AETNA001",
-    contactName: "Provider Services",
-    contactPhone: "(800) 555-0002",
-    contactEmail: "provider@aetna.com",
-    billingAddress: "456 Healthcare Blvd, Grand Rapids, MI 49503",
-    electronicPayerId: "AETNA",
-    claimSubmissionMethod: "electronic",
-    priorAuthRequired: false,
-    networkType: "in-network",
-    isActive: true,
-  },
-  {
-    id: "3",
-    payerName: "UnitedHealthcare",
-    payerId: "UHC001",
-    contactName: "Provider Network",
-    contactPhone: "(800) 555-0003",
-    contactEmail: "provider@uhc.com",
-    billingAddress: "789 Medical Center Dr, Ann Arbor, MI 48104",
-    electronicPayerId: "UHC",
-    claimSubmissionMethod: "electronic",
-    priorAuthRequired: true,
-    networkType: "in-network",
-    isActive: true,
-  },
-]
+const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
 export function InsurancePayerManagement() {
-  const [payers, setPayers] = useState<InsurancePayer[]>(mockPayers)
+  const { data, error, isLoading, mutate } = useSWR("/api/insurance?type=payers", fetcher)
   const [searchTerm, setSearchTerm] = useState("")
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingPayer, setEditingPayer] = useState<InsurancePayer | null>(null)
-  const [newPayer, setNewPayer] = useState<Partial<InsurancePayer>>({
+  const [isSaving, setIsSaving] = useState(false)
+  const [newPayer, setNewPayer] = useState({
     payerName: "",
     payerId: "",
     contactName: "",
@@ -90,56 +50,73 @@ export function InsurancePayerManagement() {
     isActive: true,
   })
 
+  const payers: InsurancePayer[] = data?.payers || []
   const filteredPayers = payers.filter(
     (payer) =>
-      payer.payerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      payer.payerId.toLowerCase().includes(searchTerm.toLowerCase()),
+      payer.payer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      payer.payer_id.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
-  const handleAddPayer = () => {
-    const payer: InsurancePayer = {
-      id: Date.now().toString(),
-      payerName: newPayer.payerName || "",
-      payerId: newPayer.payerId || "",
-      contactName: newPayer.contactName,
-      contactPhone: newPayer.contactPhone,
-      contactEmail: newPayer.contactEmail,
-      billingAddress: newPayer.billingAddress,
-      electronicPayerId: newPayer.electronicPayerId,
-      claimSubmissionMethod: newPayer.claimSubmissionMethod || "electronic",
-      priorAuthRequired: newPayer.priorAuthRequired || false,
-      networkType: newPayer.networkType || "in-network",
-      isActive: newPayer.isActive !== false,
+  const handleAddPayer = async () => {
+    setIsSaving(true)
+    try {
+      const res = await fetch("/api/insurance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "payer", ...newPayer }),
+      })
+      if (res.ok) {
+        mutate()
+        resetForm()
+      }
+    } finally {
+      setIsSaving(false)
     }
-
-    setPayers([...payers, payer])
-    setNewPayer({
-      payerName: "",
-      payerId: "",
-      contactName: "",
-      contactPhone: "",
-      contactEmail: "",
-      billingAddress: "",
-      electronicPayerId: "",
-      claimSubmissionMethod: "electronic",
-      priorAuthRequired: false,
-      networkType: "in-network",
-      isActive: true,
-    })
-    setShowAddForm(false)
   }
 
   const handleEditPayer = (payer: InsurancePayer) => {
     setEditingPayer(payer)
-    setNewPayer(payer)
+    setNewPayer({
+      payerName: payer.payer_name,
+      payerId: payer.payer_id,
+      contactName: payer.contact_name || "",
+      contactPhone: payer.contact_phone || "",
+      contactEmail: payer.contact_email || "",
+      billingAddress: payer.billing_address || "",
+      electronicPayerId: payer.electronic_payer_id || "",
+      claimSubmissionMethod: payer.claim_submission_method,
+      priorAuthRequired: payer.prior_auth_required,
+      networkType: payer.network_type,
+      isActive: payer.is_active,
+    })
     setShowAddForm(true)
   }
 
-  const handleUpdatePayer = () => {
+  const handleUpdatePayer = async () => {
     if (!editingPayer) return
+    setIsSaving(true)
+    try {
+      const res = await fetch("/api/insurance", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "payer", id: editingPayer.id, ...newPayer }),
+      })
+      if (res.ok) {
+        mutate()
+        resetForm()
+      }
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
-    setPayers(payers.map((p) => (p.id === editingPayer.id ? ({ ...editingPayer, ...newPayer } as InsurancePayer) : p)))
-    setEditingPayer(null)
+  const handleDeletePayer = async (payerId: string) => {
+    if (!confirm("Are you sure you want to delete this payer?")) return
+    await fetch(`/api/insurance?type=payer&id=${payerId}`, { method: "DELETE" })
+    mutate()
+  }
+
+  const resetForm = () => {
     setNewPayer({
       payerName: "",
       payerId: "",
@@ -154,10 +131,22 @@ export function InsurancePayerManagement() {
       isActive: true,
     })
     setShowAddForm(false)
+    setEditingPayer(null)
   }
 
-  const handleDeletePayer = (payerId: string) => {
-    setPayers(payers.filter((p) => p.id !== payerId))
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-10 w-32" />
+        </div>
+        <Skeleton className="h-16 w-full" />
+        {[1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-32 w-full" />
+        ))}
+      </div>
+    )
   }
 
   return (
@@ -327,29 +316,12 @@ export function InsurancePayerManagement() {
               <Button
                 onClick={editingPayer ? handleUpdatePayer : handleAddPayer}
                 className="bg-primary hover:bg-primary/90"
+                disabled={isSaving}
               >
+                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {editingPayer ? "Update" : "Add"} Payer
               </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowAddForm(false)
-                  setEditingPayer(null)
-                  setNewPayer({
-                    payerName: "",
-                    payerId: "",
-                    contactName: "",
-                    contactPhone: "",
-                    contactEmail: "",
-                    billingAddress: "",
-                    electronicPayerId: "",
-                    claimSubmissionMethod: "electronic",
-                    priorAuthRequired: false,
-                    networkType: "in-network",
-                    isActive: true,
-                  })
-                }}
-              >
+              <Button variant="outline" onClick={resetForm}>
                 Cancel
               </Button>
             </div>
@@ -366,44 +338,44 @@ export function InsurancePayerManagement() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
                     <Building2 className="h-5 w-5 text-primary" />
-                    <h3 className="text-lg font-semibold">{payer.payerName}</h3>
-                    <Badge variant="outline">{payer.payerId}</Badge>
-                    <Badge variant={payer.isActive ? "default" : "secondary"}>
-                      {payer.isActive ? "Active" : "Inactive"}
+                    <h3 className="text-lg font-semibold">{payer.payer_name}</h3>
+                    <Badge variant="outline">{payer.payer_id}</Badge>
+                    <Badge variant={payer.is_active ? "default" : "secondary"}>
+                      {payer.is_active ? "Active" : "Inactive"}
                     </Badge>
                   </div>
 
                   <div className="grid gap-2 md:grid-cols-2 text-sm">
-                    {payer.contactName && (
+                    {payer.contact_name && (
                       <div className="flex items-center gap-2">
                         <span className="font-medium">Contact:</span>
-                        <span>{payer.contactName}</span>
+                        <span>{payer.contact_name}</span>
                       </div>
                     )}
-                    {payer.contactPhone && (
+                    {payer.contact_phone && (
                       <div className="flex items-center gap-2">
                         <Phone className="h-4 w-4 text-muted-foreground" />
-                        <span>{payer.contactPhone}</span>
+                        <span>{payer.contact_phone}</span>
                       </div>
                     )}
-                    {payer.contactEmail && (
+                    {payer.contact_email && (
                       <div className="flex items-center gap-2">
                         <Mail className="h-4 w-4 text-muted-foreground" />
-                        <span>{payer.contactEmail}</span>
+                        <span>{payer.contact_email}</span>
                       </div>
                     )}
-                    {payer.billingAddress && (
+                    {payer.billing_address && (
                       <div className="flex items-center gap-2">
                         <MapPin className="h-4 w-4 text-muted-foreground" />
-                        <span>{payer.billingAddress}</span>
+                        <span>{payer.billing_address}</span>
                       </div>
                     )}
                   </div>
 
                   <div className="flex gap-4 mt-3 text-sm">
-                    <Badge variant="outline">{payer.claimSubmissionMethod}</Badge>
-                    <Badge variant="outline">{payer.networkType}</Badge>
-                    {payer.priorAuthRequired && <Badge variant="destructive">Prior Auth Required</Badge>}
+                    <Badge variant="outline">{payer.claim_submission_method}</Badge>
+                    <Badge variant="outline">{payer.network_type}</Badge>
+                    {payer.prior_auth_required && <Badge variant="destructive">Prior Auth Required</Badge>}
                   </div>
                 </div>
 
@@ -421,7 +393,7 @@ export function InsurancePayerManagement() {
         ))}
       </div>
 
-      {filteredPayers.length === 0 && (
+      {filteredPayers.length === 0 && !isLoading && (
         <Card>
           <CardContent className="pt-6">
             <div className="text-center py-8">

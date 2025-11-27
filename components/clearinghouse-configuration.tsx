@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import useSWR from "swr"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,7 +9,16 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
-import { Settings, Save, RefreshCw, TestTube, CheckCircle, XCircle } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Settings, Save, RefreshCw, TestTube, CheckCircle, XCircle, Key } from "lucide-react"
 
 interface ClearinghouseConfig {
   clearinghouseName: string
@@ -23,15 +33,21 @@ interface ClearinghouseConfig {
   batchFrequency: string
 }
 
+const fetcher = (url: string) => fetch(url).then((res) => res.json())
+
 export function ClearinghouseConfiguration() {
+  const { data, mutate } = useSWR("/api/clearinghouse", fetcher)
+
+  const existingConnection = data?.connections?.[0]
+
   const [config, setConfig] = useState<ClearinghouseConfig>({
-    clearinghouseName: "Change Healthcare",
-    clearinghouseId: "CHC001",
-    connectionType: "api",
-    apiEndpoint: "https://api.changehealthcare.com/v1",
-    submitterId: "MASE001",
-    receiverId: "CHC",
-    isProduction: false,
+    clearinghouseName: existingConnection?.clearinghouse_name || "Change Healthcare",
+    clearinghouseId: existingConnection?.clearinghouse_id || "",
+    connectionType: existingConnection?.connection_type || "api",
+    apiEndpoint: existingConnection?.api_endpoint || "",
+    submitterId: existingConnection?.submitter_id || "",
+    receiverId: existingConnection?.receiver_id || "",
+    isProduction: existingConnection?.is_production || false,
     autoDownloadERA: true,
     autoSubmitClaims: false,
     batchFrequency: "daily",
@@ -40,21 +56,72 @@ export function ClearinghouseConfiguration() {
   const [isSaving, setIsSaving] = useState(false)
   const [isTesting, setIsTesting] = useState(false)
   const [testResult, setTestResult] = useState<"success" | "failed" | null>(null)
+  const [credentialsOpen, setCredentialsOpen] = useState(false)
+  const [credentials, setCredentials] = useState({
+    username: "",
+    password: "",
+    apiKey: "",
+    host: "",
+    port: "22",
+  })
+  const [savingCredentials, setSavingCredentials] = useState(false)
 
   const handleSave = async () => {
     setIsSaving(true)
-    setTimeout(() => {
-      setIsSaving(false)
-    }, 1000)
+    try {
+      const response = await fetch("/api/clearinghouse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "save_config", config }),
+      })
+      if (response.ok) {
+        mutate()
+      }
+    } catch (error) {
+      console.error("Error saving config:", error)
+    }
+    setIsSaving(false)
   }
 
   const handleTestConnection = async () => {
     setIsTesting(true)
     setTestResult(null)
-    setTimeout(() => {
-      setTestResult("success")
-      setIsTesting(false)
-    }, 2000)
+    try {
+      const response = await fetch("/api/clearinghouse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "test_connection" }),
+      })
+      const result = await response.json()
+      setTestResult(result.success ? "success" : "failed")
+    } catch {
+      setTestResult("failed")
+    }
+    setIsTesting(false)
+  }
+
+  const handleSaveCredentials = async () => {
+    setSavingCredentials(true)
+    try {
+      const response = await fetch("/api/clearinghouse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save_credentials",
+          credentials: {
+            ...credentials,
+            clearinghouseName: config.clearinghouseName,
+          },
+        }),
+      })
+      if (response.ok) {
+        setCredentialsOpen(false)
+        mutate()
+      }
+    } catch (error) {
+      console.error("Error saving credentials:", error)
+    }
+    setSavingCredentials(false)
   }
 
   return (
@@ -65,6 +132,113 @@ export function ClearinghouseConfiguration() {
           <p className="text-muted-foreground">Configure clearinghouse connection and EDI settings</p>
         </div>
         <div className="flex gap-2">
+          <Dialog open={credentialsOpen} onOpenChange={setCredentialsOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Key className="mr-2 h-4 w-4" />
+                Credential Management
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Credential Management</DialogTitle>
+                <DialogDescription>
+                  Configure authentication credentials for {config.clearinghouseName}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                {config.connectionType === "sftp" ? (
+                  <>
+                    <div>
+                      <Label htmlFor="sftp-host">SFTP Host</Label>
+                      <Input
+                        id="sftp-host"
+                        value={credentials.host}
+                        onChange={(e) => setCredentials({ ...credentials, host: e.target.value })}
+                        placeholder="sftp.clearinghouse.com"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="sftp-port">SFTP Port</Label>
+                      <Input
+                        id="sftp-port"
+                        value={credentials.port}
+                        onChange={(e) => setCredentials({ ...credentials, port: e.target.value })}
+                        placeholder="22"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="sftp-username">Username</Label>
+                      <Input
+                        id="sftp-username"
+                        value={credentials.username}
+                        onChange={(e) => setCredentials({ ...credentials, username: e.target.value })}
+                        placeholder="your_username"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="sftp-password">Password</Label>
+                      <Input
+                        id="sftp-password"
+                        type="password"
+                        value={credentials.password}
+                        onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
+                        placeholder="••••••••"
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <Label htmlFor="api-key">API Key</Label>
+                      <Input
+                        id="api-key"
+                        type="password"
+                        value={credentials.apiKey}
+                        onChange={(e) => setCredentials({ ...credentials, apiKey: e.target.value })}
+                        placeholder="Enter your API key"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="api-username">API Username (Optional)</Label>
+                      <Input
+                        id="api-username"
+                        value={credentials.username}
+                        onChange={(e) => setCredentials({ ...credentials, username: e.target.value })}
+                        placeholder="your_api_username"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="api-password">API Password (Optional)</Label>
+                      <Input
+                        id="api-password"
+                        type="password"
+                        value={credentials.password}
+                        onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
+                        placeholder="••••••••"
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setCredentialsOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSaveCredentials} disabled={savingCredentials}>
+                  {savingCredentials ? (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Credentials"
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
           <Button variant="outline" onClick={handleTestConnection} disabled={isTesting}>
             {isTesting ? (
               <>
@@ -156,6 +330,7 @@ export function ClearinghouseConfiguration() {
                 id="clearinghouseId"
                 value={config.clearinghouseId}
                 onChange={(e) => setConfig({ ...config, clearinghouseId: e.target.value })}
+                placeholder="Enter clearinghouse ID"
               />
             </div>
           </div>
@@ -196,6 +371,7 @@ export function ClearinghouseConfiguration() {
                 id="submitterId"
                 value={config.submitterId}
                 onChange={(e) => setConfig({ ...config, submitterId: e.target.value })}
+                placeholder="Your submitter ID"
               />
             </div>
 
@@ -205,6 +381,7 @@ export function ClearinghouseConfiguration() {
                 id="receiverId"
                 value={config.receiverId}
                 onChange={(e) => setConfig({ ...config, receiverId: e.target.value })}
+                placeholder="Clearinghouse receiver ID"
               />
             </div>
           </div>

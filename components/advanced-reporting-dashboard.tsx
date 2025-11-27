@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
+import useSWR from "swr"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -8,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   BarChart,
   Bar,
@@ -22,7 +24,17 @@ import {
   Pie,
   Cell,
 } from "recharts"
-import { DollarSign, Users, FileText, Download, Activity, Shield, CheckCircle, AlertTriangle } from "lucide-react"
+import {
+  DollarSign,
+  Users,
+  FileText,
+  Download,
+  Activity,
+  Shield,
+  CheckCircle,
+  AlertTriangle,
+  RefreshCw,
+} from "lucide-react"
 
 interface ProductivityMetric {
   providerId: string
@@ -42,69 +54,95 @@ interface ComplianceMetric {
   percentage: number
 }
 
+interface ReportsData {
+  productivityData: ProductivityMetric[]
+  complianceData: ComplianceMetric[]
+  weeklyProductivityData: { day: string; patients: number; revenue: number }[]
+  revenueByServiceData: { name: string; value: number; revenue: number }[]
+  providers: { id: string; first_name: string; last_name: string }[]
+  financialMetrics: {
+    totalRevenue: number
+    insuranceCollections: number
+    patientPayments: number
+    netRevenue: number
+    claimsAcceptanceRate: number
+    avgCollectionTime: number
+    avgClaimValue: number
+  }
+  auditMetrics: {
+    totalActionsToday: number
+    activeUsers: number
+    totalAuditRecords: number
+  }
+  complianceActionItems: {
+    labResultsPending: number
+    cowsOverdue: number
+    consentFormsNeeded: number
+  }
+}
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json())
+
 export function AdvancedReportingDashboard() {
-  const [productivityData, setProductivityData] = useState<ProductivityMetric[]>([])
-  const [complianceData, setComplianceData] = useState<ComplianceMetric[]>([])
   const [dateRange, setDateRange] = useState("week")
   const [selectedProvider, setSelectedProvider] = useState("all")
 
-  // Mock data - replace with actual API calls
-  useEffect(() => {
-    const mockProductivity: ProductivityMetric[] = [
-      {
-        providerId: "1",
-        providerName: "Dr. Sarah Wilson",
-        patientsSeenToday: 12,
-        patientsSeenWeek: 58,
-        assessmentsCompleted: 24,
-        prescriptionsWritten: 18,
-        billableUnits: 45.5,
-        revenueGenerated: 4550.0,
-      },
-      {
-        providerId: "2",
-        providerName: "Dr. Michael Chen",
-        patientsSeenToday: 10,
-        patientsSeenWeek: 52,
-        assessmentsCompleted: 20,
-        prescriptionsWritten: 15,
-        billableUnits: 42.0,
-        revenueGenerated: 4200.0,
-      },
-      {
-        providerId: "3",
-        providerName: "Dr. Emily Rodriguez",
-        patientsSeenToday: 14,
-        patientsSeenWeek: 65,
-        assessmentsCompleted: 28,
-        prescriptionsWritten: 22,
-        billableUnits: 52.5,
-        revenueGenerated: 5250.0,
-      },
-    ]
+  const { data, error, isLoading, mutate } = useSWR<ReportsData>("/api/reports/advanced", fetcher)
 
-    const mockCompliance: ComplianceMetric[] = [
-      { category: "Consent Forms", compliant: 95, nonCompliant: 5, percentage: 95 },
-      { category: "COWS Assessments", compliant: 88, nonCompliant: 12, percentage: 88 },
-      { category: "Documentation", compliant: 92, nonCompliant: 8, percentage: 92 },
-      { category: "Prescription Monitoring", compliant: 97, nonCompliant: 3, percentage: 97 },
-      { category: "Lab Results Review", compliant: 85, nonCompliant: 15, percentage: 85 },
-    ]
+  const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042"]
 
-    setProductivityData(mockProductivity)
-    setComplianceData(mockCompliance)
-  }, [])
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          {[1, 2, 3, 4].map((i) => (
+            <Card key={i}>
+              <CardHeader className="pb-2">
+                <Skeleton className="h-4 w-24" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-16 mb-1" />
+                <Skeleton className="h-3 w-20" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <Skeleton className="h-96 w-full" />
+      </div>
+    )
+  }
 
-  // Chart data
-  const weeklyProductivityData = [
-    { day: "Mon", patients: 45, revenue: 4500 },
-    { day: "Tue", patients: 52, revenue: 5200 },
-    { day: "Wed", patients: 48, revenue: 4800 },
-    { day: "Thu", patients: 55, revenue: 5500 },
-    { day: "Fri", patients: 50, revenue: 5000 },
-    { day: "Sat", patients: 25, revenue: 2500 },
-    { day: "Sun", patients: 15, revenue: 1500 },
-  ]
+  if (error) {
+    return (
+      <Card className="p-6">
+        <p className="text-red-500">Error loading reports. Please try again.</p>
+        <Button onClick={() => mutate()} className="mt-4">
+          Retry
+        </Button>
+      </Card>
+    )
+  }
+
+  const productivityData = data?.productivityData || []
+  const complianceData = data?.complianceData || []
+  const weeklyProductivityData = data?.weeklyProductivityData || []
+  const revenueByServiceData = data?.revenueByServiceData || []
+  const providers = data?.providers || []
+  const financialMetrics = data?.financialMetrics || {
+    totalRevenue: 0,
+    insuranceCollections: 0,
+    patientPayments: 0,
+    netRevenue: 0,
+    claimsAcceptanceRate: 0,
+    avgCollectionTime: 0,
+    avgClaimValue: 0,
+  }
+  const auditMetrics = data?.auditMetrics || { totalActionsToday: 0, activeUsers: 0, totalAuditRecords: 0 }
+  const complianceActionItems = data?.complianceActionItems || {
+    labResultsPending: 0,
+    cowsOverdue: 0,
+    consentFormsNeeded: 0,
+  }
 
   const complianceChartData = complianceData.map((item) => ({
     name: item.category,
@@ -112,19 +150,13 @@ export function AdvancedReportingDashboard() {
     nonCompliant: item.nonCompliant,
   }))
 
-  const revenueByServiceData = [
-    { name: "Individual Therapy", value: 45, revenue: 12500 },
-    { name: "Group Therapy", value: 25, revenue: 6250 },
-    { name: "Medication Management", value: 20, revenue: 8000 },
-    { name: "Assessments", value: 10, revenue: 3500 },
-  ]
-
-  const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042"]
-
   const totalPatients = productivityData.reduce((sum, p) => sum + p.patientsSeenWeek, 0)
   const totalRevenue = productivityData.reduce((sum, p) => sum + p.revenueGenerated, 0)
   const totalAssessments = productivityData.reduce((sum, p) => sum + p.assessmentsCompleted, 0)
-  const avgCompliance = Math.round(complianceData.reduce((sum, c) => sum + c.percentage, 0) / complianceData.length)
+  const avgCompliance =
+    complianceData.length > 0
+      ? Math.round(complianceData.reduce((sum, c) => sum + c.percentage, 0) / complianceData.length)
+      : 0
 
   return (
     <div className="space-y-6">
@@ -154,15 +186,21 @@ export function AdvancedReportingDashboard() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Providers</SelectItem>
-                <SelectItem value="1">Dr. Sarah Wilson</SelectItem>
-                <SelectItem value="2">Dr. Michael Chen</SelectItem>
-                <SelectItem value="3">Dr. Emily Rodriguez</SelectItem>
+                {providers.map((provider) => (
+                  <SelectItem key={provider.id} value={provider.id}>
+                    Dr. {provider.first_name} {provider.last_name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
         </div>
 
         <div className="flex items-center space-x-2">
+          <Button variant="outline" size="sm" onClick={() => mutate()}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
           <Button variant="outline">
             <Download className="h-4 w-4 mr-2" />
             Export PDF
@@ -271,32 +309,38 @@ export function AdvancedReportingDashboard() {
               <CardTitle>Provider Productivity Summary</CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Provider</TableHead>
-                    <TableHead>Patients Today</TableHead>
-                    <TableHead>Patients This Week</TableHead>
-                    <TableHead>Assessments</TableHead>
-                    <TableHead>Prescriptions</TableHead>
-                    <TableHead>Billable Units</TableHead>
-                    <TableHead>Revenue</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {productivityData.map((provider) => (
-                    <TableRow key={provider.providerId}>
-                      <TableCell className="font-medium">{provider.providerName}</TableCell>
-                      <TableCell>{provider.patientsSeenToday}</TableCell>
-                      <TableCell>{provider.patientsSeenWeek}</TableCell>
-                      <TableCell>{provider.assessmentsCompleted}</TableCell>
-                      <TableCell>{provider.prescriptionsWritten}</TableCell>
-                      <TableCell>{provider.billableUnits}</TableCell>
-                      <TableCell>${provider.revenueGenerated.toLocaleString()}</TableCell>
+              {productivityData.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">
+                  No productivity data available. Data will appear as providers log activity.
+                </p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Provider</TableHead>
+                      <TableHead>Patients Today</TableHead>
+                      <TableHead>Patients This Week</TableHead>
+                      <TableHead>Assessments</TableHead>
+                      <TableHead>Prescriptions</TableHead>
+                      <TableHead>Billable Units</TableHead>
+                      <TableHead>Revenue</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {productivityData.map((provider) => (
+                      <TableRow key={provider.providerId}>
+                        <TableCell className="font-medium">{provider.providerName}</TableCell>
+                        <TableCell>{provider.patientsSeenToday}</TableCell>
+                        <TableCell>{provider.patientsSeenWeek}</TableCell>
+                        <TableCell>{provider.assessmentsCompleted}</TableCell>
+                        <TableCell>{provider.prescriptionsWritten}</TableCell>
+                        <TableCell>{provider.billableUnits}</TableCell>
+                        <TableCell>${provider.revenueGenerated.toLocaleString()}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -338,19 +382,21 @@ export function AdvancedReportingDashboard() {
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium">Gross Revenue</span>
-                    <span className="text-lg font-bold">${totalRevenue.toLocaleString()}</span>
+                    <span className="text-lg font-bold">${financialMetrics.totalRevenue.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium">Insurance Collections</span>
-                    <span className="text-lg font-bold">${(totalRevenue * 0.85).toLocaleString()}</span>
+                    <span className="text-lg font-bold">${financialMetrics.insuranceCollections.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium">Patient Payments</span>
-                    <span className="text-lg font-bold">${(totalRevenue * 0.15).toLocaleString()}</span>
+                    <span className="text-lg font-bold">${financialMetrics.patientPayments.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between items-center border-t pt-2">
                     <span className="text-sm font-medium">Net Revenue</span>
-                    <span className="text-xl font-bold text-green-600">${(totalRevenue * 0.92).toLocaleString()}</span>
+                    <span className="text-xl font-bold text-green-600">
+                      ${financialMetrics.netRevenue.toLocaleString()}
+                    </span>
                   </div>
                 </div>
               </CardContent>
@@ -364,15 +410,17 @@ export function AdvancedReportingDashboard() {
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-green-600">94%</div>
+                  <div className="text-2xl font-bold text-green-600">{financialMetrics.claimsAcceptanceRate}%</div>
                   <div className="text-sm text-gray-600">Claims Acceptance Rate</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-600">18 days</div>
+                  <div className="text-2xl font-bold text-blue-600">{financialMetrics.avgCollectionTime} days</div>
                   <div className="text-sm text-gray-600">Average Collection Time</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-purple-600">$2,450</div>
+                  <div className="text-2xl font-bold text-purple-600">
+                    ${financialMetrics.avgClaimValue.toLocaleString()}
+                  </div>
                   <div className="text-sm text-gray-600">Average Claim Value</div>
                 </div>
               </div>
@@ -443,7 +491,9 @@ export function AdvancedReportingDashboard() {
                 <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
                   <div className="flex items-center space-x-2">
                     <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                    <span className="text-sm">15 lab results pending review</span>
+                    <span className="text-sm">
+                      {complianceActionItems.labResultsPending} lab results pending review
+                    </span>
                   </div>
                   <Button size="sm" variant="outline">
                     Review
@@ -452,7 +502,7 @@ export function AdvancedReportingDashboard() {
                 <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
                   <div className="flex items-center space-x-2">
                     <AlertTriangle className="h-4 w-4 text-red-500" />
-                    <span className="text-sm">12 COWS assessments overdue</span>
+                    <span className="text-sm">{complianceActionItems.cowsOverdue} COWS assessments overdue</span>
                   </div>
                   <Button size="sm" variant="outline">
                     Complete
@@ -461,7 +511,9 @@ export function AdvancedReportingDashboard() {
                 <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
                   <div className="flex items-center space-x-2">
                     <FileText className="h-4 w-4 text-blue-500" />
-                    <span className="text-sm">8 consent forms need signatures</span>
+                    <span className="text-sm">
+                      {complianceActionItems.consentFormsNeeded} consent forms need signatures
+                    </span>
                   </div>
                   <Button size="sm" variant="outline">
                     Follow Up
@@ -480,90 +532,24 @@ export function AdvancedReportingDashboard() {
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <div className="text-center">
-                  <div className="text-2xl font-bold">1,247</div>
+                  <div className="text-2xl font-bold">{auditMetrics.totalActionsToday.toLocaleString()}</div>
                   <div className="text-sm text-gray-600">Total Actions Today</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold">23</div>
+                  <div className="text-2xl font-bold">{auditMetrics.activeUsers}</div>
                   <div className="text-sm text-gray-600">Active Users</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold">0</div>
-                  <div className="text-sm text-gray-600">Security Violations</div>
+                  <div className="text-2xl font-bold">{auditMetrics.totalAuditRecords.toLocaleString()}</div>
+                  <div className="text-sm text-gray-600">Total Audit Records</div>
                 </div>
               </div>
 
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Timestamp</TableHead>
-                    <TableHead>User</TableHead>
-                    <TableHead>Action</TableHead>
-                    <TableHead>Patient</TableHead>
-                    <TableHead>IP Address</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow>
-                    <TableCell>2024-01-16 14:32:15</TableCell>
-                    <TableCell>Dr. Sarah Wilson</TableCell>
-                    <TableCell>Updated patient record</TableCell>
-                    <TableCell>John Smith</TableCell>
-                    <TableCell>192.168.1.45</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>2024-01-16 14:28:42</TableCell>
-                    <TableCell>Dr. Michael Chen</TableCell>
-                    <TableCell>Created prescription</TableCell>
-                    <TableCell>Sarah Johnson</TableCell>
-                    <TableCell>192.168.1.67</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell>2024-01-16 14:25:18</TableCell>
-                    <TableCell>Nurse Rodriguez</TableCell>
-                    <TableCell>Recorded vital signs</TableCell>
-                    <TableCell>Mike Davis</TableCell>
-                    <TableCell>192.168.1.23</TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Audit Readiness Checklist</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    <span className="text-sm">All user access logs maintained</span>
-                  </div>
-                  <Badge className="bg-green-100 text-green-800">Complete</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    <span className="text-sm">Patient consent forms up to date</span>
-                  </div>
-                  <Badge className="bg-green-100 text-green-800">Complete</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <CheckCircle className="h-4 w-4 text-green-500" />
-                    <span className="text-sm">Clinical documentation standards met</span>
-                  </div>
-                  <Badge className="bg-green-100 text-green-800">Complete</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <AlertTriangle className="h-4 w-4 text-yellow-500" />
-                    <span className="text-sm">Staff training records need update</span>
-                  </div>
-                  <Badge className="bg-yellow-100 text-yellow-800">In Progress</Badge>
-                </div>
+              <div className="border rounded-lg p-4">
+                <h4 className="font-medium mb-4">Recent System Activity</h4>
+                <p className="text-sm text-muted-foreground">
+                  Audit trail data is being collected. View detailed logs in the system administration panel.
+                </p>
               </div>
             </CardContent>
           </Card>

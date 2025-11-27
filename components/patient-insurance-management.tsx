@@ -8,81 +8,54 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { Users, Plus, Edit, Trash2, Search, CreditCard, Calendar } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Users, Plus, Edit, Trash2, Search, CreditCard, Calendar, Loader2 } from "lucide-react"
+import useSWR from "swr"
 
 interface PatientInsurance {
   id: string
-  patientId: string
-  patientName: string
-  payerName: string
-  policyNumber: string
-  groupNumber?: string
-  subscriberName?: string
-  relationshipToSubscriber: string
-  effectiveDate: string
-  terminationDate?: string
-  copayAmount?: number
-  deductibleAmount?: number
-  priorityOrder: number
-  isActive: boolean
+  patient_id: string
+  payer_id: string
+  policy_number: string
+  group_number?: string
+  subscriber_name?: string
+  relationship_to_subscriber: string
+  effective_date: string
+  termination_date?: string
+  copay_amount?: number
+  deductible_amount?: number
+  priority_order: number
+  is_active: boolean
+  patients?: { id: string; first_name: string; last_name: string }
+  insurance_payers?: { id: string; payer_name: string }
 }
 
-const mockPatientInsurance: PatientInsurance[] = [
-  {
-    id: "1",
-    patientId: "pat001",
-    patientName: "Sarah Johnson",
-    payerName: "Blue Cross Blue Shield",
-    policyNumber: "BCM123456789",
-    groupNumber: "GRP001234",
-    subscriberName: "Sarah Johnson",
-    relationshipToSubscriber: "self",
-    effectiveDate: "2024-01-01",
-    copayAmount: 25,
-    deductibleAmount: 500,
-    priorityOrder: 1,
-    isActive: true,
-  },
-  {
-    id: "2",
-    patientId: "pat002",
-    patientName: "Michael Chen",
-    payerName: "Aetna",
-    policyNumber: "AET987654321",
-    groupNumber: "GRP005678",
-    subscriberName: "Michael Chen",
-    relationshipToSubscriber: "self",
-    effectiveDate: "2024-03-15",
-    copayAmount: 30,
-    deductibleAmount: 750,
-    priorityOrder: 1,
-    isActive: true,
-  },
-  {
-    id: "3",
-    patientId: "pat003",
-    patientName: "Emily Rodriguez",
-    payerName: "UnitedHealthcare",
-    policyNumber: "UHC456789123",
-    subscriberName: "Carlos Rodriguez",
-    relationshipToSubscriber: "spouse",
-    effectiveDate: "2024-02-01",
-    terminationDate: "2024-12-31",
-    copayAmount: 20,
-    deductibleAmount: 1000,
-    priorityOrder: 1,
-    isActive: false,
-  },
-]
+interface Patient {
+  id: string
+  first_name: string
+  last_name: string
+}
+
+interface Payer {
+  id: string
+  payer_name: string
+  payer_id: string
+}
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
 export function PatientInsuranceManagement() {
-  const [patientInsurance, setPatientInsurance] = useState<PatientInsurance[]>(mockPatientInsurance)
+  const { data, error, isLoading, mutate } = useSWR("/api/insurance?type=patient-insurance", fetcher)
+  const { data: patientsData } = useSWR("/api/insurance?type=patients", fetcher)
+  const { data: payersData } = useSWR("/api/insurance?type=payers", fetcher)
+
   const [searchTerm, setSearchTerm] = useState("")
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingInsurance, setEditingInsurance] = useState<PatientInsurance | null>(null)
-  const [newInsurance, setNewInsurance] = useState<Partial<PatientInsurance>>({
-    patientName: "",
-    payerName: "",
+  const [isSaving, setIsSaving] = useState(false)
+  const [newInsurance, setNewInsurance] = useState({
+    patientId: "",
+    payerId: "",
     policyNumber: "",
     groupNumber: "",
     subscriberName: "",
@@ -95,61 +68,87 @@ export function PatientInsuranceManagement() {
     isActive: true,
   })
 
-  const filteredInsurance = patientInsurance.filter(
-    (insurance) =>
-      insurance.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      insurance.payerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      insurance.policyNumber.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+  const patientInsurance: PatientInsurance[] = data?.patientInsurance || []
+  const patients: Patient[] = patientsData?.patients || []
+  const payers: Payer[] = payersData?.payers || []
 
-  const handleAddInsurance = () => {
-    const insurance: PatientInsurance = {
-      id: Date.now().toString(),
-      patientId: `pat${Date.now()}`,
-      patientName: newInsurance.patientName || "",
-      payerName: newInsurance.payerName || "",
-      policyNumber: newInsurance.policyNumber || "",
-      groupNumber: newInsurance.groupNumber,
-      subscriberName: newInsurance.subscriberName,
-      relationshipToSubscriber: newInsurance.relationshipToSubscriber || "self",
-      effectiveDate: newInsurance.effectiveDate || "",
-      terminationDate: newInsurance.terminationDate,
-      copayAmount: newInsurance.copayAmount,
-      deductibleAmount: newInsurance.deductibleAmount,
-      priorityOrder: newInsurance.priorityOrder || 1,
-      isActive: newInsurance.isActive !== false,
+  const filteredInsurance = patientInsurance.filter((insurance) => {
+    const patientName = insurance.patients
+      ? `${insurance.patients.first_name} ${insurance.patients.last_name}`.toLowerCase()
+      : ""
+    const payerName = insurance.insurance_payers?.payer_name?.toLowerCase() || ""
+    const search = searchTerm.toLowerCase()
+    return (
+      patientName.includes(search) ||
+      payerName.includes(search) ||
+      insurance.policy_number.toLowerCase().includes(search)
+    )
+  })
+
+  const handleAddInsurance = async () => {
+    setIsSaving(true)
+    try {
+      const res = await fetch("/api/insurance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "patient-insurance", ...newInsurance }),
+      })
+      if (res.ok) {
+        mutate()
+        resetForm()
+      }
+    } finally {
+      setIsSaving(false)
     }
-
-    setPatientInsurance([...patientInsurance, insurance])
-    resetForm()
   }
 
   const handleEditInsurance = (insurance: PatientInsurance) => {
     setEditingInsurance(insurance)
-    setNewInsurance(insurance)
+    setNewInsurance({
+      patientId: insurance.patient_id,
+      payerId: insurance.payer_id,
+      policyNumber: insurance.policy_number,
+      groupNumber: insurance.group_number || "",
+      subscriberName: insurance.subscriber_name || "",
+      relationshipToSubscriber: insurance.relationship_to_subscriber,
+      effectiveDate: insurance.effective_date,
+      terminationDate: insurance.termination_date || "",
+      copayAmount: insurance.copay_amount || 0,
+      deductibleAmount: insurance.deductible_amount || 0,
+      priorityOrder: insurance.priority_order,
+      isActive: insurance.is_active,
+    })
     setShowAddForm(true)
   }
 
-  const handleUpdateInsurance = () => {
+  const handleUpdateInsurance = async () => {
     if (!editingInsurance) return
-
-    setPatientInsurance(
-      patientInsurance.map((ins) =>
-        ins.id === editingInsurance.id ? ({ ...editingInsurance, ...newInsurance } as PatientInsurance) : ins,
-      ),
-    )
-    setEditingInsurance(null)
-    resetForm()
+    setIsSaving(true)
+    try {
+      const res = await fetch("/api/insurance", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "patient-insurance", id: editingInsurance.id, ...newInsurance }),
+      })
+      if (res.ok) {
+        mutate()
+        resetForm()
+      }
+    } finally {
+      setIsSaving(false)
+    }
   }
 
-  const handleDeleteInsurance = (insuranceId: string) => {
-    setPatientInsurance(patientInsurance.filter((ins) => ins.id !== insuranceId))
+  const handleDeleteInsurance = async (insuranceId: string) => {
+    if (!confirm("Are you sure you want to delete this insurance record?")) return
+    await fetch(`/api/insurance?type=patient-insurance&id=${insuranceId}`, { method: "DELETE" })
+    mutate()
   }
 
   const resetForm = () => {
     setNewInsurance({
-      patientName: "",
-      payerName: "",
+      patientId: "",
+      payerId: "",
       policyNumber: "",
       groupNumber: "",
       subscriberName: "",
@@ -162,6 +161,22 @@ export function PatientInsuranceManagement() {
       isActive: true,
     })
     setShowAddForm(false)
+    setEditingInsurance(null)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-10 w-40" />
+        </div>
+        <Skeleton className="h-16 w-full" />
+        {[1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-32 w-full" />
+        ))}
+      </div>
+    )
   }
 
   return (
@@ -202,30 +217,38 @@ export function PatientInsuranceManagement() {
           <CardContent className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <Label htmlFor="patientName">Patient Name *</Label>
-                <Input
-                  id="patientName"
-                  value={newInsurance.patientName}
-                  onChange={(e) => setNewInsurance({ ...newInsurance, patientName: e.target.value })}
-                  placeholder="John Doe"
-                />
+                <Label htmlFor="patientId">Patient *</Label>
+                <Select
+                  value={newInsurance.patientId}
+                  onValueChange={(value) => setNewInsurance({ ...newInsurance, patientId: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select patient" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {patients.map((patient) => (
+                      <SelectItem key={patient.id} value={patient.id}>
+                        {patient.first_name} {patient.last_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
-                <Label htmlFor="payerName">Insurance Payer *</Label>
+                <Label htmlFor="payerId">Insurance Payer *</Label>
                 <Select
-                  value={newInsurance.payerName}
-                  onValueChange={(value) => setNewInsurance({ ...newInsurance, payerName: value })}
+                  value={newInsurance.payerId}
+                  onValueChange={(value) => setNewInsurance({ ...newInsurance, payerId: value })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select payer" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Blue Cross Blue Shield">Blue Cross Blue Shield</SelectItem>
-                    <SelectItem value="Aetna">Aetna</SelectItem>
-                    <SelectItem value="UnitedHealthcare">UnitedHealthcare</SelectItem>
-                    <SelectItem value="Cigna">Cigna</SelectItem>
-                    <SelectItem value="Medicare">Medicare</SelectItem>
-                    <SelectItem value="Medicaid">Medicaid</SelectItem>
+                    {payers.map((payer) => (
+                      <SelectItem key={payer.id} value={payer.id}>
+                        {payer.payer_name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -330,7 +353,7 @@ export function PatientInsuranceManagement() {
               <div>
                 <Label htmlFor="priorityOrder">Priority Order</Label>
                 <Select
-                  value={newInsurance.priorityOrder?.toString()}
+                  value={newInsurance.priorityOrder.toString()}
                   onValueChange={(value) => setNewInsurance({ ...newInsurance, priorityOrder: Number.parseInt(value) })}
                 >
                   <SelectTrigger>
@@ -358,7 +381,9 @@ export function PatientInsuranceManagement() {
               <Button
                 onClick={editingInsurance ? handleUpdateInsurance : handleAddInsurance}
                 className="bg-primary hover:bg-primary/90"
+                disabled={isSaving}
               >
+                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {editingInsurance ? "Update" : "Add"} Insurance
               </Button>
               <Button variant="outline" onClick={resetForm}>
@@ -378,57 +403,61 @@ export function PatientInsuranceManagement() {
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-2">
                     <Users className="h-5 w-5 text-primary" />
-                    <h3 className="text-lg font-semibold">{insurance.patientName}</h3>
-                    <Badge variant={insurance.priorityOrder === 1 ? "default" : "secondary"}>
-                      {insurance.priorityOrder === 1
+                    <h3 className="text-lg font-semibold">
+                      {insurance.patients
+                        ? `${insurance.patients.first_name} ${insurance.patients.last_name}`
+                        : "Unknown Patient"}
+                    </h3>
+                    <Badge variant={insurance.priority_order === 1 ? "default" : "secondary"}>
+                      {insurance.priority_order === 1
                         ? "Primary"
-                        : insurance.priorityOrder === 2
+                        : insurance.priority_order === 2
                           ? "Secondary"
                           : "Tertiary"}
                     </Badge>
-                    <Badge variant={insurance.isActive ? "default" : "destructive"}>
-                      {insurance.isActive ? "Active" : "Inactive"}
+                    <Badge variant={insurance.is_active ? "default" : "destructive"}>
+                      {insurance.is_active ? "Active" : "Inactive"}
                     </Badge>
                   </div>
 
                   <div className="grid gap-2 md:grid-cols-2 text-sm mb-3">
                     <div className="flex items-center gap-2">
                       <CreditCard className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium">{insurance.payerName}</span>
+                      <span className="font-medium">{insurance.insurance_payers?.payer_name || "Unknown Payer"}</span>
                     </div>
                     <div>
-                      <span className="font-medium">Policy:</span> {insurance.policyNumber}
+                      <span className="font-medium">Policy:</span> {insurance.policy_number}
                     </div>
-                    {insurance.groupNumber && (
+                    {insurance.group_number && (
                       <div>
-                        <span className="font-medium">Group:</span> {insurance.groupNumber}
+                        <span className="font-medium">Group:</span> {insurance.group_number}
                       </div>
                     )}
                     <div>
-                      <span className="font-medium">Subscriber:</span> {insurance.subscriberName || "N/A"}
+                      <span className="font-medium">Subscriber:</span> {insurance.subscriber_name || "N/A"}
                     </div>
                   </div>
 
                   <div className="grid gap-2 md:grid-cols-3 text-sm mb-3">
                     <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span>Effective: {insurance.effectiveDate}</span>
+                      <span>Effective: {insurance.effective_date}</span>
                     </div>
-                    {insurance.terminationDate && (
+                    {insurance.termination_date && (
                       <div className="flex items-center gap-2">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <span>Expires: {insurance.terminationDate}</span>
+                        <span>Expires: {insurance.termination_date}</span>
                       </div>
                     )}
                     <div>
-                      <span className="font-medium">Relationship:</span> {insurance.relationshipToSubscriber}
+                      <span className="font-medium">Relationship:</span> {insurance.relationship_to_subscriber}
                     </div>
                   </div>
 
                   <div className="flex gap-4 text-sm">
-                    {insurance.copayAmount && <Badge variant="outline">Copay: ${insurance.copayAmount}</Badge>}
-                    {insurance.deductibleAmount && (
-                      <Badge variant="outline">Deductible: ${insurance.deductibleAmount}</Badge>
+                    {insurance.copay_amount && <Badge variant="outline">Copay: ${insurance.copay_amount}</Badge>}
+                    {insurance.deductible_amount && (
+                      <Badge variant="outline">Deductible: ${insurance.deductible_amount}</Badge>
                     )}
                   </div>
                 </div>
@@ -447,7 +476,7 @@ export function PatientInsuranceManagement() {
         ))}
       </div>
 
-      {filteredInsurance.length === 0 && (
+      {filteredInsurance.length === 0 && !isLoading && (
         <Card>
           <CardContent className="pt-6">
             <div className="text-center py-8">

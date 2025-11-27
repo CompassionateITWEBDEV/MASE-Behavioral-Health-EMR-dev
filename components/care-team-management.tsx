@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -68,7 +68,7 @@ export function CareTeamManagement({ currentProviderId, canManageTeams }: CareTe
   const [careTeams, setCareTeams] = useState<CareTeam[]>([])
   const [availableProviders, setAvailableProviders] = useState<Provider[]>([])
   const [availablePatients, setAvailablePatients] = useState<Patient[]>([])
-  const [loading, setLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(true)
   const [isCreateTeamOpen, setIsCreateTeamOpen] = useState(false)
   const [isEditTeamOpen, setIsEditTeamOpen] = useState(false)
   const [selectedTeam, setSelectedTeam] = useState<CareTeam | null>(null)
@@ -91,13 +91,7 @@ export function CareTeamManagement({ currentProviderId, canManageTeams }: CareTe
 
   const supabase = createClient()
 
-  useEffect(() => {
-    fetchCareTeams()
-    fetchAvailableProviders()
-    fetchAvailablePatients()
-  }, [])
-
-  const fetchCareTeams = async () => {
+  const fetchCareTeams = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("care_teams")
@@ -106,66 +100,63 @@ export function CareTeamManagement({ currentProviderId, canManageTeams }: CareTe
           patients(
             id,
             first_name,
-            last_name,
-            date_of_birth
-          ),
-          primary_provider:providers!care_teams_primary_provider_id_fkey(
-            id,
-            first_name,
-            last_name,
-            role
+            last_name
           ),
           care_team_members(
-            *,
+            id,
+            role,
             providers(
               id,
               first_name,
               last_name,
-              role,
-              specialization
+              specialty
             )
           )
         `)
-        .eq("is_active", true)
         .order("created_at", { ascending: false })
 
       if (error) throw error
       setCareTeams(data || [])
     } catch (error) {
       console.error("Error fetching care teams:", error)
-      toast.error("Failed to load care teams")
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
-  }
+  }, [supabase])
 
-  const fetchAvailableProviders = async () => {
+  const fetchAvailableProviders = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("providers")
-        .select("id, first_name, last_name, role, specialization")
-        .order("first_name")
+        .select("id, first_name, last_name, specialty")
+        .eq("is_active", true)
 
       if (error) throw error
       setAvailableProviders(data || [])
     } catch (error) {
       console.error("Error fetching providers:", error)
     }
-  }
+  }, [supabase])
 
-  const fetchAvailablePatients = async () => {
+  const fetchAvailablePatients = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("patients")
-        .select("id, first_name, last_name, date_of_birth")
-        .order("first_name")
+        .select("id, first_name, last_name, patient_number")
+        .eq("status", "active")
 
       if (error) throw error
       setAvailablePatients(data || [])
     } catch (error) {
       console.error("Error fetching patients:", error)
     }
-  }
+  }, [supabase])
+
+  useEffect(() => {
+    fetchCareTeams()
+    fetchAvailableProviders()
+    fetchAvailablePatients()
+  }, [fetchCareTeams, fetchAvailableProviders, fetchAvailablePatients])
 
   const createCareTeam = async () => {
     if (!newTeam.patientId || !newTeam.teamName || !newTeam.primaryProviderId) {
@@ -287,7 +278,7 @@ export function CareTeamManagement({ currentProviderId, canManageTeams }: CareTe
       `${team.patients.first_name} ${team.patients.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
-  if (loading) {
+  if (isLoading) {
     return <div className="flex justify-center p-8">Loading care teams...</div>
   }
 
@@ -356,7 +347,7 @@ export function CareTeamManagement({ currentProviderId, canManageTeams }: CareTe
                     <SelectContent>
                       {availableProviders.map((provider) => (
                         <SelectItem key={provider.id} value={provider.id}>
-                          {provider.first_name} {provider.last_name} ({provider.role})
+                          {provider.first_name} {provider.last_name} ({provider.specialty})
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -390,9 +381,7 @@ export function CareTeamManagement({ currentProviderId, canManageTeams }: CareTe
                                   <p className="font-medium">
                                     {provider.first_name} {provider.last_name}
                                   </p>
-                                  <p className="text-sm text-muted-foreground">
-                                    {provider.role} {provider.specialization && `• ${provider.specialization}`}
-                                  </p>
+                                  <p className="text-sm text-muted-foreground">{provider.specialty}</p>
                                 </div>
                                 <div className="flex gap-2">
                                   <Button
@@ -437,7 +426,7 @@ export function CareTeamManagement({ currentProviderId, canManageTeams }: CareTe
                                   {provider.first_name} {provider.last_name}
                                 </p>
                                 <p className="text-sm text-muted-foreground">
-                                  {provider.role} • {member.role}
+                                  {provider.specialty} • {member.role}
                                 </p>
                               </div>
                             </div>
@@ -545,7 +534,7 @@ export function CareTeamManagement({ currentProviderId, canManageTeams }: CareTe
                 </CardTitle>
                 <CardDescription>
                   Primary Provider: {team.primary_provider.first_name} {team.primary_provider.last_name} (
-                  {team.primary_provider.role})
+                  {team.primary_provider.specialty})
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -569,7 +558,7 @@ export function CareTeamManagement({ currentProviderId, canManageTeams }: CareTe
                               </p>
                               <div className="flex items-center gap-2">
                                 <Badge variant="outline" className="text-xs">
-                                  {member.providers.role}
+                                  {member.providers.specialty}
                                 </Badge>
                                 <Badge variant="secondary" className="text-xs">
                                   {member.role}

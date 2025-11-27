@@ -267,7 +267,7 @@ export default function ClinicalAlertsPage() {
           patient_name: "Maria Garcia",
           mrn: "MRN-001235",
           precaution_type: "custom",
-          custom_text: "Patient's electricity has been shut off - may need resources for medication storage",
+          custom_text: "Patient electricity has been shut off - may need resources for medication storage",
           icon: "Zap",
           color: "#eab308",
           created_by: "Case Manager Amy",
@@ -878,7 +878,7 @@ export default function ClinicalAlertsPage() {
                         <DialogHeader>
                           <DialogTitle style={{ color: "#1e293b" }}>Add Patient Precaution</DialogTitle>
                           <DialogDescription>
-                            Add a precaution or alert that will display on the patient's chart
+                            {"Add a precaution or alert that will display on the patient's chart"}
                           </DialogDescription>
                         </DialogHeader>
 

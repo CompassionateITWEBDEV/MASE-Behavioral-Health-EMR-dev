@@ -1,5 +1,60 @@
-import { createServiceRoleClient } from "@/lib/supabase/service-role"
+import { createServiceClient } from "@/lib/supabase/service-role"
 import { type NextRequest, NextResponse } from "next/server"
+
+export async function GET() {
+  try {
+    const supabase = createServiceClient()
+
+    // Fetch take-home orders from medication_order table
+    const { data: orders, error } = await supabase
+      .from("medication_order")
+      .select(`
+        id,
+        patient_id,
+        daily_dose_mg,
+        max_takehome,
+        start_date,
+        stop_date,
+        status,
+        created_at,
+        prescriber_id
+      `)
+      .order("created_at", { ascending: false })
+
+    if (error) {
+      console.error("[v0] Error fetching take-home orders:", error)
+      return NextResponse.json({ orders: [] })
+    }
+
+    // Fetch patient names
+    const { data: patients } = await supabase.from("patient_dispensing").select("id, name")
+
+    const patientMap = new Map(patients?.map((p) => [p.id, p.name]) || [])
+
+    const formattedOrders = (orders || []).map((order) => ({
+      id: order.id,
+      patient_id: order.patient_id,
+      patient_name: patientMap.get(order.patient_id) || `Patient ${order.patient_id}`,
+      days: order.max_takehome || 0,
+      daily_dose_mg: order.daily_dose_mg,
+      start_date: order.start_date,
+      end_date: order.stop_date,
+      risk_level:
+        order.max_takehome && order.max_takehome > 7
+          ? "low"
+          : order.max_takehome && order.max_takehome > 3
+            ? "standard"
+            : "high",
+      status: order.status || "pending",
+      created_at: order.created_at,
+    }))
+
+    return NextResponse.json({ orders: formattedOrders })
+  } catch (error) {
+    console.error("[v0] Take-home orders error:", error)
+    return NextResponse.json({ orders: [] })
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,11 +65,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing take-home order fields" }, { status: 400 })
     }
 
-    const supabase = await createServiceRoleClient()
+    const supabase = createServiceClient()
 
     const validation = await validateTakehomeRules(supabase, patient_id, days, risk_level)
     if (!validation.eligible) {
-      return NextResponse.json({ error: "Patient not eligible for take-home", reasons: validation.reasons }, { status: 400 })
+      return NextResponse.json(
+        { error: "Patient not eligible for take-home", reasons: validation.reasons },
+        { status: 400 },
+      )
     }
 
     const startDate = new Date(start_date)

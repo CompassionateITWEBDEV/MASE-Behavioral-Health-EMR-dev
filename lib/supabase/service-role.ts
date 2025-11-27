@@ -1,15 +1,13 @@
-import { createServerClient } from "@supabase/ssr"
-import { cookies } from "next/headers"
+import { createClient } from "@supabase/supabase-js"
 
 /**
  * Helper that creates a Supabase client using the service role key.
  *
  * The service role key is required for privileged operations executed from
- * backend API routes (e.g. dispensing transactions). The key is never exposed
- * to the browser because this helper relies on the request scoped cookie
- * store provided by Next.js server components.
+ * backend API routes (e.g. dispensing transactions). This client bypasses
+ * Row Level Security (RLS) policies.
  */
-export async function createServiceRoleClient() {
+export function createServiceClient() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 
@@ -17,20 +15,13 @@ export async function createServiceRoleClient() {
     throw new Error("Supabase environment variables are not configured")
   }
 
-  const cookieStore = await cookies()
-
-  return createServerClient(supabaseUrl, serviceRoleKey, {
-    cookies: {
-      getAll() {
-        return cookieStore.getAll()
-      },
-      setAll(cookiesToSet) {
-        try {
-          cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options))
-        } catch {
-          // Ignore errors when called from a Server Component without mutable cookies.
-        }
-      },
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
     },
   })
 }
+
+// Alias for backward compatibility
+export const createServiceRoleClient = createServiceClient

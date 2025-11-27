@@ -13,12 +13,29 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { AlertCircle, Plus, Search, Send, FileText, Clock, CheckCircle } from "lucide-react"
+import { AlertCircle, Plus, Search, Send, FileText, Clock, CheckCircle, Loader2, AlertTriangle } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
+import useSWR from "swr"
+
+interface Patient {
+  id: string
+  first_name: string
+  last_name: string
+}
+
+interface Medication {
+  id: string
+  name: string
+  strength: string
+  form: string
+}
 
 interface Prescription {
   id: string
   patientName: string
+  patient_id: string
   medicationName: string
+  medication_id: string
   strength: string
   quantity: number
   daysSupply: number
@@ -26,29 +43,17 @@ interface Prescription {
   status: "pending" | "sent" | "filled" | "cancelled"
   prescribedDate: string
   pharmacyName?: string
+  directions?: string
 }
 
+const fetcher = (url: string) => fetch(url).then((res) => res.json())
+
 export function EPrescribingDashboard() {
-  const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
   const [searchTerm, setSearchTerm] = useState("")
-  const [selectedPatient, setSelectedPatient] = useState("")
   const [isNewPrescriptionOpen, setIsNewPrescriptionOpen] = useState(false)
 
-  useEffect(() => {
-    loadPrescriptions()
-  }, [])
-
-  const loadPrescriptions = async () => {
-    try {
-      const response = await fetch("/api/prescriptions")
-      if (response.ok) {
-        const data = await response.json()
-        setPrescriptions(data.prescriptions || [])
-      }
-    } catch (error) {
-      console.error("[v0] Error loading prescriptions:", error)
-    }
-  }
+  const { data, error, isLoading, mutate } = useSWR("/api/prescriptions", fetcher)
+  const prescriptions: Prescription[] = data?.prescriptions || []
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -80,15 +85,61 @@ export function EPrescribingDashboard() {
     }
   }
 
+  const handleSendPrescription = async (id: string) => {
+    try {
+      const response = await fetch("/api/prescriptions", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status: "sent" }),
+      })
+      if (response.ok) {
+        mutate()
+      }
+    } catch (error) {
+      console.error("Error sending prescription:", error)
+    }
+  }
+
   const filteredPrescriptions = prescriptions.filter(
     (prescription) =>
-      prescription.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      prescription.medicationName.toLowerCase().includes(searchTerm.toLowerCase()),
+      prescription.patientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      prescription.medicationName?.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
   const pendingCount = prescriptions.filter((p) => p.status === "pending").length
   const sentCount = prescriptions.filter((p) => p.status === "sent").length
   const filledCount = prescriptions.filter((p) => p.status === "filled").length
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {[1, 2, 3].map((i) => (
+            <Card key={i}>
+              <CardHeader className="pb-2">
+                <Skeleton className="h-4 w-32" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-8 w-16" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-48" />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -151,7 +202,13 @@ export function EPrescribingDashboard() {
                     <DialogHeader>
                       <DialogTitle>Create New Prescription</DialogTitle>
                     </DialogHeader>
-                    <NewPrescriptionForm onClose={() => setIsNewPrescriptionOpen(false)} />
+                    <NewPrescriptionForm
+                      onClose={() => setIsNewPrescriptionOpen(false)}
+                      onSuccess={() => {
+                        setIsNewPrescriptionOpen(false)
+                        mutate()
+                      }}
+                    />
                   </DialogContent>
                 </Dialog>
               </div>
@@ -170,86 +227,80 @@ export function EPrescribingDashboard() {
             </CardHeader>
 
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Patient</TableHead>
-                    <TableHead>Medication</TableHead>
-                    <TableHead>Strength</TableHead>
-                    <TableHead>Quantity</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Pharmacy</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredPrescriptions.map((prescription) => (
-                    <TableRow key={prescription.id}>
-                      <TableCell className="font-medium">{prescription.patientName}</TableCell>
-                      <TableCell>{prescription.medicationName}</TableCell>
-                      <TableCell>{prescription.strength}</TableCell>
-                      <TableCell>{prescription.quantity}</TableCell>
-                      <TableCell>
-                        <Badge className={getStatusColor(prescription.status)}>
-                          <div className="flex items-center space-x-1">
-                            {getStatusIcon(prescription.status)}
-                            <span className="capitalize">{prescription.status}</span>
-                          </div>
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{prescription.pharmacyName || "Not assigned"}</TableCell>
-                      <TableCell>{new Date(prescription.prescribedDate).toLocaleDateString()}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <Button variant="outline" size="sm">
-                            <FileText className="h-4 w-4" />
-                          </Button>
-                          {prescription.status === "pending" && (
-                            <Button size="sm">
-                              <Send className="h-4 w-4 mr-1" />
-                              Send
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
+              {filteredPrescriptions.length === 0 ? (
+                <div className="text-center py-12">
+                  <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium">No prescriptions found</h3>
+                  <p className="text-muted-foreground mt-1">
+                    {searchTerm ? "Try adjusting your search" : "Create a new prescription to get started"}
+                  </p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Patient</TableHead>
+                      <TableHead>Medication</TableHead>
+                      <TableHead>Strength</TableHead>
+                      <TableHead>Quantity</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Pharmacy</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredPrescriptions.map((prescription) => (
+                      <TableRow key={prescription.id}>
+                        <TableCell className="font-medium">{prescription.patientName}</TableCell>
+                        <TableCell>{prescription.medicationName}</TableCell>
+                        <TableCell>{prescription.strength}</TableCell>
+                        <TableCell>{prescription.quantity}</TableCell>
+                        <TableCell>
+                          <Badge className={getStatusColor(prescription.status)}>
+                            <div className="flex items-center space-x-1">
+                              {getStatusIcon(prescription.status)}
+                              <span className="capitalize">{prescription.status}</span>
+                            </div>
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{prescription.pharmacyName || "Not assigned"}</TableCell>
+                        <TableCell>{new Date(prescription.prescribedDate).toLocaleDateString()}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <Button variant="outline" size="sm">
+                              <FileText className="h-4 w-4" />
+                            </Button>
+                            {prescription.status === "pending" && (
+                              <Button size="sm" onClick={() => handleSendPrescription(prescription.id)}>
+                                <Send className="h-4 w-4 mr-1" />
+                                Send
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="formulary">
-          <Card>
-            <CardHeader>
-              <CardTitle>Drug Formulary</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">
-                Drug formulary search and preferred medications will be displayed here.
-              </p>
-            </CardContent>
-          </Card>
+          <DrugFormularyTab />
         </TabsContent>
 
         <TabsContent value="interactions">
-          <Card>
-            <CardHeader>
-              <CardTitle>Drug Interaction Checker</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Drug interaction checking tools will be displayed here.</p>
-            </CardContent>
-          </Card>
+          <DrugInteractionsTab />
         </TabsContent>
       </Tabs>
     </div>
   )
 }
 
-function NewPrescriptionForm({ onClose }: { onClose: () => void }) {
+function NewPrescriptionForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
   const [formData, setFormData] = useState({
     patientId: "",
     medicationName: "",
@@ -259,41 +310,141 @@ function NewPrescriptionForm({ onClose }: { onClose: () => void }) {
     daysSupply: "",
     directions: "",
     refills: "0",
-    pharmacyId: "",
+    pharmacyName: "",
   })
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [patients, setPatients] = useState<Patient[]>([])
+  const [medications, setMedications] = useState<Medication[]>([])
+  const [loadingPatients, setLoadingPatients] = useState(true)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Fetch patients on mount
+  useEffect(() => {
+    const fetchPatients = async () => {
+      try {
+        const response = await fetch("/api/patients")
+        if (response.ok) {
+          const data = await response.json()
+          setPatients(data.patients || [])
+        }
+      } catch (error) {
+        console.error("Error fetching patients:", error)
+      } finally {
+        setLoadingPatients(false)
+      }
+    }
+
+    const fetchMedications = async () => {
+      try {
+        const response = await fetch("/api/medications")
+        if (response.ok) {
+          const data = await response.json()
+          setMedications(data.medications || [])
+        }
+      } catch (error) {
+        console.error("Error fetching medications:", error)
+      }
+    }
+
+    fetchPatients()
+    fetchMedications()
+  }, [])
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Handle prescription creation
-    console.log("Creating prescription:", formData)
-    onClose()
+
+    if (!formData.patientId || !formData.medicationName || !formData.quantity) {
+      alert("Please fill in all required fields")
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const selectedPatient = patients.find((p) => p.id === formData.patientId)
+      const response = await fetch("/api/prescriptions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patient_id: formData.patientId,
+          patient_name: selectedPatient ? `${selectedPatient.first_name} ${selectedPatient.last_name}` : "",
+          medication_name: formData.medicationName,
+          strength: formData.strength,
+          quantity: Number.parseInt(formData.quantity) || 0,
+          days_supply: Number.parseInt(formData.daysSupply) || 30,
+          directions: formData.directions,
+          refills: Number.parseInt(formData.refills) || 0,
+          pharmacy_name: formData.pharmacyName,
+          status: "pending",
+        }),
+      })
+
+      if (response.ok) {
+        onSuccess()
+      } else {
+        const errorData = await response.json()
+        alert(errorData.error || "Failed to create prescription")
+      }
+    } catch (error) {
+      console.error("Error creating prescription:", error)
+      alert("Failed to create prescription")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="patient">Patient</Label>
+          <Label htmlFor="patient">Patient *</Label>
           <Select value={formData.patientId} onValueChange={(value) => setFormData({ ...formData, patientId: value })}>
             <SelectTrigger>
-              <SelectValue placeholder="Select patient" />
+              <SelectValue placeholder={loadingPatients ? "Loading..." : "Select patient"} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="1">John Smith</SelectItem>
-              <SelectItem value="2">Sarah Johnson</SelectItem>
-              <SelectItem value="3">Mike Davis</SelectItem>
+              {patients.map((patient) => (
+                <SelectItem key={patient.id} value={patient.id}>
+                  {patient.first_name} {patient.last_name}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
 
         <div>
-          <Label htmlFor="medication">Medication</Label>
-          <Input
-            id="medication"
+          <Label htmlFor="medication">Medication *</Label>
+          <Select
             value={formData.medicationName}
-            onChange={(e) => setFormData({ ...formData, medicationName: e.target.value })}
-            placeholder="Search medications..."
-          />
+            onValueChange={(value) => {
+              const med = medications.find((m) => m.name === value)
+              setFormData({
+                ...formData,
+                medicationName: value,
+                strength: med?.strength || "",
+                dosageForm: med?.form || "",
+              })
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select medication" />
+            </SelectTrigger>
+            <SelectContent>
+              {medications.length > 0 ? (
+                medications.map((med) => (
+                  <SelectItem key={med.id} value={med.name}>
+                    {med.name} {med.strength && `- ${med.strength}`}
+                  </SelectItem>
+                ))
+              ) : (
+                <>
+                  <SelectItem value="Methadone">Methadone</SelectItem>
+                  <SelectItem value="Buprenorphine">Buprenorphine</SelectItem>
+                  <SelectItem value="Naltrexone">Naltrexone</SelectItem>
+                  <SelectItem value="Suboxone">Suboxone</SelectItem>
+                  <SelectItem value="Vivitrol">Vivitrol</SelectItem>
+                </>
+              )}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
@@ -309,7 +460,7 @@ function NewPrescriptionForm({ onClose }: { onClose: () => void }) {
         </div>
 
         <div>
-          <Label htmlFor="quantity">Quantity</Label>
+          <Label htmlFor="quantity">Quantity *</Label>
           <Input
             id="quantity"
             type="number"
@@ -363,27 +514,223 @@ function NewPrescriptionForm({ onClose }: { onClose: () => void }) {
         <div>
           <Label htmlFor="pharmacy">Pharmacy</Label>
           <Select
-            value={formData.pharmacyId}
-            onValueChange={(value) => setFormData({ ...formData, pharmacyId: value })}
+            value={formData.pharmacyName}
+            onValueChange={(value) => setFormData({ ...formData, pharmacyName: value })}
           >
             <SelectTrigger>
               <SelectValue placeholder="Select pharmacy" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="1">CVS Pharmacy</SelectItem>
-              <SelectItem value="2">Walgreens</SelectItem>
-              <SelectItem value="3">Rite Aid</SelectItem>
+              <SelectItem value="CVS Pharmacy">CVS Pharmacy</SelectItem>
+              <SelectItem value="Walgreens">Walgreens</SelectItem>
+              <SelectItem value="Rite Aid">Rite Aid</SelectItem>
+              <SelectItem value="Walmart Pharmacy">Walmart Pharmacy</SelectItem>
+              <SelectItem value="On-site Dispensary">On-site Dispensary</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
 
       <div className="flex justify-end space-x-2 pt-4">
-        <Button type="button" variant="outline" onClick={onClose}>
+        <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
           Cancel
         </Button>
-        <Button type="submit">Create Prescription</Button>
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Creating...
+            </>
+          ) : (
+            "Create Prescription"
+          )}
+        </Button>
       </div>
     </form>
+  )
+}
+
+function DrugFormularyTab() {
+  const [searchTerm, setSearchTerm] = useState("")
+  const { data, isLoading } = useSWR("/api/medications", fetcher)
+  const medications = data?.medications || []
+
+  const filteredMeds = medications.filter((med: Medication) =>
+    med.name?.toLowerCase().includes(searchTerm.toLowerCase()),
+  )
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Drug Formulary</CardTitle>
+        <div className="relative">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+          <Input
+            placeholder="Search medications..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="space-y-2">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <Skeleton key={i} className="h-12 w-full" />
+            ))}
+          </div>
+        ) : filteredMeds.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            {searchTerm ? "No medications match your search" : "No medications in formulary"}
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Medication Name</TableHead>
+                <TableHead>Strength</TableHead>
+                <TableHead>Form</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredMeds.map((med: Medication) => (
+                <TableRow key={med.id}>
+                  <TableCell className="font-medium">{med.name}</TableCell>
+                  <TableCell>{med.strength || "—"}</TableCell>
+                  <TableCell>{med.form || "—"}</TableCell>
+                  <TableCell>
+                    <Badge className="bg-green-100 text-green-800">Preferred</Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function DrugInteractionsTab() {
+  const [drug1, setDrug1] = useState("")
+  const [drug2, setDrug2] = useState("")
+  const [checking, setChecking] = useState(false)
+  const [result, setResult] = useState<{ severity: string; description: string } | null>(null)
+
+  const checkInteraction = async () => {
+    if (!drug1 || !drug2) {
+      alert("Please enter both medications")
+      return
+    }
+
+    setChecking(true)
+    setResult(null)
+
+    // Simulate interaction check
+    setTimeout(() => {
+      const interactions: Record<string, { severity: string; description: string }> = {
+        "methadone-benzodiazepines": {
+          severity: "severe",
+          description:
+            "Concurrent use of opioids with benzodiazepines may result in profound sedation, respiratory depression, coma, and death.",
+        },
+        "buprenorphine-naltrexone": {
+          severity: "severe",
+          description:
+            "Naltrexone can precipitate acute withdrawal symptoms in patients physically dependent on opioids.",
+        },
+        "methadone-fluconazole": {
+          severity: "moderate",
+          description:
+            "Fluconazole may increase methadone levels, potentially leading to increased sedation and respiratory depression.",
+        },
+      }
+
+      const key = `${drug1.toLowerCase()}-${drug2.toLowerCase()}`
+      const reverseKey = `${drug2.toLowerCase()}-${drug1.toLowerCase()}`
+
+      if (interactions[key]) {
+        setResult(interactions[key])
+      } else if (interactions[reverseKey]) {
+        setResult(interactions[reverseKey])
+      } else {
+        setResult({
+          severity: "none",
+          description: "No significant interactions found between these medications.",
+        })
+      }
+      setChecking(false)
+    }, 1000)
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Drug Interaction Checker</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label>First Medication</Label>
+            <Input placeholder="Enter medication name" value={drug1} onChange={(e) => setDrug1(e.target.value)} />
+          </div>
+          <div>
+            <Label>Second Medication</Label>
+            <Input placeholder="Enter medication name" value={drug2} onChange={(e) => setDrug2(e.target.value)} />
+          </div>
+        </div>
+
+        <Button onClick={checkInteraction} disabled={checking}>
+          {checking ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Checking...
+            </>
+          ) : (
+            "Check Interactions"
+          )}
+        </Button>
+
+        {result && (
+          <Card
+            className={
+              result.severity === "severe"
+                ? "border-red-500 bg-red-50"
+                : result.severity === "moderate"
+                  ? "border-yellow-500 bg-yellow-50"
+                  : "border-green-500 bg-green-50"
+            }
+          >
+            <CardContent className="pt-4">
+              <div className="flex items-start gap-3">
+                {result.severity === "severe" ? (
+                  <AlertCircle className="h-5 w-5 text-red-500 mt-0.5" />
+                ) : result.severity === "moderate" ? (
+                  <AlertTriangle className="h-5 w-5 text-yellow-500 mt-0.5" />
+                ) : (
+                  <CheckCircle className="h-5 w-5 text-green-500 mt-0.5" />
+                )}
+                <div>
+                  <h4
+                    className={`font-semibold capitalize ${
+                      result.severity === "severe"
+                        ? "text-red-700"
+                        : result.severity === "moderate"
+                          ? "text-yellow-700"
+                          : "text-green-700"
+                    }`}
+                  >
+                    {result.severity === "none" ? "No Interaction" : `${result.severity} Interaction`}
+                  </h4>
+                  <p className="text-sm mt-1">{result.description}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </CardContent>
+    </Card>
   )
 }

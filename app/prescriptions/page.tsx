@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useCallback } from "react"
+import useSWR from "swr"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -26,16 +27,15 @@ import {
   CheckCircle,
   XCircle,
   AlertTriangle,
-  User,
-  Pill,
-  Phone,
   MapPin,
-  Edit,
   Printer,
+  Loader2,
 } from "lucide-react"
 import { useAuth } from "@/lib/auth/rbac-hooks"
 import { RoleGuard } from "@/components/auth/role-guard"
 import { PERMISSIONS } from "@/lib/auth/roles"
+import { Skeleton } from "@/components/ui/skeleton"
+import { DashboardSidebar } from "@/components/dashboard-sidebar"
 
 interface Prescription {
   id: string
@@ -63,6 +63,12 @@ interface Prescription {
   updated_at: string
 }
 
+interface Patient {
+  id: string
+  first_name: string
+  last_name: string
+}
+
 interface Pharmacy {
   id: string
   name: string
@@ -74,15 +80,47 @@ interface Pharmacy {
   is_preferred: boolean
 }
 
+const fetcher = (url: string) => fetch(url).then((res) => res.json())
+
 export default function PrescriptionsPage() {
   const [activeTab, setActiveTab] = useState("pending")
-  const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
-  const [pharmacies, setPharmacies] = useState<Pharmacy[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedPatient, setSelectedPatient] = useState("all")
   const [showNewDialog, setShowNewDialog] = useState(false)
   const [showPharmacyDialog, setShowPharmacyDialog] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const { user, hasPermission } = useAuth()
+
+  const { data, error, isLoading, mutate } = useSWR<{
+    prescriptions: Prescription[]
+    patients: Patient[]
+  }>("/api/prescriptions", fetcher, { refreshInterval: 30000 })
+
+  const prescriptions = data?.prescriptions || []
+  const patients = data?.patients || []
+
+  // Local pharmacy state
+  const [pharmacies, setPharmacies] = useState<Pharmacy[]>([
+    {
+      id: "pharm-001",
+      name: "CVS Pharmacy",
+      address: "123 Main St, Rochester, NY 14604",
+      phone: "(555) 123-4567",
+      npi: "1234567890",
+      fax: "(555) 123-4568",
+      email: "pharmacy@cvs.com",
+      is_preferred: true,
+    },
+    {
+      id: "pharm-002",
+      name: "Walgreens",
+      address: "456 Oak Ave, Rochester, NY 14605",
+      phone: "(555) 987-6543",
+      npi: "0987654321",
+      fax: "(555) 987-6544",
+      is_preferred: true,
+    },
+  ])
 
   const [newPrescription, setNewPrescription] = useState({
     patient_id: "",
@@ -106,121 +144,18 @@ export default function PrescriptionsPage() {
     is_preferred: false,
   })
 
-  useEffect(() => {
-    loadPrescriptions()
-    loadPharmacies()
-  }, [])
-
-  const loadPrescriptions = async () => {
-    // Mock data - replace with actual API call
-    setPrescriptions([
-      {
-        id: "rx-001",
-        patient_id: "pt-001",
-        patient_name: "Sarah Johnson",
-        prescribed_by: "dr-001",
-        prescriber_name: "Dr. Smith",
-        medication_name: "Lisinopril",
-        generic_name: "Lisinopril",
-        dosage: "10mg tablets",
-        quantity: 30,
-        refills: 3,
-        directions: "Take one tablet by mouth once daily",
-        pharmacy_name: "CVS Pharmacy",
-        pharmacy_address: "123 Main St, Rochester, NY 14604",
-        pharmacy_phone: "(555) 123-4567",
-        pharmacy_npi: "1234567890",
-        prescription_number: "RX2024001",
-        status: "filled",
-        prescribed_date: "2024-01-15T08:00:00Z",
-        sent_date: "2024-01-15T08:30:00Z",
-        filled_date: "2024-01-15T14:20:00Z",
-        notes: "Patient tolerating well",
-        created_at: "2024-01-15T08:00:00Z",
-        updated_at: "2024-01-15T14:20:00Z",
-      },
-      {
-        id: "rx-002",
-        patient_id: "pt-001",
-        patient_name: "Sarah Johnson",
-        prescribed_by: "dr-002",
-        prescriber_name: "Dr. Wilson",
-        medication_name: "Sertraline",
-        generic_name: "Sertraline HCl",
-        dosage: "50mg tablets",
-        quantity: 30,
-        refills: 5,
-        directions: "Take one tablet by mouth once daily with food",
-        pharmacy_name: "Walgreens",
-        pharmacy_address: "456 Oak Ave, Rochester, NY 14605",
-        pharmacy_phone: "(555) 987-6543",
-        status: "sent",
-        prescribed_date: "2024-01-16T09:00:00Z",
-        sent_date: "2024-01-16T09:15:00Z",
-        notes: "Monitor for side effects",
-        created_at: "2024-01-16T09:00:00Z",
-        updated_at: "2024-01-16T09:15:00Z",
-      },
-      {
-        id: "rx-003",
-        patient_id: "pt-002",
-        patient_name: "Michael Chen",
-        prescribed_by: "dr-001",
-        prescriber_name: "Dr. Smith",
-        medication_name: "Ibuprofen",
-        generic_name: "Ibuprofen",
-        dosage: "400mg tablets",
-        quantity: 60,
-        refills: 2,
-        directions: "Take one tablet by mouth every 6-8 hours as needed for pain. Do not exceed 3 tablets per day.",
-        status: "pending",
-        prescribed_date: "2024-01-17T10:00:00Z",
-        notes: "Short-term use only",
-        created_at: "2024-01-17T10:00:00Z",
-        updated_at: "2024-01-17T10:00:00Z",
-      },
-    ])
-  }
-
-  const loadPharmacies = async () => {
-    // Mock data - replace with actual API call
-    setPharmacies([
-      {
-        id: "pharm-001",
-        name: "CVS Pharmacy",
-        address: "123 Main St, Rochester, NY 14604",
-        phone: "(555) 123-4567",
-        npi: "1234567890",
-        fax: "(555) 123-4568",
-        email: "pharmacy@cvs.com",
-        is_preferred: true,
-      },
-      {
-        id: "pharm-002",
-        name: "Walgreens",
-        address: "456 Oak Ave, Rochester, NY 14605",
-        phone: "(555) 987-6543",
-        npi: "0987654321",
-        fax: "(555) 987-6544",
-        is_preferred: true,
-      },
-      {
-        id: "pharm-003",
-        name: "Rite Aid",
-        address: "789 Elm St, Rochester, NY 14606",
-        phone: "(555) 555-0123",
-        npi: "1122334455",
-        is_preferred: false,
-      },
-    ])
-  }
-
-  const handleCreatePrescription = async () => {
+  const handleCreatePrescription = useCallback(async () => {
     if (!hasPermission(PERMISSIONS.MEDICATIONS_PRESCRIBE)) {
       alert("You do not have permission to prescribe medications")
       return
     }
 
+    if (!newPrescription.patient_id || !newPrescription.medication_name) {
+      alert("Please select a patient and enter medication name")
+      return
+    }
+
+    setIsSubmitting(true)
     try {
       const selectedPharmacy = pharmacies.find((p) => p.id === newPrescription.pharmacy_id)
 
@@ -238,7 +173,7 @@ export default function PrescriptionsPage() {
       })
 
       if (response.ok) {
-        loadPrescriptions()
+        mutate()
         setShowNewDialog(false)
         setNewPrescription({
           patient_id: "",
@@ -251,79 +186,95 @@ export default function PrescriptionsPage() {
           pharmacy_id: "",
           notes: "",
         })
+      } else {
+        const data = await response.json()
+        alert(data.error || "Failed to create prescription")
       }
     } catch (error) {
       console.error("Failed to create prescription:", error)
+      alert("Failed to create prescription")
+    } finally {
+      setIsSubmitting(false)
     }
-  }
+  }, [newPrescription, pharmacies, user?.id, hasPermission, mutate])
 
-  const handleSendPrescription = async (prescriptionId: string) => {
-    try {
-      const response = await fetch(`/api/prescriptions/${prescriptionId}/send`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      })
-
-      if (response.ok) {
-        loadPrescriptions()
-        alert("Prescription sent successfully")
-      }
-    } catch (error) {
-      console.error("Failed to send prescription:", error)
-    }
-  }
-
-  const handleCancelPrescription = async (prescriptionId: string, reason: string) => {
-    try {
-      const response = await fetch(`/api/prescriptions/${prescriptionId}/cancel`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason }),
-      })
-
-      if (response.ok) {
-        loadPrescriptions()
-      }
-    } catch (error) {
-      console.error("Failed to cancel prescription:", error)
-    }
-  }
-
-  const handleAddPharmacy = async () => {
-    try {
-      const response = await fetch("/api/pharmacies", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newPharmacy),
-      })
-
-      if (response.ok) {
-        loadPharmacies()
-        setShowPharmacyDialog(false)
-        setNewPharmacy({
-          name: "",
-          address: "",
-          phone: "",
-          npi: "",
-          fax: "",
-          email: "",
-          is_preferred: false,
+  const handleSendPrescription = useCallback(
+    async (prescriptionId: string) => {
+      try {
+        const response = await fetch("/api/prescriptions", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: prescriptionId, status: "sent" }),
         })
+
+        if (response.ok) {
+          mutate()
+          alert("Prescription sent successfully")
+        } else {
+          alert("Failed to send prescription")
+        }
+      } catch (error) {
+        console.error("Failed to send prescription:", error)
+        alert("Failed to send prescription")
       }
-    } catch (error) {
-      console.error("Failed to add pharmacy:", error)
+    },
+    [mutate],
+  )
+
+  const handleCancelPrescription = useCallback(
+    async (prescriptionId: string) => {
+      if (!confirm("Are you sure you want to cancel this prescription?")) return
+
+      try {
+        const response = await fetch("/api/prescriptions", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: prescriptionId, status: "cancelled" }),
+        })
+
+        if (response.ok) {
+          mutate()
+        } else {
+          alert("Failed to cancel prescription")
+        }
+      } catch (error) {
+        console.error("Failed to cancel prescription:", error)
+      }
+    },
+    [mutate],
+  )
+
+  const handleAddPharmacy = useCallback(async () => {
+    if (!newPharmacy.name || !newPharmacy.phone) {
+      alert("Please enter pharmacy name and phone")
+      return
     }
-  }
+
+    const pharmacy: Pharmacy = {
+      id: `pharm-${Date.now()}`,
+      ...newPharmacy,
+    }
+    setPharmacies((prev) => [...prev, pharmacy])
+    setShowPharmacyDialog(false)
+    setNewPharmacy({
+      name: "",
+      address: "",
+      phone: "",
+      npi: "",
+      fax: "",
+      email: "",
+      is_preferred: false,
+    })
+  }, [newPharmacy])
 
   const filteredPrescriptions = prescriptions.filter((rx) => {
     const matchesSearch =
-      rx.medication_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      rx.patient_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      rx.prescriber_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      rx.medication_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      rx.patient_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      rx.prescriber_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (rx.prescription_number && rx.prescription_number.toLowerCase().includes(searchTerm.toLowerCase()))
 
     const matchesTab = activeTab === "all" || rx.status === activeTab
-
     const matchesPatient = selectedPatient === "all" || rx.patient_id === selectedPatient
 
     return matchesSearch && matchesTab && matchesPatient
@@ -363,403 +314,425 @@ export default function PrescriptionsPage() {
     }
   }
 
-  return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Prescription Management</h1>
-          <p className="text-muted-foreground">Create, send, and track electronic prescriptions</p>
-        </div>
-        <div className="flex gap-2">
-          <Dialog open={showPharmacyDialog} onOpenChange={setShowPharmacyDialog}>
-            <DialogTrigger asChild>
-              <Button variant="outline">
-                <MapPin className="w-4 h-4 mr-2" />
-                Add Pharmacy
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add New Pharmacy</DialogTitle>
-                <DialogDescription>Add a pharmacy to the preferred pharmacy list</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="pharmacy-name">Pharmacy Name</Label>
-                  <Input
-                    id="pharmacy-name"
-                    value={newPharmacy.name}
-                    onChange={(e) => setNewPharmacy((prev) => ({ ...prev, name: e.target.value }))}
-                    placeholder="Pharmacy name"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="pharmacy-address">Address</Label>
-                  <Input
-                    id="pharmacy-address"
-                    value={newPharmacy.address}
-                    onChange={(e) => setNewPharmacy((prev) => ({ ...prev, address: e.target.value }))}
-                    placeholder="Full address"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="pharmacy-phone">Phone</Label>
-                    <Input
-                      id="pharmacy-phone"
-                      value={newPharmacy.phone}
-                      onChange={(e) => setNewPharmacy((prev) => ({ ...prev, phone: e.target.value }))}
-                      placeholder="(555) 123-4567"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="pharmacy-npi">NPI Number</Label>
-                    <Input
-                      id="pharmacy-npi"
-                      value={newPharmacy.npi}
-                      onChange={(e) => setNewPharmacy((prev) => ({ ...prev, npi: e.target.value }))}
-                      placeholder="1234567890"
-                    />
-                  </div>
-                </div>
-                <Button onClick={handleAddPharmacy} className="w-full">
-                  Add Pharmacy
-                </Button>
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <DashboardSidebar />
+        <div className="lg:pl-64">
+          <div className="container mx-auto p-6 space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <Skeleton className="h-8 w-64 mb-2" />
+                <Skeleton className="h-4 w-96" />
               </div>
-            </DialogContent>
-          </Dialog>
-
-          <RoleGuard requiredPermissions={[PERMISSIONS.MEDICATIONS_PRESCRIBE]}>
-            <Dialog open={showNewDialog} onOpenChange={setShowNewDialog}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="w-4 h-4 mr-2" />
-                  New Prescription
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle>Create New Prescription</DialogTitle>
-                  <DialogDescription>Create and send an electronic prescription</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="patient">Patient</Label>
-                      <Select
-                        value={newPrescription.patient_id}
-                        onValueChange={(value) => setNewPrescription((prev) => ({ ...prev, patient_id: value }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select patient" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="pt-001">Sarah Johnson</SelectItem>
-                          <SelectItem value="pt-002">Michael Chen</SelectItem>
-                          <SelectItem value="pt-003">David Wilson</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label htmlFor="pharmacy">Pharmacy</Label>
-                      <Select
-                        value={newPrescription.pharmacy_id}
-                        onValueChange={(value) => setNewPrescription((prev) => ({ ...prev, pharmacy_id: value }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select pharmacy" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {pharmacies.map((pharmacy) => (
-                            <SelectItem key={pharmacy.id} value={pharmacy.id}>
-                              {pharmacy.name} {pharmacy.is_preferred && "⭐"}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="medication-name">Medication Name</Label>
-                      <Input
-                        id="medication-name"
-                        value={newPrescription.medication_name}
-                        onChange={(e) => setNewPrescription((prev) => ({ ...prev, medication_name: e.target.value }))}
-                        placeholder="Brand name"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="generic-name">Generic Name</Label>
-                      <Input
-                        id="generic-name"
-                        value={newPrescription.generic_name}
-                        onChange={(e) => setNewPrescription((prev) => ({ ...prev, generic_name: e.target.value }))}
-                        placeholder="Generic name"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="dosage">Dosage & Form</Label>
-                    <Input
-                      id="dosage"
-                      value={newPrescription.dosage}
-                      onChange={(e) => setNewPrescription((prev) => ({ ...prev, dosage: e.target.value }))}
-                      placeholder="e.g., 10mg tablets"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="quantity">Quantity</Label>
-                      <Input
-                        id="quantity"
-                        type="number"
-                        min="1"
-                        value={newPrescription.quantity}
-                        onChange={(e) =>
-                          setNewPrescription((prev) => ({ ...prev, quantity: Number.parseInt(e.target.value) || 30 }))
-                        }
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="refills">Refills</Label>
-                      <Select
-                        value={newPrescription.refills.toString()}
-                        onValueChange={(value) =>
-                          setNewPrescription((prev) => ({ ...prev, refills: Number.parseInt(value) }))
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="0">0 refills</SelectItem>
-                          <SelectItem value="1">1 refill</SelectItem>
-                          <SelectItem value="2">2 refills</SelectItem>
-                          <SelectItem value="3">3 refills</SelectItem>
-                          <SelectItem value="4">4 refills</SelectItem>
-                          <SelectItem value="5">5 refills</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="directions">Directions for Use</Label>
-                    <Textarea
-                      id="directions"
-                      value={newPrescription.directions}
-                      onChange={(e) => setNewPrescription((prev) => ({ ...prev, directions: e.target.value }))}
-                      placeholder="Take one tablet by mouth once daily..."
-                      rows={3}
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="notes">Clinical Notes</Label>
-                    <Textarea
-                      id="notes"
-                      value={newPrescription.notes}
-                      onChange={(e) => setNewPrescription((prev) => ({ ...prev, notes: e.target.value }))}
-                      placeholder="Additional clinical notes..."
-                      rows={2}
-                    />
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button onClick={handleCreatePrescription} className="flex-1">
-                      Create & Send Prescription
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        // Save as draft functionality
-                        alert("Draft saved")
-                      }}
-                    >
-                      Save as Draft
-                    </Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </RoleGuard>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="flex gap-4 items-center">
-        <div className="flex-1">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-            <Input
-              placeholder="Search prescriptions, patients, or medications..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
+              <div className="flex gap-2">
+                <Skeleton className="h-10 w-32" />
+                <Skeleton className="h-10 w-40" />
+              </div>
+            </div>
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-32 w-full" />
+              ))}
+            </div>
           </div>
         </div>
-        <Select value={selectedPatient} onValueChange={setSelectedPatient}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="All patients" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All patients</SelectItem>
-            <SelectItem value="pt-001">Sarah Johnson</SelectItem>
-            <SelectItem value="pt-002">Michael Chen</SelectItem>
-            <SelectItem value="pt-003">David Wilson</SelectItem>
-          </SelectContent>
-        </Select>
       </div>
+    )
+  }
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-6">
-          <TabsTrigger value="pending">Pending</TabsTrigger>
-          <TabsTrigger value="sent">Sent</TabsTrigger>
-          <TabsTrigger value="filled">Filled</TabsTrigger>
-          <TabsTrigger value="cancelled">Cancelled</TabsTrigger>
-          <TabsTrigger value="expired">Expired</TabsTrigger>
-          <TabsTrigger value="all">All</TabsTrigger>
-        </TabsList>
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background">
+        <DashboardSidebar />
+        <div className="lg:pl-64">
+          <div className="container mx-auto p-6">
+            <Card className="border-destructive">
+              <CardContent className="p-6 text-center">
+                <AlertTriangle className="w-12 h-12 text-destructive mx-auto mb-4" />
+                <h2 className="text-xl font-semibold mb-2">Failed to load prescriptions</h2>
+                <p className="text-muted-foreground mb-4">Please try again later</p>
+                <Button onClick={() => mutate()}>Retry</Button>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
-        <TabsContent value={activeTab} className="space-y-4">
-          <div className="grid gap-4">
-            {filteredPrescriptions.map((prescription) => (
-              <Card key={prescription.id}>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
+  return (
+    <div className="min-h-screen bg-background">
+      <DashboardSidebar />
+      <div className="lg:pl-64">
+        <div className="container mx-auto p-6 space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold">Prescription Management</h1>
+              <p className="text-muted-foreground">Create, send, and track electronic prescriptions</p>
+            </div>
+            <div className="flex gap-2">
+              <Dialog open={showPharmacyDialog} onOpenChange={setShowPharmacyDialog}>
+                <DialogTrigger asChild>
+                  <Button variant="outline">
+                    <MapPin className="w-4 h-4 mr-2" />
+                    Add Pharmacy
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Add New Pharmacy</DialogTitle>
+                    <DialogDescription>Add a pharmacy to the preferred pharmacy list</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
                     <div>
-                      <CardTitle className="flex items-center gap-2">
-                        <Pill className="w-5 h-5" />
-                        {prescription.medication_name}
-                        {prescription.generic_name && prescription.generic_name !== prescription.medication_name && (
-                          <span className="text-sm text-muted-foreground">({prescription.generic_name})</span>
-                        )}
-                      </CardTitle>
-                      <CardDescription>
-                        <User className="w-4 h-4 inline mr-1" />
-                        {prescription.patient_name} • Prescribed by {prescription.prescriber_name}
-                      </CardDescription>
+                      <Label htmlFor="pharmacy-name">Pharmacy Name</Label>
+                      <Input
+                        id="pharmacy-name"
+                        value={newPharmacy.name}
+                        onChange={(e) => setNewPharmacy((prev) => ({ ...prev, name: e.target.value }))}
+                        placeholder="Pharmacy name"
+                      />
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={getStatusVariant(prescription.status)} className="flex items-center gap-1">
-                        {getStatusIcon(prescription.status)}
-                        {prescription.status}
-                      </Badge>
-                      {prescription.prescription_number && (
-                        <Badge variant="outline">#{prescription.prescription_number}</Badge>
-                      )}
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <div className="text-sm font-medium">Prescription Details</div>
-                      <div className="text-sm text-muted-foreground">
-                        {prescription.dosage} • Qty: {prescription.quantity} • Refills: {prescription.refills}
+                      <Label htmlFor="pharmacy-address">Address</Label>
+                      <Input
+                        id="pharmacy-address"
+                        value={newPharmacy.address}
+                        onChange={(e) => setNewPharmacy((prev) => ({ ...prev, address: e.target.value }))}
+                        placeholder="Full address"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="pharmacy-phone">Phone</Label>
+                        <Input
+                          id="pharmacy-phone"
+                          value={newPharmacy.phone}
+                          onChange={(e) => setNewPharmacy((prev) => ({ ...prev, phone: e.target.value }))}
+                          placeholder="(555) 123-4567"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="pharmacy-npi">NPI Number</Label>
+                        <Input
+                          id="pharmacy-npi"
+                          value={newPharmacy.npi}
+                          onChange={(e) => setNewPharmacy((prev) => ({ ...prev, npi: e.target.value }))}
+                          placeholder="1234567890"
+                        />
                       </div>
                     </div>
-                    <div>
-                      <div className="text-sm font-medium">Pharmacy</div>
-                      <div className="text-sm text-muted-foreground">
-                        {prescription.pharmacy_name || "No pharmacy selected"}
-                        {prescription.pharmacy_phone && (
-                          <div className="flex items-center gap-1 mt-1">
-                            <Phone className="w-3 h-3" />
-                            {prescription.pharmacy_phone}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium">Timeline</div>
-                      <div className="text-sm text-muted-foreground">
-                        Prescribed: {new Date(prescription.prescribed_date).toLocaleDateString()}
-                        {prescription.sent_date && (
-                          <div>Sent: {new Date(prescription.sent_date).toLocaleDateString()}</div>
-                        )}
-                        {prescription.filled_date && (
-                          <div>Filled: {new Date(prescription.filled_date).toLocaleDateString()}</div>
-                        )}
-                      </div>
-                    </div>
+                    <Button onClick={handleAddPharmacy} className="w-full">
+                      Add Pharmacy
+                    </Button>
                   </div>
+                </DialogContent>
+              </Dialog>
 
-                  <div className="mt-4 p-3 bg-muted rounded-lg">
-                    <div className="text-sm font-medium mb-1">Directions</div>
-                    <div className="text-sm text-muted-foreground">{prescription.directions}</div>
-                  </div>
-
-                  {prescription.notes && (
-                    <div className="mt-2 p-3 bg-blue-50 rounded-lg">
-                      <div className="text-sm font-medium mb-1">Clinical Notes</div>
-                      <div className="text-sm text-muted-foreground">{prescription.notes}</div>
-                    </div>
-                  )}
-
-                  <div className="flex justify-between items-center mt-4">
-                    <div className="text-xs text-muted-foreground">
-                      Created: {new Date(prescription.created_at).toLocaleDateString()}
-                    </div>
-                    <div className="flex gap-2">
-                      {prescription.status === "pending" && (
-                        <RoleGuard requiredPermissions={[PERMISSIONS.MEDICATIONS_PRESCRIBE]}>
-                          <Button size="sm" onClick={() => handleSendPrescription(prescription.id)}>
-                            <Send className="w-4 h-4 mr-2" />
-                            Send to Pharmacy
-                          </Button>
-                        </RoleGuard>
-                      )}
-
-                      <Button variant="outline" size="sm">
-                        <Printer className="w-4 h-4 mr-2" />
-                        Print
-                      </Button>
-
-                      <Button variant="outline" size="sm">
-                        <Edit className="w-4 h-4 mr-2" />
-                        Edit
-                      </Button>
-
-                      {(prescription.status === "pending" || prescription.status === "sent") && (
-                        <RoleGuard requiredPermissions={[PERMISSIONS.MEDICATIONS_PRESCRIBE]}>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              const reason = prompt("Reason for cancellation:")
-                              if (reason) {
-                                handleCancelPrescription(prescription.id, reason)
-                              }
-                            }}
+              <RoleGuard requiredPermissions={[PERMISSIONS.MEDICATIONS_PRESCRIBE]}>
+                <Dialog open={showNewDialog} onOpenChange={setShowNewDialog}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="w-4 h-4 mr-2" />
+                      New Prescription
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Create New Prescription</DialogTitle>
+                      <DialogDescription>Create and send an electronic prescription</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="patient">Patient</Label>
+                          <Select
+                            value={newPrescription.patient_id}
+                            onValueChange={(value) => setNewPrescription((prev) => ({ ...prev, patient_id: value }))}
                           >
-                            <XCircle className="w-4 h-4 mr-2" />
-                            Cancel
-                          </Button>
-                        </RoleGuard>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select patient" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {patients.map((patient) => (
+                                <SelectItem key={patient.id} value={patient.id}>
+                                  {patient.first_name} {patient.last_name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label htmlFor="pharmacy">Pharmacy</Label>
+                          <Select
+                            value={newPrescription.pharmacy_id}
+                            onValueChange={(value) => setNewPrescription((prev) => ({ ...prev, pharmacy_id: value }))}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select pharmacy" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {pharmacies.map((pharmacy) => (
+                                <SelectItem key={pharmacy.id} value={pharmacy.id}>
+                                  {pharmacy.name} {pharmacy.is_preferred && "(Preferred)"}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
 
-            {filteredPrescriptions.length === 0 && (
-              <Card>
-                <CardContent className="text-center py-8">
-                  <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p className="text-muted-foreground">No prescriptions found matching your criteria</p>
-                </CardContent>
-              </Card>
-            )}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="medication-name">Medication Name</Label>
+                          <Input
+                            id="medication-name"
+                            value={newPrescription.medication_name}
+                            onChange={(e) =>
+                              setNewPrescription((prev) => ({ ...prev, medication_name: e.target.value }))
+                            }
+                            placeholder="Brand name"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="generic-name">Generic Name</Label>
+                          <Input
+                            id="generic-name"
+                            value={newPrescription.generic_name}
+                            onChange={(e) => setNewPrescription((prev) => ({ ...prev, generic_name: e.target.value }))}
+                            placeholder="Generic name"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="dosage">Dosage & Form</Label>
+                        <Input
+                          id="dosage"
+                          value={newPrescription.dosage}
+                          onChange={(e) => setNewPrescription((prev) => ({ ...prev, dosage: e.target.value }))}
+                          placeholder="e.g., 10mg tablets"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="quantity">Quantity</Label>
+                          <Input
+                            id="quantity"
+                            type="number"
+                            min="1"
+                            value={newPrescription.quantity}
+                            onChange={(e) =>
+                              setNewPrescription((prev) => ({
+                                ...prev,
+                                quantity: Number.parseInt(e.target.value) || 30,
+                              }))
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="refills">Refills</Label>
+                          <Select
+                            value={newPrescription.refills.toString()}
+                            onValueChange={(value) =>
+                              setNewPrescription((prev) => ({ ...prev, refills: Number.parseInt(value) }))
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="0">0 refills</SelectItem>
+                              <SelectItem value="1">1 refill</SelectItem>
+                              <SelectItem value="2">2 refills</SelectItem>
+                              <SelectItem value="3">3 refills</SelectItem>
+                              <SelectItem value="4">4 refills</SelectItem>
+                              <SelectItem value="5">5 refills</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="directions">Directions for Use</Label>
+                        <Textarea
+                          id="directions"
+                          value={newPrescription.directions}
+                          onChange={(e) => setNewPrescription((prev) => ({ ...prev, directions: e.target.value }))}
+                          placeholder="Take one tablet by mouth once daily..."
+                          rows={3}
+                        />
+                      </div>
+
+                      <div>
+                        <Label htmlFor="notes">Clinical Notes</Label>
+                        <Textarea
+                          id="notes"
+                          value={newPrescription.notes}
+                          onChange={(e) => setNewPrescription((prev) => ({ ...prev, notes: e.target.value }))}
+                          placeholder="Additional clinical notes..."
+                          rows={2}
+                        />
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button onClick={handleCreatePrescription} className="flex-1" disabled={isSubmitting}>
+                          {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                          Create & Send Prescription
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </RoleGuard>
+            </div>
           </div>
-        </TabsContent>
-      </Tabs>
+
+          {/* Search and Filters */}
+          <div className="flex gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+              <Input
+                placeholder="Search prescriptions..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Select value={selectedPatient} onValueChange={setSelectedPatient}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Filter by patient" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Patients</SelectItem>
+                {patients.map((patient) => (
+                  <SelectItem key={patient.id} value={patient.id}>
+                    {patient.first_name} {patient.last_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Tabs */}
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList>
+              <TabsTrigger value="pending">
+                Pending ({prescriptions.filter((rx) => rx.status === "pending").length})
+              </TabsTrigger>
+              <TabsTrigger value="sent">Sent ({prescriptions.filter((rx) => rx.status === "sent").length})</TabsTrigger>
+              <TabsTrigger value="filled">
+                Filled ({prescriptions.filter((rx) => rx.status === "filled").length})
+              </TabsTrigger>
+              <TabsTrigger value="cancelled">
+                Cancelled ({prescriptions.filter((rx) => rx.status === "cancelled").length})
+              </TabsTrigger>
+              <TabsTrigger value="all">All ({prescriptions.length})</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value={activeTab} className="space-y-4">
+              {filteredPrescriptions.length === 0 ? (
+                <Card>
+                  <CardContent className="p-6 text-center">
+                    <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="font-medium mb-2">No prescriptions found</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {activeTab === "all"
+                        ? "Create your first prescription to get started"
+                        : `No ${activeTab} prescriptions`}
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                filteredPrescriptions.map((rx) => (
+                  <Card key={rx.id}>
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            {rx.medication_name}
+                            {rx.generic_name && (
+                              <span className="text-sm font-normal text-muted-foreground">({rx.generic_name})</span>
+                            )}
+                          </CardTitle>
+                          <CardDescription>
+                            {rx.patient_name} • Prescribed by {rx.prescriber_name}
+                          </CardDescription>
+                        </div>
+                        <Badge variant={getStatusVariant(rx.status)} className="flex items-center gap-1">
+                          {getStatusIcon(rx.status)}
+                          {rx.status.charAt(0).toUpperCase() + rx.status.slice(1)}
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid md:grid-cols-3 gap-4">
+                        <div>
+                          <p className="text-sm text-muted-foreground">Dosage</p>
+                          <p className="font-medium">{rx.dosage || "N/A"}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Quantity</p>
+                          <p className="font-medium">{rx.quantity}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">Refills</p>
+                          <p className="font-medium">{rx.refills}</p>
+                        </div>
+                      </div>
+
+                      {rx.directions && (
+                        <div className="mt-4">
+                          <p className="text-sm text-muted-foreground">Directions</p>
+                          <p className="text-sm">{rx.directions}</p>
+                        </div>
+                      )}
+
+                      {rx.pharmacy_name && (
+                        <div className="mt-4 p-3 bg-muted rounded-lg">
+                          <p className="text-sm font-medium">{rx.pharmacy_name}</p>
+                          {rx.pharmacy_address && (
+                            <p className="text-sm text-muted-foreground">{rx.pharmacy_address}</p>
+                          )}
+                          {rx.pharmacy_phone && <p className="text-sm text-muted-foreground">{rx.pharmacy_phone}</p>}
+                        </div>
+                      )}
+
+                      <div className="mt-4 flex items-center justify-between">
+                        <div className="text-sm text-muted-foreground">
+                          Prescribed: {rx.prescribed_date ? new Date(rx.prescribed_date).toLocaleDateString() : "N/A"}
+                          {rx.sent_date && ` • Sent: ${new Date(rx.sent_date).toLocaleDateString()}`}
+                          {rx.filled_date && ` • Filled: ${new Date(rx.filled_date).toLocaleDateString()}`}
+                        </div>
+                        <div className="flex gap-2">
+                          {rx.status === "pending" && (
+                            <>
+                              <Button size="sm" onClick={() => handleSendPrescription(rx.id)}>
+                                <Send className="w-4 h-4 mr-1" />
+                                Send
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => handleCancelPrescription(rx.id)}>
+                                <XCircle className="w-4 h-4 mr-1" />
+                                Cancel
+                              </Button>
+                            </>
+                          )}
+                          <Button size="sm" variant="outline">
+                            <Printer className="w-4 h-4 mr-1" />
+                            Print
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
     </div>
   )
 }

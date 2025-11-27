@@ -1,9 +1,9 @@
-import { createServiceClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 
 export async function GET() {
   try {
-    const supabase = createServiceClient()
+    const supabase = await createClient()
 
     // Get recent medication interactions
     const { data: interactions, error } = await supabase

@@ -107,7 +107,7 @@ export function AddPatientDialog({ children, providerId }: AddPatientDialogProps
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add New Patient</DialogTitle>
-          <DialogDescription>Enter the patient's information to create a new record.</DialogDescription>
+          <DialogDescription>{"Enter the patient's information to create a new record."}</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">

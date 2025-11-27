@@ -275,7 +275,7 @@ export default function PatientCheckInPage() {
               ) : (
                 <>
                   <MapPin className="h-5 w-5 mr-2" />
-                  I'm Here - Check Me In
+                  {"I'm Here - Check Me In"}
                 </>
               )}
             </Button>
@@ -311,7 +311,7 @@ export default function PatientCheckInPage() {
               <div className="p-4 rounded-lg mb-2" style={{ backgroundColor: "#d1fae5" }}>
                 <CheckCircle className="h-16 w-16 mx-auto mb-2" style={{ color: "#10b981" }} />
                 <CardTitle className="text-2xl" style={{ color: "#065f46" }}>
-                  You're Being Called!
+                  {"You're Being Called!"}
                 </CardTitle>
                 <CardDescription style={{ color: "#047857" }}>Please proceed to the service window</CardDescription>
               </div>
@@ -333,7 +333,9 @@ export default function PatientCheckInPage() {
                 <CardTitle className="text-xl" style={{ color: "#1e293b" }}>
                   Patient #{queueStatus?.patientNumber}
                 </CardTitle>
-                <CardDescription>You're checked in for {queueStatus?.serviceType}</CardDescription>
+                <CardDescription>
+                  {"You're checked in for"} {queueStatus?.serviceType}
+                </CardDescription>
               </>
             )}
           </CardHeader>

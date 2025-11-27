@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -42,16 +42,18 @@ interface ReconciliationSession {
   medications: MedicationItem[]
 }
 
-export function MedicationReconciliation({ patientId }: { patientId: string }) {
+interface MedicationReconciliationProps {
+  patientId: string
+  patientName: string
+  onClose: () => void
+}
+
+export function MedicationReconciliation({ patientId, patientName, onClose }: MedicationReconciliationProps) {
   const [session, setSession] = useState<ReconciliationSession | null>(null)
   const [showNewMedDialog, setShowNewMedDialog] = useState(false)
   const [reconciliationNotes, setReconciliationNotes] = useState("")
 
-  useEffect(() => {
-    loadReconciliationSession()
-  }, [patientId])
-
-  const loadReconciliationSession = async () => {
+  const loadReconciliationSession = useCallback(async () => {
     try {
       const response = await fetch(`/api/medication-reconciliation?patient_id=${patientId}&status=in_progress`)
       if (response.ok) {
@@ -64,7 +66,11 @@ export function MedicationReconciliation({ patientId }: { patientId: string }) {
     } catch (error) {
       console.error("[v0] Error loading reconciliation session:", error)
     }
-  }
+  }, [patientId])
+
+  useEffect(() => {
+    loadReconciliationSession()
+  }, [loadReconciliationSession])
 
   const updateMedicationAction = (medicationId: string, action: MedicationItem["action"]) => {
     if (!session) return
@@ -167,7 +173,7 @@ export function MedicationReconciliation({ patientId }: { patientId: string }) {
               </CardTitle>
               <CardDescription>
                 {session.session_type.charAt(0).toUpperCase() + session.session_type.slice(1)} reconciliation for{" "}
-                {session.patient_name}
+                {patientName}
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">

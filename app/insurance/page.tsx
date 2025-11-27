@@ -2,22 +2,37 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { CreditCard, Building2, Users, FileCheck, Search } from "lucide-react"
+import { CreditCard, Building2, Users, FileCheck, Search, RefreshCw } from "lucide-react"
 import { InsurancePayerManagement } from "@/components/insurance-payer-management"
 import { PatientInsuranceManagement } from "@/components/patient-insurance-management"
 import { InsuranceEligibility } from "@/components/insurance-eligibility"
+import { DashboardSidebar } from "@/components/dashboard-sidebar"
+import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
+import useSWR from "swr"
+
+const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
 export default function InsurancePage() {
+  const { data, error, isLoading, mutate } = useSWR("/api/insurance?type=overview", fetcher)
+
   return (
     <div className="min-h-screen bg-background">
-      <div className="flex">
-        <main className="flex-1 ml-64 p-8">
+      <DashboardSidebar />
+      <div className="lg:pl-64">
+        <main className="p-8">
           <div className="space-y-6">
-            <div>
-              <h1 className="text-3xl font-bold">Insurance Management</h1>
-              <p className="text-muted-foreground">
-                Manage insurance payers, patient coverage, and eligibility verification
-              </p>
+            <div className="flex justify-between items-center">
+              <div>
+                <h1 className="text-3xl font-bold">Insurance Management</h1>
+                <p className="text-muted-foreground">
+                  Manage insurance payers, patient coverage, and eligibility verification
+                </p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => mutate()}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
             </div>
 
             {/* Key Metrics */}
@@ -28,10 +43,14 @@ export default function InsurancePage() {
                   <Building2 className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">24</div>
-                  <p className="text-xs text-muted-foreground">
-                    <span className="text-green-600">+2</span> new this month
-                  </p>
+                  {isLoading ? (
+                    <Skeleton className="h-8 w-16" />
+                  ) : (
+                    <>
+                      <div className="text-2xl font-bold">{data?.metrics?.activePayers || 0}</div>
+                      <p className="text-xs text-muted-foreground">Configured insurance companies</p>
+                    </>
+                  )}
                 </CardContent>
               </Card>
 
@@ -41,10 +60,16 @@ export default function InsurancePage() {
                   <Users className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">234</div>
-                  <p className="text-xs text-muted-foreground">
-                    <span className="text-blue-600">94.8%</span> coverage rate
-                  </p>
+                  {isLoading ? (
+                    <Skeleton className="h-8 w-16" />
+                  ) : (
+                    <>
+                      <div className="text-2xl font-bold">{data?.metrics?.patientsWithCoverage || 0}</div>
+                      <p className="text-xs text-muted-foreground">
+                        <span className="text-blue-600">{data?.metrics?.coverageRate || 0}%</span> coverage rate
+                      </p>
+                    </>
+                  )}
                 </CardContent>
               </Card>
 
@@ -54,8 +79,14 @@ export default function InsurancePage() {
                   <Search className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">47</div>
-                  <p className="text-xs text-muted-foreground">{"Today's verifications"}</p>
+                  {isLoading ? (
+                    <Skeleton className="h-8 w-16" />
+                  ) : (
+                    <>
+                      <div className="text-2xl font-bold">{data?.metrics?.todayEligibilityChecks || 0}</div>
+                      <p className="text-xs text-muted-foreground">{"Today's verifications"}</p>
+                    </>
+                  )}
                 </CardContent>
               </Card>
 
@@ -65,10 +96,14 @@ export default function InsurancePage() {
                   <FileCheck className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">8</div>
-                  <p className="text-xs text-muted-foreground">
-                    <span className="text-yellow-600">3</span> urgent
-                  </p>
+                  {isLoading ? (
+                    <Skeleton className="h-8 w-16" />
+                  ) : (
+                    <>
+                      <div className="text-2xl font-bold">{data?.metrics?.pendingPriorAuths || 0}</div>
+                      <p className="text-xs text-muted-foreground">Awaiting approval</p>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             </div>

@@ -154,7 +154,7 @@ export default function RegulatoryPortalPage() {
               <div>
                 <h4 className="font-medium mb-2">For Inspectors & Surveyors</h4>
                 <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• Use the "Inspector Login" or "Surveyor Login" buttons above</li>
+                  <li>{'• Use the "Inspector Login" or "Surveyor Login" buttons above'}</li>
                   <li>• Temporary access credentials are provided by facility administrators</li>
                   <li>• All access is logged and monitored for compliance purposes</li>
                   <li>• Access expires automatically based on inspection schedule</li>

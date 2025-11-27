@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -46,11 +46,7 @@ export function RegulatoryAccessManager() {
 
   const supabase = createClient()
 
-  useEffect(() => {
-    fetchAccessList()
-  }, [])
-
-  const fetchAccessList = async () => {
+  const fetchAccessList = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("regulatory_access")
@@ -64,7 +60,11 @@ export function RegulatoryAccessManager() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [supabase])
+
+  useEffect(() => {
+    fetchAccessList()
+  }, [fetchAccessList])
 
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))

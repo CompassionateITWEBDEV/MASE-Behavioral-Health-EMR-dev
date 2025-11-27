@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -36,7 +36,7 @@ interface Provider {
   first_name: string
   last_name: string
   role: string
-  specialization?: string
+  specialty?: string
 }
 
 interface CareTeamMember {
@@ -94,11 +94,7 @@ export function PatientCaseCommunications({ patient, careTeam, currentProvider }
 
   const supabase = createClient()
 
-  useEffect(() => {
-    fetchCommunications()
-  }, [patient.id])
-
-  const fetchCommunications = async () => {
+  const fetchCommunications = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("case_communications")
@@ -108,7 +104,7 @@ export function PatientCaseCommunications({ patient, careTeam, currentProvider }
             id,
             first_name,
             last_name,
-            role
+            specialty
           ),
           communication_recipients(
             recipient_id,
@@ -129,11 +125,14 @@ export function PatientCaseCommunications({ patient, careTeam, currentProvider }
       setCommunications(data || [])
     } catch (error) {
       console.error("Error fetching communications:", error)
-      toast.error("Failed to load communications")
     } finally {
       setLoading(false)
     }
-  }
+  }, [patient.id, supabase])
+
+  useEffect(() => {
+    fetchCommunications()
+  }, [fetchCommunications])
 
   const sendMessage = async () => {
     if (!newMessage.subject.trim() || !newMessage.message.trim()) {
@@ -268,7 +267,10 @@ export function PatientCaseCommunications({ patient, careTeam, currentProvider }
               <Users className="h-5 w-5" />
               Care Team: {careTeam.team_name}
             </CardTitle>
-            <CardDescription>Team members collaborating on {patient.first_name}'s care</CardDescription>
+            <CardDescription>
+              {"Team members collaborating on"} {patient.first_name}
+              {"'s care"}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">

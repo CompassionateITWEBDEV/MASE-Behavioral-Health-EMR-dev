@@ -1,24 +1,18 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useEffect, useState, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardSidebar } from "@/components/dashboard-sidebar"
 import { DischargeSummaryForm } from "@/components/discharge-summary-form"
-import { toast } from "sonner"
 
-export default function EditDischargeSummaryPage() {
-  const params = useParams()
+export default function EditDischargeSummaryPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const [summary, setSummary] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  useEffect(() => {
-    loadSummary()
-  }, [params.id])
-
-  const loadSummary = async () => {
+  const loadSummary = useCallback(async () => {
     try {
       const supabase = createClient()
 
@@ -43,23 +37,17 @@ export default function EditDischargeSummaryPage() {
         .single()
 
       if (error) throw error
-
-      // Check if already finalized
-      if (data.status === "finalized") {
-        toast.error("Cannot edit a finalized discharge summary")
-        router.push(`/discharge-summary/${params.id}`)
-        return
-      }
-
       setSummary(data)
     } catch (error) {
       console.error("Error loading discharge summary:", error)
-      toast.error("Failed to load discharge summary")
-      router.push("/discharge-summaries")
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [params.id])
+
+  useEffect(() => {
+    loadSummary()
+  }, [loadSummary])
 
   if (isLoading) {
     return (

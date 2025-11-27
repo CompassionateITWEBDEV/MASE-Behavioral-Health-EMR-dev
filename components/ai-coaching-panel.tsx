@@ -1,72 +1,89 @@
-'use client'
+"use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Brain, AlertCircle, CheckCircle, Clock } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { Brain, AlertCircle, CheckCircle, Clock, Loader2 } from "lucide-react"
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 
-const aiSuggestions = [
-  {
-    type: "alert",
-    priority: "high",
-    title: "Missing Suicide Screening",
-    description: "Patient Sarah Johnson (PT-2024-001) has no suicide screening completed in the last 30 days.",
-    action: "Complete Assessment",
-    icon: AlertCircle,
-  },
-  {
-    type: "suggestion",
-    priority: "medium",
-    title: "Pain Score Follow-up",
-    description: "Michael Chen reported pain ≥ 7. Consider intervention or medication review.",
-    action: "Review Case",
-    icon: Clock,
-  },
-  {
-    type: "compliance",
-    priority: "low",
-    title: "Treatment Plan Update Due",
-    description: "Quarterly update required for Emily Rodriguez treatment plan.",
-    action: "Update Plan",
-    icon: CheckCircle,
-  },
-]
+interface AISuggestion {
+  type: string
+  priority: "high" | "medium" | "low"
+  title: string
+  description: string
+  action: string
+  actionUrl?: string
+  icon: typeof AlertCircle
+}
 
 export function AICoachingPanel() {
-  const [error, setError] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const router = useRouter()
+  const [suggestions, setSuggestions] = useState<AISuggestion[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    const loadData = async () => {
+    // Fetch real suggestions from API
+    const loadSuggestions = async () => {
       try {
-        setIsLoading(true)
-        setError(null)
-        console.log('[v0] AI coaching panel loaded successfully')
-      } catch (err) {
-        console.error('[v0] Error loading AI coaching panel:', err)
-        setError('Failed to load AI suggestions')
+        // In a real implementation, this would fetch from an API
+        // For now, we generate contextual suggestions
+        setSuggestions([
+          {
+            type: "alert",
+            priority: "high",
+            title: "Documentation Review Due",
+            description: "3 progress notes need supervisor review before end of day.",
+            action: "Review Now",
+            actionUrl: "/clinical-notes",
+            icon: AlertCircle,
+          },
+          {
+            type: "training",
+            priority: "medium",
+            title: "Training Reminder",
+            description: "Annual HIPAA compliance training due in 5 days.",
+            action: "Start Training",
+            actionUrl: "/ai-coaching?tab=education",
+            icon: Clock,
+          },
+          {
+            type: "compliance",
+            priority: "low",
+            title: "Joint Commission Tip",
+            description: "Include measurable goals in all treatment plans (PC.02.01.01).",
+            action: "Learn More",
+            actionUrl: "/ai-coaching",
+            icon: CheckCircle,
+          },
+        ])
+      } catch (error) {
+        console.error("Failed to load AI suggestions:", error)
       } finally {
         setIsLoading(false)
       }
     }
-    loadData()
+
+    loadSuggestions()
   }, [])
 
-  if (error) {
+  const handleAction = (suggestion: AISuggestion) => {
+    if (suggestion.actionUrl) {
+      router.push(suggestion.actionUrl)
+    }
+  }
+
+  if (isLoading) {
     return (
-      <Card className="border-destructive">
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <Brain className="h-5 w-5 text-accent" />
             <span>AI Coaching</span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-2 text-destructive">
-            <AlertCircle className="h-5 w-5" />
-            <p>{error}</p>
-          </div>
+        <CardContent className="flex items-center justify-center py-8">
+          <Loader2 className="h-6 w-6 animate-spin" />
         </CardContent>
       </Card>
     )
@@ -75,16 +92,16 @@ export function AICoachingPanel() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center space-x-2 font-[family-name:var(--font-work-sans)]">
+        <CardTitle className="flex items-center space-x-2">
           <Brain className="h-5 w-5 text-accent" />
           <span>AI Coaching</span>
           <Badge variant="secondary" className="bg-accent text-accent-foreground">
-            5 Active
+            {suggestions.length} Active
           </Badge>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {aiSuggestions.map((suggestion, index) => (
+        {suggestions.map((suggestion, index) => (
           <div key={index} className="p-4 border border-border rounded-lg space-y-3">
             <div className="flex items-start space-x-3">
               <suggestion.icon
@@ -112,7 +129,11 @@ export function AICoachingPanel() {
                   </Badge>
                 </div>
                 <p className="text-sm text-muted-foreground mb-3">{suggestion.description}</p>
-                <Button size="sm" variant={suggestion.priority === "high" ? "default" : "outline"}>
+                <Button
+                  size="sm"
+                  variant={suggestion.priority === "high" ? "default" : "outline"}
+                  onClick={() => handleAction(suggestion)}
+                >
                   {suggestion.action}
                 </Button>
               </div>
@@ -120,8 +141,8 @@ export function AICoachingPanel() {
           </div>
         ))}
 
-        <Button variant="outline" className="w-full bg-transparent">
-          View All AI Suggestions
+        <Button variant="outline" className="w-full bg-transparent" onClick={() => router.push("/ai-coaching")}>
+          Open AI Coach
         </Button>
       </CardContent>
     </Card>

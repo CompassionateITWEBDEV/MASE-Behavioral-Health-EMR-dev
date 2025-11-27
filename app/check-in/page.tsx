@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import {
   Users,
   Clock,
@@ -91,15 +91,7 @@ export default function CheckInPage() {
   const [manualPatientNumber, setManualPatientNumber] = useState("")
   const [manualServiceType, setManualServiceType] = useState<string>("dosing")
 
-  useEffect(() => {
-    fetchQueue()
-    const interval = autoRefresh ? setInterval(fetchQueue, 30000) : null
-    return () => {
-      if (interval) clearInterval(interval)
-    }
-  }, [autoRefresh])
-
-  async function fetchQueue() {
+  const fetchQueue = useCallback(async () => {
     try {
       const response = await fetch("/api/check-in/queue")
       if (response.ok) {
@@ -108,7 +100,7 @@ export default function CheckInPage() {
         setStats(data.stats || stats)
       }
     } catch (error) {
-      console.log("[v0] Error fetching queue:", error)
+      console.error("Error fetching queue:", error)
       // Use mock data
       const mockQueue: QueuedPatient[] = [
         {
@@ -221,7 +213,15 @@ export default function CheckInPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    fetchQueue()
+    const interval = autoRefresh ? setInterval(fetchQueue, 30000) : null
+    return () => {
+      if (interval) clearInterval(interval)
+    }
+  }, [autoRefresh, fetchQueue])
 
   function getWaitTime(checkInTime: string): number {
     return Math.round((Date.now() - new Date(checkInTime).getTime()) / 60000)

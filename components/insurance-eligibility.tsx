@@ -3,11 +3,12 @@
 import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Search, CheckCircle, XCircle, Clock, AlertTriangle, Pill, RefreshCw } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Search, CheckCircle, XCircle, Clock, AlertTriangle, Pill, Loader2 } from "lucide-react"
+import useSWR from "swr"
 
 interface EligibilityResult {
   status: "active" | "inactive" | "pending" | "expired"
@@ -24,42 +25,96 @@ interface EligibilityResult {
   terminationDate?: string
 }
 
+const fetcher = (url: string) => fetch(url).then((res) => res.json())
+
 export function InsuranceEligibility() {
-  const [patientId, setPatientId] = useState("")
+  const { data: patientsData } = useSWR("/api/insurance?type=patients", fetcher)
+  const { data: patientInsuranceData } = useSWR("/api/insurance?type=patient-insurance", fetcher)
+
+  const [selectedPatientId, setSelectedPatientId] = useState("")
   const [isChecking, setIsChecking] = useState(false)
   const [eligibilityResult, setEligibilityResult] = useState<EligibilityResult | null>(null)
-  const [pmpResults, setPmpResults] = useState<any>(null)
+  const [pmpResults, setPmpResults] = useState<{
+    hasActiveRx: boolean
+    controlledSubstances: string[]
+    lastFilled: string
+    prescribingProvider: string
+    riskScore: string
+  } | null>(null)
+
+  const patients = patientsData?.patients || []
+  const patientInsurance = patientInsuranceData?.patientInsurance || []
 
   const handleEligibilityCheck = async () => {
+    if (!selectedPatientId) return
+
     setIsChecking(true)
+    setEligibilityResult(null)
+    setPmpResults(null)
 
-    // Simulate API call for eligibility check
-    setTimeout(() => {
-      setEligibilityResult({
-        status: "active",
-        planName: "Blue Cross Blue Shield Michigan",
-        memberId: "BCM123456789",
-        groupNumber: "GRP001234",
-        copay: "$25",
-        deductible: "$500 / $1,500 remaining",
-        outOfPocketMax: "$3,000 / $2,200 remaining",
-        mentalHealthCoverage: true,
-        substanceAbuseCoverage: true,
-        priorAuthRequired: false,
-        effectiveDate: "2024-01-01",
-      })
+    try {
+      // Find patient's insurance
+      const insurance = patientInsurance.find(
+        (ins: { patient_id: string; is_active: boolean }) => ins.patient_id === selectedPatientId && ins.is_active,
+      )
 
-      // Simulate PMP check during eligibility verification
-      setPmpResults({
-        hasActiveRx: true,
-        controlledSubstances: ["Suboxone 8mg", "Lorazepam 1mg"],
-        lastFilled: "2024-12-08",
-        prescribingProvider: "Dr. Sarah Johnson, MD",
-        riskScore: "Medium",
-      })
+      if (insurance) {
+        // Create eligibility request
+        await fetch("/api/insurance", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "eligibility-check",
+            patientId: selectedPatientId,
+            payerId: insurance.payer_id,
+            patientInsuranceId: insurance.id,
+            copayAmount: insurance.copay_amount,
+            deductibleAmount: insurance.deductible_amount,
+            deductibleRemaining: insurance.deductible_amount - (insurance.deductible_met_amount || 0),
+          }),
+        })
 
+        setEligibilityResult({
+          status: insurance.is_active ? "active" : "inactive",
+          planName: insurance.insurance_payers?.payer_name || "Unknown Plan",
+          memberId: insurance.policy_number,
+          groupNumber: insurance.group_number || "N/A",
+          copay: `$${insurance.copay_amount || 0}`,
+          deductible: `$${insurance.deductible_amount || 0} / $${(insurance.deductible_amount || 0) - (insurance.deductible_met_amount || 0)} remaining`,
+          outOfPocketMax: `$${insurance.out_of_pocket_max || 0} / $${(insurance.out_of_pocket_max || 0) - (insurance.out_of_pocket_met || 0)} remaining`,
+          mentalHealthCoverage: true,
+          substanceAbuseCoverage: true,
+          priorAuthRequired: insurance.insurance_payers?.prior_auth_required || false,
+          effectiveDate: insurance.effective_date,
+          terminationDate: insurance.termination_date,
+        })
+
+        // Simulate PMP check
+        setPmpResults({
+          hasActiveRx: false,
+          controlledSubstances: [],
+          lastFilled: "No records found",
+          prescribingProvider: "N/A",
+          riskScore: "Low",
+        })
+      } else {
+        setEligibilityResult({
+          status: "inactive",
+          planName: "No active coverage found",
+          memberId: "N/A",
+          groupNumber: "N/A",
+          copay: "N/A",
+          deductible: "N/A",
+          outOfPocketMax: "N/A",
+          mentalHealthCoverage: false,
+          substanceAbuseCoverage: false,
+          priorAuthRequired: false,
+          effectiveDate: "N/A",
+        })
+      }
+    } finally {
       setIsChecking(false)
-    }, 2000)
+    }
   }
 
   const getStatusIcon = (status: string) => {
@@ -91,23 +146,29 @@ export function InsuranceEligibility() {
         <CardContent className="space-y-4">
           <div className="flex gap-4">
             <div className="flex-1">
-              <Label htmlFor="patientId">Patient ID or Member ID</Label>
-              <Input
-                id="patientId"
-                placeholder="Enter patient or member ID"
-                value={patientId}
-                onChange={(e) => setPatientId(e.target.value)}
-              />
+              <Label htmlFor="patientId">Select Patient</Label>
+              <Select value={selectedPatientId} onValueChange={setSelectedPatientId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a patient" />
+                </SelectTrigger>
+                <SelectContent>
+                  {patients.map((patient: { id: string; first_name: string; last_name: string }) => (
+                    <SelectItem key={patient.id} value={patient.id}>
+                      {patient.first_name} {patient.last_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex items-end">
               <Button
                 onClick={handleEligibilityCheck}
-                disabled={!patientId || isChecking}
+                disabled={!selectedPatientId || isChecking}
                 className="bg-primary hover:bg-primary/90"
               >
                 {isChecking ? (
                   <>
-                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Checking...
                   </>
                 ) : (
@@ -245,12 +306,16 @@ export function InsuranceEligibility() {
 
                 <div className="space-y-2">
                   <h4 className="font-medium">Current Controlled Substances</h4>
-                  {pmpResults.controlledSubstances.map((med: string, index: number) => (
-                    <div key={index} className="flex items-center gap-2 p-2 bg-muted rounded">
-                      <Pill className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm">{med}</span>
-                    </div>
-                  ))}
+                  {pmpResults.controlledSubstances.length > 0 ? (
+                    pmpResults.controlledSubstances.map((med, index) => (
+                      <div key={index} className="flex items-center gap-2 p-2 bg-muted rounded">
+                        <Pill className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm">{med}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No controlled substances on record</p>
+                  )}
                 </div>
 
                 <Separator />

@@ -49,7 +49,7 @@ const aiMessages = [
   {
     id: 1,
     type: "ai",
-    message: "Hello! I'm your AI wellness assistant. How are you feeling today?",
+    message: "Hello! I am your AI wellness assistant. How are you feeling today?",
     timestamp: "2:30 PM",
   },
 ]
@@ -65,19 +65,19 @@ function generateAIResponse(userMessage: string) {
   } else if (lowerMessage.includes("craving") || lowerMessage.includes("urge")) {
     return {
       message:
-        "Thank you for sharing that you're experiencing cravings. This is an important time to use your coping skills. I recommend reaching out to your counselor. Would you like me to connect you?",
+        "Thank you for sharing that you are experiencing cravings. This is an important time to use your coping skills. I recommend reaching out to your counselor. Would you like me to connect you?",
       escalate: true,
     }
   } else if (lowerMessage.includes("support") || lowerMessage.includes("help")) {
     return {
       message:
-        "I'm here to support you. Can you tell me more about what you're going through? If you need immediate help, I can connect you with your care team.",
+        "I am here to support you. Can you tell me more about what you are going through? If you need immediate help, I can connect you with your care team.",
       escalate: false,
     }
   }
   return {
     message:
-      "Thank you for sharing. I'm here to listen and support you. Is there anything specific you'd like to talk about or any resources you need?",
+      "Thank you for sharing. I am here to listen and support you. Is there anything specific you would like to talk about or any resources you need?",
     escalate: false,
   }
 }
@@ -850,10 +850,10 @@ export default function PatientPortalPage() {
                     </div>
 
                     <div className="flex gap-2 mt-2">
-                      <Button variant="outline" size="sm" onClick={() => setNewMessage("I'm feeling anxious today")}>
-                        I&apos;m anxious
+                      <Button variant="outline" size="sm" onClick={() => setNewMessage("I am feeling anxious today")}>
+                        {"I'm anxious"}
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => setNewMessage("I'm having cravings")}>
+                      <Button variant="outline" size="sm" onClick={() => setNewMessage("I am having cravings")}>
                         Having cravings
                       </Button>
                       <Button variant="outline" size="sm" onClick={() => setNewMessage("I need support")}>

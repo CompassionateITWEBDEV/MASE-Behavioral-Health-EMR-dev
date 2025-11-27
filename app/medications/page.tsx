@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
+import { DashboardSidebar } from "@/components/dashboard-sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -80,12 +81,7 @@ export default function MedicationsPage() {
     notes: "",
   })
 
-  useEffect(() => {
-    loadMedications()
-    checkInteractions()
-  }, [selectedPatient])
-
-  const loadMedications = async () => {
+  const loadMedications = useCallback(async () => {
     try {
       const params = new URLSearchParams()
       if (selectedPatient !== "all") {
@@ -98,21 +94,30 @@ export default function MedicationsPage() {
         setMedications(data.medications || [])
       }
     } catch (error) {
-      console.error("[v0] Error loading medications:", error)
+      console.error("Error loading medications:", error)
     }
-  }
+  }, [selectedPatient])
 
-  const checkInteractions = async () => {
+  const checkInteractions = useCallback(async () => {
+    if (selectedPatient === "all") {
+      setInteractions([])
+      return
+    }
     try {
-      const response = await fetch("/api/medications/interactions")
+      const response = await fetch(`/api/medications/interactions?patient_id=${selectedPatient}`)
       if (response.ok) {
         const data = await response.json()
         setInteractions(data.interactions || [])
       }
     } catch (error) {
-      console.error("[v0] Error checking drug interactions:", error)
+      console.error("Error checking interactions:", error)
     }
-  }
+  }, [selectedPatient])
+
+  useEffect(() => {
+    loadMedications()
+    checkInteractions()
+  }, [loadMedications, checkInteractions])
 
   const handleAddMedication = async () => {
     if (!hasPermission(PERMISSIONS.MEDICATIONS_WRITE)) {
@@ -200,371 +205,378 @@ export default function MedicationsPage() {
   })
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Medication Management</h1>
-          <p className="text-muted-foreground">Manage patient medications and prescriptions</p>
-        </div>
-        <RoleGuard requiredPermissions={[PERMISSIONS.MEDICATIONS_WRITE]}>
-          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Medication
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Add New Medication</DialogTitle>
-                <DialogDescription>Add a new medication to a patient's medication list</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="patient">Patient</Label>
-                    <Select
-                      value={newMedication.patient_id}
-                      onValueChange={(value) => setNewMedication((prev) => ({ ...prev, patient_id: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select patient" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="pt-001">Sarah Johnson</SelectItem>
-                        <SelectItem value="pt-002">Michael Chen</SelectItem>
-                        <SelectItem value="pt-003">David Wilson</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="medication-type">Medication Type</Label>
-                    <Select
-                      value={newMedication.medication_type}
-                      onValueChange={(value: any) => setNewMedication((prev) => ({ ...prev, medication_type: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="regular">Regular</SelectItem>
-                        <SelectItem value="prn">PRN (As Needed)</SelectItem>
-                        <SelectItem value="controlled">Controlled Substance</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+    <div className="min-h-screen bg-background">
+      <DashboardSidebar />
+      <div className="lg:pl-64">
+        <div className="container mx-auto p-6 space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold">Medication Management</h1>
+              <p className="text-muted-foreground">Manage patient medications and prescriptions</p>
+            </div>
+            <RoleGuard requiredPermissions={[PERMISSIONS.MEDICATIONS_WRITE]}>
+              <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+                <DialogTrigger asChild>
+                  <Button>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Medication
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Add New Medication</DialogTitle>
+                    <DialogDescription>{"Add a new medication to a patient's medication list"}</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="patient">Patient</Label>
+                        <Select
+                          value={newMedication.patient_id}
+                          onValueChange={(value) => setNewMedication((prev) => ({ ...prev, patient_id: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select patient" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pt-001">Sarah Johnson</SelectItem>
+                            <SelectItem value="pt-002">Michael Chen</SelectItem>
+                            <SelectItem value="pt-003">David Wilson</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="medication-type">Medication Type</Label>
+                        <Select
+                          value={newMedication.medication_type}
+                          onValueChange={(value: any) =>
+                            setNewMedication((prev) => ({ ...prev, medication_type: value }))
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="regular">Regular</SelectItem>
+                            <SelectItem value="prn">PRN (As Needed)</SelectItem>
+                            <SelectItem value="controlled">Controlled Substance</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="medication-name">Medication Name</Label>
-                    <Input
-                      id="medication-name"
-                      value={newMedication.medication_name}
-                      onChange={(e) => setNewMedication((prev) => ({ ...prev, medication_name: e.target.value }))}
-                      placeholder="Brand name"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="generic-name">Generic Name</Label>
-                    <Input
-                      id="generic-name"
-                      value={newMedication.generic_name}
-                      onChange={(e) => setNewMedication((prev) => ({ ...prev, generic_name: e.target.value }))}
-                      placeholder="Generic name"
-                    />
-                  </div>
-                </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="medication-name">Medication Name</Label>
+                        <Input
+                          id="medication-name"
+                          value={newMedication.medication_name}
+                          onChange={(e) => setNewMedication((prev) => ({ ...prev, medication_name: e.target.value }))}
+                          placeholder="Brand name"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="generic-name">Generic Name</Label>
+                        <Input
+                          id="generic-name"
+                          value={newMedication.generic_name}
+                          onChange={(e) => setNewMedication((prev) => ({ ...prev, generic_name: e.target.value }))}
+                          placeholder="Generic name"
+                        />
+                      </div>
+                    </div>
 
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <Label htmlFor="dosage">Dosage</Label>
-                    <Input
-                      id="dosage"
-                      value={newMedication.dosage}
-                      onChange={(e) => setNewMedication((prev) => ({ ...prev, dosage: e.target.value }))}
-                      placeholder="e.g., 10mg"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="frequency">Frequency</Label>
-                    <Select
-                      value={newMedication.frequency}
-                      onValueChange={(value) => setNewMedication((prev) => ({ ...prev, frequency: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select frequency" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Once daily">Once daily</SelectItem>
-                        <SelectItem value="Twice daily">Twice daily</SelectItem>
-                        <SelectItem value="Three times daily">Three times daily</SelectItem>
-                        <SelectItem value="Four times daily">Four times daily</SelectItem>
-                        <SelectItem value="As needed">As needed</SelectItem>
-                        <SelectItem value="Every other day">Every other day</SelectItem>
-                        <SelectItem value="Weekly">Weekly</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="route">Route</Label>
-                    <Select
-                      value={newMedication.route}
-                      onValueChange={(value) => setNewMedication((prev) => ({ ...prev, route: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="oral">Oral</SelectItem>
-                        <SelectItem value="injection">Injection</SelectItem>
-                        <SelectItem value="topical">Topical</SelectItem>
-                        <SelectItem value="inhalation">Inhalation</SelectItem>
-                        <SelectItem value="sublingual">Sublingual</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <Label htmlFor="dosage">Dosage</Label>
+                        <Input
+                          id="dosage"
+                          value={newMedication.dosage}
+                          onChange={(e) => setNewMedication((prev) => ({ ...prev, dosage: e.target.value }))}
+                          placeholder="e.g., 10mg"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="frequency">Frequency</Label>
+                        <Select
+                          value={newMedication.frequency}
+                          onValueChange={(value) => setNewMedication((prev) => ({ ...prev, frequency: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select frequency" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Once daily">Once daily</SelectItem>
+                            <SelectItem value="Twice daily">Twice daily</SelectItem>
+                            <SelectItem value="Three times daily">Three times daily</SelectItem>
+                            <SelectItem value="Four times daily">Four times daily</SelectItem>
+                            <SelectItem value="As needed">As needed</SelectItem>
+                            <SelectItem value="Every other day">Every other day</SelectItem>
+                            <SelectItem value="Weekly">Weekly</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="route">Route</Label>
+                        <Select
+                          value={newMedication.route}
+                          onValueChange={(value) => setNewMedication((prev) => ({ ...prev, route: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="oral">Oral</SelectItem>
+                            <SelectItem value="injection">Injection</SelectItem>
+                            <SelectItem value="topical">Topical</SelectItem>
+                            <SelectItem value="inhalation">Inhalation</SelectItem>
+                            <SelectItem value="sublingual">Sublingual</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="start-date">Start Date</Label>
-                    <Input
-                      id="start-date"
-                      type="date"
-                      value={newMedication.start_date}
-                      onChange={(e) => setNewMedication((prev) => ({ ...prev, start_date: e.target.value }))}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="end-date">End Date (Optional)</Label>
-                    <Input
-                      id="end-date"
-                      type="date"
-                      value={newMedication.end_date}
-                      onChange={(e) => setNewMedication((prev) => ({ ...prev, end_date: e.target.value }))}
-                    />
-                  </div>
-                </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="start-date">Start Date</Label>
+                        <Input
+                          id="start-date"
+                          type="date"
+                          value={newMedication.start_date}
+                          onChange={(e) => setNewMedication((prev) => ({ ...prev, start_date: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="end-date">End Date (Optional)</Label>
+                        <Input
+                          id="end-date"
+                          type="date"
+                          value={newMedication.end_date}
+                          onChange={(e) => setNewMedication((prev) => ({ ...prev, end_date: e.target.value }))}
+                        />
+                      </div>
+                    </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="pharmacy">Pharmacy Name</Label>
-                    <Input
-                      id="pharmacy"
-                      value={newMedication.pharmacy_name}
-                      onChange={(e) => setNewMedication((prev) => ({ ...prev, pharmacy_name: e.target.value }))}
-                      placeholder="Pharmacy name"
-                    />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="pharmacy">Pharmacy Name</Label>
+                        <Input
+                          id="pharmacy"
+                          value={newMedication.pharmacy_name}
+                          onChange={(e) => setNewMedication((prev) => ({ ...prev, pharmacy_name: e.target.value }))}
+                          placeholder="Pharmacy name"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="refills">Refills Remaining</Label>
+                        <Input
+                          id="refills"
+                          type="number"
+                          min="0"
+                          value={newMedication.refills_remaining}
+                          onChange={(e) =>
+                            setNewMedication((prev) => ({
+                              ...prev,
+                              refills_remaining: Number.parseInt(e.target.value) || 0,
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="notes">Notes</Label>
+                      <Textarea
+                        id="notes"
+                        value={newMedication.notes}
+                        onChange={(e) => setNewMedication((prev) => ({ ...prev, notes: e.target.value }))}
+                        placeholder="Additional notes or instructions..."
+                      />
+                    </div>
+
+                    <Button onClick={handleAddMedication} className="w-full">
+                      Add Medication
+                    </Button>
                   </div>
-                  <div>
-                    <Label htmlFor="refills">Refills Remaining</Label>
-                    <Input
-                      id="refills"
-                      type="number"
-                      min="0"
-                      value={newMedication.refills_remaining}
-                      onChange={(e) =>
-                        setNewMedication((prev) => ({
-                          ...prev,
-                          refills_remaining: Number.parseInt(e.target.value) || 0,
-                        }))
+                </DialogContent>
+              </Dialog>
+            </RoleGuard>
+          </div>
+
+          {/* Drug Interactions Alert */}
+          {interactions.length > 0 && (
+            <Alert className="border-amber-200 bg-amber-50">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                <div className="font-medium mb-2">Drug Interaction Alerts</div>
+                {interactions.map((interaction, index) => (
+                  <div key={index} className="text-sm">
+                    <Badge
+                      variant={
+                        interaction.severity === "major"
+                          ? "destructive"
+                          : interaction.severity === "moderate"
+                            ? "secondary"
+                            : "outline"
                       }
-                    />
+                      className="mr-2"
+                    >
+                      {interaction.severity}
+                    </Badge>
+                    {interaction.medication1} + {interaction.medication2}: {interaction.description}
                   </div>
-                </div>
+                ))}
+              </AlertDescription>
+            </Alert>
+          )}
 
-                <div>
-                  <Label htmlFor="notes">Notes</Label>
-                  <Textarea
-                    id="notes"
-                    value={newMedication.notes}
-                    onChange={(e) => setNewMedication((prev) => ({ ...prev, notes: e.target.value }))}
-                    placeholder="Additional notes or instructions..."
-                  />
-                </div>
-
-                <Button onClick={handleAddMedication} className="w-full">
-                  Add Medication
-                </Button>
+          {/* Filters */}
+          <div className="flex gap-4 items-center">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                <Input
+                  placeholder="Search medications, patients, or prescribers..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10"
+                />
               </div>
-            </DialogContent>
-          </Dialog>
-        </RoleGuard>
-      </div>
-
-      {/* Drug Interactions Alert */}
-      {interactions.length > 0 && (
-        <Alert className="border-amber-200 bg-amber-50">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription>
-            <div className="font-medium mb-2">Drug Interaction Alerts</div>
-            {interactions.map((interaction, index) => (
-              <div key={index} className="text-sm">
-                <Badge
-                  variant={
-                    interaction.severity === "major"
-                      ? "destructive"
-                      : interaction.severity === "moderate"
-                        ? "secondary"
-                        : "outline"
-                  }
-                  className="mr-2"
-                >
-                  {interaction.severity}
-                </Badge>
-                {interaction.medication1} + {interaction.medication2}: {interaction.description}
-              </div>
-            ))}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Filters */}
-      <div className="flex gap-4 items-center">
-        <div className="flex-1">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-            <Input
-              placeholder="Search medications, patients, or prescribers..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
+            </div>
+            <Select value={selectedPatient} onValueChange={setSelectedPatient}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="All patients" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All patients</SelectItem>
+                <SelectItem value="pt-001">Sarah Johnson</SelectItem>
+                <SelectItem value="pt-002">Michael Chen</SelectItem>
+                <SelectItem value="pt-003">David Wilson</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        </div>
-        <Select value={selectedPatient} onValueChange={setSelectedPatient}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="All patients" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All patients</SelectItem>
-            <SelectItem value="pt-001">Sarah Johnson</SelectItem>
-            <SelectItem value="pt-002">Michael Chen</SelectItem>
-            <SelectItem value="pt-003">David Wilson</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="active">Active Medications</TabsTrigger>
-          <TabsTrigger value="prn">PRN Medications</TabsTrigger>
-          <TabsTrigger value="discontinued">Discontinued</TabsTrigger>
-          <TabsTrigger value="all">All Medications</TabsTrigger>
-        </TabsList>
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="active">Active Medications</TabsTrigger>
+              <TabsTrigger value="prn">PRN Medications</TabsTrigger>
+              <TabsTrigger value="discontinued">Discontinued</TabsTrigger>
+              <TabsTrigger value="all">All Medications</TabsTrigger>
+            </TabsList>
 
-        <TabsContent value={activeTab} className="space-y-4">
-          <div className="grid gap-4">
-            {filteredMedications.map((medication) => (
-              <Card key={medication.id}>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="flex items-center gap-2">
-                        <Pill className="w-5 h-5" />
-                        {medication.medication_name}
-                        {medication.generic_name && medication.generic_name !== medication.medication_name && (
-                          <span className="text-sm text-muted-foreground">({medication.generic_name})</span>
-                        )}
-                      </CardTitle>
-                      <CardDescription>
-                        <User className="w-4 h-4 inline mr-1" />
-                        {medication.patient_name} • Prescribed by {medication.prescriber_name}
-                      </CardDescription>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge
-                        variant={
-                          medication.medication_type === "controlled"
-                            ? "destructive"
-                            : medication.medication_type === "prn"
-                              ? "secondary"
-                              : "default"
-                        }
-                      >
-                        {medication.medication_type.toUpperCase()}
-                      </Badge>
-                      <Badge variant={medication.status === "active" ? "default" : "secondary"}>
-                        {medication.status}
-                      </Badge>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <div className="text-sm font-medium">Dosage & Frequency</div>
-                      <div className="text-sm text-muted-foreground">
-                        {medication.dosage} • {medication.frequency} • {medication.route}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium">Duration</div>
-                      <div className="text-sm text-muted-foreground flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
-                        {medication.start_date} {medication.end_date && `- ${medication.end_date}`}
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium">Pharmacy & Refills</div>
-                      <div className="text-sm text-muted-foreground">
-                        {medication.pharmacy_name || "No pharmacy"} • {medication.refills_remaining} refills left
-                      </div>
-                    </div>
-                  </div>
-
-                  {medication.notes && (
-                    <div className="mt-4 p-3 bg-muted rounded-lg">
-                      <div className="text-sm font-medium mb-1">Notes</div>
-                      <div className="text-sm text-muted-foreground">{medication.notes}</div>
-                    </div>
-                  )}
-
-                  <div className="flex justify-between items-center mt-4">
-                    <div className="text-xs text-muted-foreground">
-                      Added: {new Date(medication.created_at).toLocaleDateString()}
-                      {medication.ndc_number && ` • NDC: ${medication.ndc_number}`}
-                    </div>
-                    <div className="flex gap-2">
-                      <RoleGuard requiredPermissions={[PERMISSIONS.MEDICATIONS_WRITE]}>
-                        <Button variant="outline" size="sm">
-                          <Edit className="w-4 h-4 mr-2" />
-                          Edit
-                        </Button>
-                        {medication.status === "active" && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              const reason = prompt("Reason for discontinuation:")
-                              if (reason) {
-                                handleDiscontinueMedication(medication.id, reason)
-                              }
-                            }}
+            <TabsContent value={activeTab} className="space-y-4">
+              <div className="grid gap-4">
+                {filteredMedications.map((medication) => (
+                  <Card key={medication.id}>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <CardTitle className="flex items-center gap-2">
+                            <Pill className="w-5 h-5" />
+                            {medication.medication_name}
+                            {medication.generic_name && medication.generic_name !== medication.medication_name && (
+                              <span className="text-sm text-muted-foreground">({medication.generic_name})</span>
+                            )}
+                          </CardTitle>
+                          <CardDescription>
+                            <User className="w-4 h-4 inline mr-1" />
+                            {medication.patient_name} • Prescribed by {medication.prescriber_name}
+                          </CardDescription>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge
+                            variant={
+                              medication.medication_type === "controlled"
+                                ? "destructive"
+                                : medication.medication_type === "prn"
+                                  ? "secondary"
+                                  : "default"
+                            }
                           >
-                            <XCircle className="w-4 h-4 mr-2" />
-                            Discontinue
-                          </Button>
-                        )}
-                      </RoleGuard>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                            {medication.medication_type.toUpperCase()}
+                          </Badge>
+                          <Badge variant={medication.status === "active" ? "default" : "secondary"}>
+                            {medication.status}
+                          </Badge>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <div className="text-sm font-medium">Dosage & Frequency</div>
+                          <div className="text-sm text-muted-foreground">
+                            {medication.dosage} • {medication.frequency} • {medication.route}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium">Duration</div>
+                          <div className="text-sm text-muted-foreground flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            {medication.start_date} {medication.end_date && `- ${medication.end_date}`}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium">Pharmacy & Refills</div>
+                          <div className="text-sm text-muted-foreground">
+                            {medication.pharmacy_name || "No pharmacy"} • {medication.refills_remaining} refills left
+                          </div>
+                        </div>
+                      </div>
 
-            {filteredMedications.length === 0 && (
-              <Card>
-                <CardContent className="text-center py-8">
-                  <Pill className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p className="text-muted-foreground">No medications found matching your criteria</p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </TabsContent>
-      </Tabs>
+                      {medication.notes && (
+                        <div className="mt-4 p-3 bg-muted rounded-lg">
+                          <div className="text-sm font-medium mb-1">Notes</div>
+                          <div className="text-sm text-muted-foreground">{medication.notes}</div>
+                        </div>
+                      )}
+
+                      <div className="flex justify-between items-center mt-4">
+                        <div className="text-xs text-muted-foreground">
+                          Added: {new Date(medication.created_at).toLocaleDateString()}
+                          {medication.ndc_number && ` • NDC: ${medication.ndc_number}`}
+                        </div>
+                        <div className="flex gap-2">
+                          <RoleGuard requiredPermissions={[PERMISSIONS.MEDICATIONS_WRITE]}>
+                            <Button variant="outline" size="sm">
+                              <Edit className="w-4 h-4 mr-2" />
+                              Edit
+                            </Button>
+                            {medication.status === "active" && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const reason = prompt("Reason for discontinuation:")
+                                  if (reason) {
+                                    handleDiscontinueMedication(medication.id, reason)
+                                  }
+                                }}
+                              >
+                                <XCircle className="w-4 h-4 mr-2" />
+                                Discontinue
+                              </Button>
+                            )}
+                          </RoleGuard>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+
+                {filteredMedications.length === 0 && (
+                  <Card>
+                    <CardContent className="text-center py-8">
+                      <Pill className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p className="text-muted-foreground">No medications found matching your criteria</p>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            </TabsContent>
+          </Tabs>
+        </div>
+      </div>
     </div>
   )
 }

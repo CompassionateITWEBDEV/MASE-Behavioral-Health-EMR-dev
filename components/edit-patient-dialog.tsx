@@ -108,7 +108,7 @@ export function EditPatientDialog({ children, patient }: EditPatientDialogProps)
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Patient</DialogTitle>
-          <DialogDescription>Update the patient's information.</DialogDescription>
+          <DialogDescription>{"Update the patient's information."}</DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Same form fields as AddPatientDialog but with pre-filled values */}

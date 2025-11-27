@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   FileCheck,
   Search,
@@ -20,103 +21,14 @@ import {
   Plus,
   Eye,
   Calendar,
-  ExternalLink,
 } from "lucide-react"
 
-interface LicenseVerification {
-  id: string
-  providerId: string
-  providerName: string
-  licenseNumber: string
-  licenseType: string
-  issuingState: string
-  issueDate?: string
-  expirationDate: string
-  verificationStatus: "pending" | "verified" | "expired" | "suspended" | "revoked"
-  verificationDate?: string
-  verificationSource: string
-  disciplinaryActions?: string
-  restrictions?: string
-  renewalRequiredBy?: string
-  cmeRequirements?: string
-  lastVerificationAttempt?: string
-  nextVerificationDue?: string
-  autoVerifyEnabled: boolean
-  notes?: string
+interface LicenseVerificationDashboardProps {
+  licenses: any[]
+  providers: any[]
+  isLoading: boolean
+  onRefresh: () => void
 }
-
-const mockLicenseVerifications: LicenseVerification[] = [
-  {
-    id: "1",
-    providerId: "prov001",
-    providerName: "Dr. Sarah Johnson",
-    licenseNumber: "MD123456",
-    licenseType: "MD",
-    issuingState: "MI",
-    issueDate: "2018-06-15",
-    expirationDate: "2025-06-15",
-    verificationStatus: "verified",
-    verificationDate: "2024-12-01",
-    verificationSource: "Michigan Board of Medicine",
-    renewalRequiredBy: "2025-04-15",
-    cmeRequirements: "150 hours over 3 years",
-    nextVerificationDue: "2025-03-01",
-    autoVerifyEnabled: true,
-    notes: "Primary care physician license in good standing",
-  },
-  {
-    id: "2",
-    providerId: "prov002",
-    providerName: "Dr. Michael Chen",
-    licenseNumber: "MD789012",
-    licenseType: "MD",
-    issuingState: "MI",
-    issueDate: "2015-08-20",
-    expirationDate: "2025-08-20",
-    verificationStatus: "verified",
-    verificationDate: "2024-11-28",
-    verificationSource: "Michigan Board of Medicine",
-    renewalRequiredBy: "2025-06-20",
-    cmeRequirements: "150 hours over 3 years",
-    nextVerificationDue: "2025-05-28",
-    autoVerifyEnabled: true,
-    notes: "Psychiatrist with addiction medicine certification",
-  },
-  {
-    id: "3",
-    providerId: "prov003",
-    providerName: "Dr. Emily Rodriguez",
-    licenseNumber: "MD345678",
-    licenseType: "MD",
-    issuingState: "OH",
-    issueDate: "2020-03-10",
-    expirationDate: "2025-03-10",
-    verificationStatus: "pending",
-    verificationSource: "Manual Entry",
-    renewalRequiredBy: "2025-01-10",
-    nextVerificationDue: "2024-12-15",
-    autoVerifyEnabled: false,
-    notes: "New provider, license verification in progress",
-  },
-  {
-    id: "4",
-    providerId: "prov005",
-    providerName: "Sarah Williams, NP",
-    licenseNumber: "NP567890",
-    licenseType: "NP",
-    issuingState: "MI",
-    issueDate: "2019-09-12",
-    expirationDate: "2024-12-31",
-    verificationStatus: "expired",
-    verificationDate: "2024-11-15",
-    verificationSource: "Michigan Board of Nursing",
-    renewalRequiredBy: "2024-10-31",
-    cmeRequirements: "25 hours annually",
-    lastVerificationAttempt: "2024-12-01",
-    autoVerifyEnabled: true,
-    notes: "License expired, renewal in progress",
-  },
-]
 
 const US_STATES = [
   "AL",
@@ -173,13 +85,18 @@ const US_STATES = [
 
 const LICENSE_TYPES = ["MD", "DO", "NP", "PA", "RN", "LPN", "LCSW", "LPC", "LMFT", "LCDC", "PharmD", "DDS", "DVM"]
 
-export function LicenseVerificationDashboard() {
-  const [licenseVerifications, setLicenseVerifications] = useState<LicenseVerification[]>(mockLicenseVerifications)
+export function LicenseVerificationDashboard({
+  licenses,
+  providers,
+  isLoading,
+  onRefresh,
+}: LicenseVerificationDashboardProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [showAddForm, setShowAddForm] = useState(false)
   const [isVerifying, setIsVerifying] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
   const [newLicense, setNewLicense] = useState({
-    providerName: "",
+    providerId: "",
     licenseNumber: "",
     licenseType: "",
     issuingState: "",
@@ -191,12 +108,12 @@ export function LicenseVerificationDashboard() {
     notes: "",
   })
 
-  const filteredVerifications = licenseVerifications.filter(
-    (verification) =>
-      verification.providerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      verification.licenseNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      verification.licenseType.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      verification.issuingState.toLowerCase().includes(searchTerm.toLowerCase()),
+  const filteredLicenses = licenses.filter(
+    (license) =>
+      license.providerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      license.license_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      license.license_type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      license.issuing_state?.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
   const getStatusIcon = (status: string) => {
@@ -214,7 +131,7 @@ export function LicenseVerificationDashboard() {
     }
   }
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string): "default" | "destructive" | "secondary" | "outline" => {
     switch (status) {
       case "verified":
         return "default"
@@ -230,6 +147,7 @@ export function LicenseVerificationDashboard() {
   }
 
   const isExpiringSoon = (expirationDate: string) => {
+    if (!expirationDate) return false
     const expDate = new Date(expirationDate)
     const today = new Date()
     const daysUntilExpiration = Math.ceil((expDate.getTime() - today.getTime()) / (1000 * 3600 * 24))
@@ -238,59 +156,67 @@ export function LicenseVerificationDashboard() {
 
   const handleVerifyLicense = async (licenseId: string) => {
     setIsVerifying(licenseId)
-
-    // Simulate license verification API call
-    setTimeout(() => {
-      setLicenseVerifications((prev) =>
-        prev.map((license) =>
-          license.id === licenseId
-            ? {
-                ...license,
-                verificationStatus: "verified" as const,
-                verificationDate: new Date().toISOString().split("T")[0],
-                verificationSource: `${license.issuingState} State Board`,
-                lastVerificationAttempt: new Date().toISOString().split("T")[0],
-                nextVerificationDue: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-              }
-            : license,
-        ),
-      )
+    try {
+      await fetch("/api/provider-verification", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "license", id: licenseId, action: "verify" }),
+      })
+      onRefresh()
+    } catch (error) {
+      console.error("Error verifying license:", error)
+    } finally {
       setIsVerifying(null)
-    }, 2000)
+    }
   }
 
-  const handleAddLicense = () => {
-    const newVerification: LicenseVerification = {
-      id: Date.now().toString(),
-      providerId: `prov${Date.now()}`,
-      providerName: newLicense.providerName,
-      licenseNumber: newLicense.licenseNumber,
-      licenseType: newLicense.licenseType,
-      issuingState: newLicense.issuingState,
-      issueDate: newLicense.issueDate,
-      expirationDate: newLicense.expirationDate,
-      verificationStatus: "pending",
-      verificationSource: "Manual Entry",
-      renewalRequiredBy: newLicense.renewalRequiredBy,
-      cmeRequirements: newLicense.cmeRequirements,
-      autoVerifyEnabled: newLicense.autoVerifyEnabled,
-      notes: newLicense.notes,
+  const handleAddLicense = async () => {
+    if (
+      !newLicense.providerId ||
+      !newLicense.licenseNumber ||
+      !newLicense.licenseType ||
+      !newLicense.issuingState ||
+      !newLicense.expirationDate
+    ) {
+      return
     }
 
-    setLicenseVerifications([...licenseVerifications, newVerification])
-    setNewLicense({
-      providerName: "",
-      licenseNumber: "",
-      licenseType: "",
-      issuingState: "",
-      issueDate: "",
-      expirationDate: "",
-      renewalRequiredBy: "",
-      cmeRequirements: "",
-      autoVerifyEnabled: true,
-      notes: "",
-    })
-    setShowAddForm(false)
+    setIsSaving(true)
+    try {
+      await fetch("/api/provider-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "license", ...newLicense }),
+      })
+      onRefresh()
+      setNewLicense({
+        providerId: "",
+        licenseNumber: "",
+        licenseType: "",
+        issuingState: "",
+        issueDate: "",
+        expirationDate: "",
+        renewalRequiredBy: "",
+        cmeRequirements: "",
+        autoVerifyEnabled: true,
+        notes: "",
+      })
+      setShowAddForm(false)
+    } catch (error) {
+      console.error("Error adding license:", error)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-32 w-full" />
+      </div>
+    )
   }
 
   return (
@@ -331,13 +257,22 @@ export function LicenseVerificationDashboard() {
           <CardContent className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <Label htmlFor="providerName">Provider Name *</Label>
-                <Input
-                  id="providerName"
-                  value={newLicense.providerName}
-                  onChange={(e) => setNewLicense({ ...newLicense, providerName: e.target.value })}
-                  placeholder="Dr. John Smith"
-                />
+                <Label htmlFor="providerId">Provider *</Label>
+                <Select
+                  value={newLicense.providerId}
+                  onValueChange={(value) => setNewLicense({ ...newLicense, providerId: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select provider" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {providers.map((provider) => (
+                      <SelectItem key={provider.id} value={provider.id}>
+                        {provider.first_name} {provider.last_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label htmlFor="licenseNumber">License Number *</Label>
@@ -452,8 +387,8 @@ export function LicenseVerificationDashboard() {
             </div>
 
             <div className="flex gap-2 pt-4">
-              <Button onClick={handleAddLicense} className="bg-primary hover:bg-primary/90">
-                Add License
+              <Button onClick={handleAddLicense} disabled={isSaving} className="bg-primary hover:bg-primary/90">
+                {isSaving ? "Adding..." : "Add License"}
               </Button>
               <Button variant="outline" onClick={() => setShowAddForm(false)}>
                 Cancel
@@ -463,146 +398,114 @@ export function LicenseVerificationDashboard() {
         </Card>
       )}
 
-      {/* License Verification List */}
-      <div className="grid gap-4">
-        {filteredVerifications.map((verification) => (
-          <Card key={verification.id}>
-            <CardContent className="pt-6">
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <FileCheck className="h-5 w-5 text-primary" />
-                    <h3 className="text-lg font-semibold">{verification.providerName}</h3>
-                    <Badge variant="outline">
-                      {verification.licenseType} - {verification.issuingState}
-                    </Badge>
-                    <Badge variant="outline">{verification.licenseNumber}</Badge>
-                    <div className="flex items-center gap-1">
-                      {getStatusIcon(verification.verificationStatus)}
-                      <Badge variant={getStatusColor(verification.verificationStatus)}>
-                        {verification.verificationStatus.toUpperCase()}
-                      </Badge>
-                    </div>
-                    {isExpiringSoon(verification.expirationDate) && (
-                      <Badge variant="destructive">
-                        <AlertTriangle className="h-3 w-3 mr-1" />
-                        Expiring Soon
-                      </Badge>
-                    )}
-                  </div>
-
-                  <div className="grid gap-2 md:grid-cols-3 text-sm mb-3">
-                    {verification.issueDate && (
-                      <div className="flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <span>Issued: {verification.issueDate}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
-                      <span>Expires: {verification.expirationDate}</span>
-                    </div>
-                    {verification.verificationDate && (
-                      <div>
-                        <span className="font-medium">Verified:</span> {verification.verificationDate}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="grid gap-2 md:grid-cols-2 text-sm mb-3">
-                    <div>
-                      <span className="font-medium">Source:</span> {verification.verificationSource}
-                    </div>
-                    {verification.renewalRequiredBy && (
-                      <div>
-                        <span className="font-medium">Renewal Due:</span> {verification.renewalRequiredBy}
-                      </div>
-                    )}
-                    {verification.cmeRequirements && (
-                      <div>
-                        <span className="font-medium">CME:</span> {verification.cmeRequirements}
-                      </div>
-                    )}
-                    {verification.nextVerificationDue && (
-                      <div>
-                        <span className="font-medium">Next Check:</span> {verification.nextVerificationDue}
-                      </div>
-                    )}
-                  </div>
-
-                  {verification.disciplinaryActions && (
-                    <div className="text-sm text-red-600 mb-2">
-                      <span className="font-medium">Disciplinary Actions:</span> {verification.disciplinaryActions}
-                    </div>
-                  )}
-
-                  {verification.restrictions && (
-                    <div className="text-sm text-orange-600 mb-2">
-                      <span className="font-medium">Restrictions:</span> {verification.restrictions}
-                    </div>
-                  )}
-
-                  {verification.notes && (
-                    <div className="text-sm mb-3">
-                      <span className="font-medium">Notes:</span> {verification.notes}
-                    </div>
-                  )}
-
-                  <div className="flex gap-2">
-                    {verification.autoVerifyEnabled && <Badge variant="outline">Auto-Verify Enabled</Badge>}
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  {verification.verificationStatus === "pending" && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleVerifyLicense(verification.id)}
-                      disabled={isVerifying === verification.id}
-                    >
-                      {isVerifying === verification.id ? (
-                        <>
-                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                          Verifying...
-                        </>
-                      ) : (
-                        <>
-                          <FileCheck className="mr-2 h-4 w-4" />
-                          Verify License
-                        </>
-                      )}
-                    </Button>
-                  )}
-                  <Button variant="outline" size="sm">
-                    <Eye className="mr-2 h-4 w-4" />
-                    Details
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    State Board
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {filteredVerifications.length === 0 && (
+      {/* License List */}
+      {filteredLicenses.length === 0 ? (
         <Card>
-          <CardContent className="pt-6">
-            <div className="text-center py-8">
-              <FileCheck className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium mb-2">No license verifications found</h3>
-              <p className="text-muted-foreground">
-                {searchTerm
-                  ? "Try adjusting your search terms."
-                  : "Add your first license verification to get started."}
-              </p>
-            </div>
+          <CardContent className="py-12 text-center">
+            <FileCheck className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium">No Licenses Found</h3>
+            <p className="text-muted-foreground">
+              {searchTerm ? "Try adjusting your search terms." : "Add your first license to get started."}
+            </p>
           </CardContent>
         </Card>
+      ) : (
+        <div className="grid gap-4">
+          {filteredLicenses.map((license) => (
+            <Card key={license.id}>
+              <CardContent className="pt-6">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <FileCheck className="h-5 w-5 text-primary" />
+                      <h3 className="text-lg font-semibold">{license.providerName}</h3>
+                      <Badge variant="outline">
+                        {license.license_type} - {license.issuing_state}
+                      </Badge>
+                      <Badge variant="outline">{license.license_number}</Badge>
+                      <div className="flex items-center gap-1">
+                        {getStatusIcon(license.verification_status)}
+                        <Badge variant={getStatusColor(license.verification_status)}>
+                          {license.verification_status?.toUpperCase()}
+                        </Badge>
+                      </div>
+                      {license.expiration_date && isExpiringSoon(license.expiration_date) && (
+                        <Badge variant="destructive">
+                          <AlertTriangle className="h-3 w-3 mr-1" />
+                          Expiring Soon
+                        </Badge>
+                      )}
+                    </div>
+
+                    <div className="grid gap-2 md:grid-cols-3 text-sm mb-3">
+                      {license.issue_date && (
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                          <span>Issued: {license.issue_date}</span>
+                        </div>
+                      )}
+                      {license.expiration_date && (
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                          <span>Expires: {license.expiration_date}</span>
+                        </div>
+                      )}
+                      {license.verification_date && (
+                        <div>
+                          <span className="font-medium">Verified:</span> {license.verification_date}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid gap-2 md:grid-cols-2 text-sm mb-3">
+                      <div>
+                        <span className="font-medium">Source:</span> {license.verification_source || "Manual Entry"}
+                      </div>
+                      {license.renewal_required_by && (
+                        <div>
+                          <span className="font-medium">Renewal Due:</span> {license.renewal_required_by}
+                        </div>
+                      )}
+                    </div>
+
+                    {license.notes && (
+                      <div className="text-sm mb-3">
+                        <span className="font-medium">Notes:</span> {license.notes}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2">
+                    {license.verification_status === "pending" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleVerifyLicense(license.id)}
+                        disabled={isVerifying === license.id}
+                      >
+                        {isVerifying === license.id ? (
+                          <>
+                            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                            Verifying...
+                          </>
+                        ) : (
+                          <>
+                            <FileCheck className="mr-2 h-4 w-4" />
+                            Verify
+                          </>
+                        )}
+                      </Button>
+                    )}
+                    <Button variant="outline" size="sm">
+                      <Eye className="mr-2 h-4 w-4" />
+                      Details
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       )}
     </div>
   )

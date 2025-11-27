@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardSidebar } from "@/components/dashboard-sidebar"
@@ -45,21 +45,34 @@ interface ComplianceAlert {
   resolved: boolean
 }
 
+interface ComplianceReport {
+  id: string
+  type: string
+  status: string
+  created_at: string
+}
+
+interface ProviderData {
+  id: string
+  first_name: string
+  last_name: string
+  role: string
+}
+
 const DEFAULT_ROLE = "administrator"
 
 export default function RegulatoryDashboardPage() {
   const [userRole, setUserRole] = useState<string>(DEFAULT_ROLE)
   const [activeAccess, setActiveAccess] = useState<RegulatoryAccess[]>([])
   const [complianceAlerts, setComplianceAlerts] = useState<ComplianceAlert[]>([])
+  const [complianceReports, setComplianceReports] = useState<ComplianceReport[]>([])
+  const [complianceScore, setComplianceScore] = useState<number>(85)
   const [isLoading, setIsLoading] = useState(true)
+  const [currentProvider, setCurrentProvider] = useState<ProviderData | null>(null)
 
   const supabase = createClient()
 
-  useEffect(() => {
-    fetchRegulatoryData()
-  }, [])
-
-  const fetchRegulatoryData = async () => {
+  const fetchRegulatoryData = useCallback(async () => {
     try {
       try {
         const {
@@ -68,16 +81,17 @@ export default function RegulatoryDashboardPage() {
         if (user) {
           const { data: providerData } = await supabase
             .from("providers")
-            .select("role, inspector_id, organization")
-            .eq("id", user.id)
+            .select("id, first_name, last_name, role")
+            .eq("auth_user_id", user.id)
             .single()
 
           if (providerData) {
+            setCurrentProvider(providerData)
             setUserRole(providerData.role)
           }
         }
-      } catch (error) {
-        console.log("[v0] Auth check failed, using default role")
+      } catch {
+        // User not logged in
       }
 
       // Fetch active regulatory access (for administrators)
@@ -102,12 +116,32 @@ export default function RegulatoryDashboardPage() {
       if (alertsData) {
         setComplianceAlerts(alertsData)
       }
+
+      // Fetch compliance reports
+      const { data: reportsData } = await supabase
+        .from("compliance_reports")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(10)
+
+      if (reportsData) {
+        setComplianceReports(reportsData)
+      }
+
+      // Calculate compliance score
+      const totalReports = reportsData?.length || 0
+      const passedReports = reportsData?.filter((r) => r.status === "passed").length || 0
+      setComplianceScore(totalReports > 0 ? Math.round((passedReports / totalReports) * 100) : 85)
     } catch (error) {
       console.error("Error fetching regulatory data:", error)
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [supabase])
+
+  useEffect(() => {
+    fetchRegulatoryData()
+  }, [fetchRegulatoryData])
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -203,7 +237,7 @@ export default function RegulatoryDashboardPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Compliance Score</p>
-                    <p className="text-2xl font-bold text-green-600">98.5%</p>
+                    <p className="text-2xl font-bold text-green-600">{complianceScore}%</p>
                     <p className="text-xs text-green-600">Above threshold</p>
                   </div>
                   <FileCheck className="h-8 w-8 text-green-600" />
@@ -389,40 +423,21 @@ export default function RegulatoryDashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="p-4 border rounded-lg">
-                      <h4 className="font-medium mb-2">DEA Compliance Report</h4>
-                      <p className="text-sm text-muted-foreground mb-4">
-                        Controlled substance handling and documentation
-                      </p>
-                      <Button variant="outline" size="sm">
-                        <Download className="mr-2 h-4 w-4" />
-                        Generate
-                      </Button>
-                    </div>
-                    <div className="p-4 border rounded-lg">
-                      <h4 className="font-medium mb-2">OASAS Compliance Report</h4>
-                      <p className="text-sm text-muted-foreground mb-4">State regulatory compliance documentation</p>
-                      <Button variant="outline" size="sm">
-                        <Download className="mr-2 h-4 w-4" />
-                        Generate
-                      </Button>
-                    </div>
-                    <div className="p-4 border rounded-lg">
-                      <h4 className="font-medium mb-2">HIPAA Audit Report</h4>
-                      <p className="text-sm text-muted-foreground mb-4">Privacy and security compliance audit</p>
-                      <Button variant="outline" size="sm">
-                        <Download className="mr-2 h-4 w-4" />
-                        Generate
-                      </Button>
-                    </div>
-                    <div className="p-4 border rounded-lg">
-                      <h4 className="font-medium mb-2">Joint Commission Report</h4>
-                      <p className="text-sm text-muted-foreground mb-4">Accreditation compliance documentation</p>
-                      <Button variant="outline" size="sm">
-                        <Download className="mr-2 h-4 w-4" />
-                        Generate
-                      </Button>
-                    </div>
+                    {complianceReports.map((report) => (
+                      <div key={report.id} className="p-4 border rounded-lg">
+                        <h4 className="font-medium mb-2">{report.type}</h4>
+                        <p className="text-sm text-muted-foreground mb-4">
+                          {report.type === "DEA" ? "Controlled substance handling and documentation" : ""}
+                          {report.type === "OASAS" ? "State regulatory compliance documentation" : ""}
+                          {report.type === "HIPAA" ? "Privacy and security compliance audit" : ""}
+                          {report.type === "Joint Commission" ? "Accreditation compliance documentation" : ""}
+                        </p>
+                        <Button variant="outline" size="sm">
+                          <Download className="mr-2 h-4 w-4" />
+                          Generate
+                        </Button>
+                      </div>
+                    ))}
                   </div>
                 </CardContent>
               </Card>

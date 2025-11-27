@@ -1,4 +1,6 @@
 "use client"
+
+import { DashboardSidebar } from "@/components/dashboard-sidebar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Activity, FileText, DollarSign, CheckCircle, Settings } from "lucide-react"
 import { ClearinghouseDashboard } from "@/components/clearinghouse-dashboard"
@@ -10,8 +12,9 @@ import { ClearinghouseConfiguration } from "@/components/clearinghouse-configura
 export default function ClearinghousePage() {
   return (
     <div className="min-h-screen bg-background">
-      <div className="flex">
-        <main className="flex-1 ml-64 p-8">
+      <DashboardSidebar />
+      <div className="lg:pl-64">
+        <main className="p-8">
           <div className="space-y-6">
             <div>
               <h1 className="text-3xl font-bold">Clearinghouse Management</h1>

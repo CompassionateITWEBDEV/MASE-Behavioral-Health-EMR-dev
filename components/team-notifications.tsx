@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -41,42 +41,13 @@ interface TeamNotificationsProps {
 
 export function TeamNotifications({ providerId, showHeader = true, maxItems }: TeamNotificationsProps) {
   const [notifications, setNotifications] = useState<Notification[]>([])
-  const [loading, setLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(true)
   const [filter, setFilter] = useState("all")
   const [priorityFilter, setPriorityFilter] = useState("all")
 
   const supabase = createClient()
 
-  useEffect(() => {
-    fetchNotifications()
-
-    // Set up real-time subscription for new notifications
-    const channel = supabase
-      .channel("team_notifications")
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "team_notifications",
-          filter: `recipient_id=eq.${providerId}`,
-        },
-        (payload) => {
-          fetchNotifications()
-          // Show toast for urgent notifications
-          if (payload.new.priority === "urgent") {
-            toast.error(`Urgent: ${payload.new.title}`)
-          }
-        },
-      )
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [providerId])
-
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     try {
       let query = supabase
         .from("team_notifications")
@@ -88,15 +59,14 @@ export function TeamNotifications({ providerId, showHeader = true, maxItems }: T
           ),
           sender:providers!team_notifications_sender_id_fkey(
             first_name,
-            last_name,
-            role
+            last_name
           )
         `)
-        .eq("recipient_id", providerId)
         .order("created_at", { ascending: false })
+        .limit(50)
 
-      if (maxItems) {
-        query = query.limit(maxItems)
+      if (providerId) {
+        query = query.or(`recipient_id.eq.${providerId},is_broadcast.eq.true`)
       }
 
       const { data, error } = await query
@@ -105,11 +75,34 @@ export function TeamNotifications({ providerId, showHeader = true, maxItems }: T
       setNotifications(data || [])
     } catch (error) {
       console.error("Error fetching notifications:", error)
-      toast.error("Failed to load notifications")
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
-  }
+  }, [providerId, supabase])
+
+  useEffect(() => {
+    fetchNotifications()
+
+    // Subscribe to real-time notifications
+    const channel = supabase
+      .channel("team_notifications")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "team_notifications",
+        },
+        () => {
+          fetchNotifications()
+        },
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [fetchNotifications, supabase])
 
   const markAsRead = async (notificationId: string) => {
     try {
@@ -223,7 +216,7 @@ export function TeamNotifications({ providerId, showHeader = true, maxItems }: T
 
   const unreadCount = notifications.filter((n) => !n.is_read).length
 
-  if (loading) {
+  if (isLoading) {
     return <div className="flex justify-center p-4">Loading notifications...</div>
   }
 

@@ -1,14 +1,90 @@
 "use client"
 
+import { useState } from "react"
+import useSWR from "swr"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { DollarSign, TrendingUp, FileCheck, CreditCard, Pill, Package } from "lucide-react"
+import { Skeleton } from "@/components/ui/skeleton"
+import { DollarSign, TrendingUp, FileCheck, CreditCard, Pill, Package, RefreshCw, AlertTriangle } from "lucide-react"
 import { InsuranceEligibility } from "./insurance-eligibility"
 import { PriorAuthorization } from "./prior-authorization"
 
+const fetcher = (url: string) => fetch(url).then((res) => res.json())
+
+interface BillingData {
+  revenue: number
+  revenueChange: number
+  bundleClaims: number
+  bundleApgRatio: number
+  priorAuths: number
+  pendingAuths: number
+  collectionRate: number
+  collectionChange: number
+  weeklyBilling: {
+    fullBundle: number
+    takeHomeBundle: number
+    apgClaims: number
+    dualEligible: number
+  }
+  rateCodeDistribution: {
+    methadoneFull: number
+    buprenorphineFull: number
+    methadoneTakeHome: number
+    buprenorphineTakeHome: number
+  }
+  recentClaims: Array<{
+    id: string
+    patientName: string
+    weekOf: string
+    description: string
+    claimType: string
+    amount: number
+    isMedicareMedicaid?: boolean
+  }>
+}
+
+interface PMPData {
+  systemStatus: string
+  todayChecks: number
+  highRiskAlerts: number
+  newPrescriptions: number
+  recentAlerts: Array<{
+    id: string
+    patientName: string
+    message: string
+    severity: string
+  }>
+}
+
 export function BillingDashboard() {
+  const router = useRouter()
+  const {
+    data: billingData,
+    isLoading: billingLoading,
+    mutate: mutateBilling,
+  } = useSWR<BillingData>("/api/otp-billing", fetcher)
+  const { data: pmpData, isLoading: pmpLoading, mutate: mutatePMP } = useSWR<PMPData>("/api/pmp", fetcher)
+  const [isProcessing, setIsProcessing] = useState(false)
+
+  const handleProcessWeeklyClaims = async () => {
+    setIsProcessing(true)
+    // Simulate processing
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+    setIsProcessing(false)
+    mutateBilling()
+  }
+
+  const handleBundleCalculator = () => {
+    router.push("/bundle-calculator")
+  }
+
+  const handleDualEligibleWorkflow = () => {
+    router.push("/otp-billing")
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -26,10 +102,24 @@ export function BillingDashboard() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">$127,450</div>
-            <p className="text-xs text-muted-foreground">
-              <span className="text-green-600">+12.5%</span> from last month
-            </p>
+            {billingLoading ? (
+              <Skeleton className="h-8 w-24" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">${(billingData?.revenue || 0).toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground">
+                  <span
+                    className={
+                      billingData?.revenueChange && billingData.revenueChange >= 0 ? "text-green-600" : "text-red-600"
+                    }
+                  >
+                    {billingData?.revenueChange && billingData.revenueChange >= 0 ? "+" : ""}
+                    {billingData?.revenueChange || 0}%
+                  </span>{" "}
+                  from last month
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -39,10 +129,16 @@ export function BillingDashboard() {
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">156</div>
-            <p className="text-xs text-muted-foreground">
-              <span className="text-blue-600">89%</span> bundle vs APG ratio
-            </p>
+            {billingLoading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{billingData?.bundleClaims || 0}</div>
+                <p className="text-xs text-muted-foreground">
+                  <span className="text-blue-600">{billingData?.bundleApgRatio || 0}%</span> bundle vs APG ratio
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -52,10 +148,16 @@ export function BillingDashboard() {
             <FileCheck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">12</div>
-            <p className="text-xs text-muted-foreground">
-              <span className="text-yellow-600">3 pending</span> review
-            </p>
+            {billingLoading ? (
+              <Skeleton className="h-8 w-12" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{billingData?.priorAuths || 0}</div>
+                <p className="text-xs text-muted-foreground">
+                  <span className="text-yellow-600">{billingData?.pendingAuths || 0} pending</span> review
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -65,10 +167,26 @@ export function BillingDashboard() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">94.2%</div>
-            <p className="text-xs text-muted-foreground">
-              <span className="text-green-600">+2.1%</span> improvement
-            </p>
+            {billingLoading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{billingData?.collectionRate || 0}%</div>
+                <p className="text-xs text-muted-foreground">
+                  <span
+                    className={
+                      billingData?.collectionChange && billingData.collectionChange >= 0
+                        ? "text-green-600"
+                        : "text-red-600"
+                    }
+                  >
+                    {billingData?.collectionChange && billingData.collectionChange >= 0 ? "+" : ""}
+                    {billingData?.collectionChange || 0}%
+                  </span>{" "}
+                  improvement
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -109,25 +227,35 @@ export function BillingDashboard() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <Card>
                     <CardHeader>
-                      <CardTitle className="text-lg">This Week's Billing Summary</CardTitle>
+                      <CardTitle className="text-lg">{"This Week's Billing Summary"}</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                      <div className="flex justify-between">
-                        <span className="text-sm">Full Bundle Claims:</span>
-                        <Badge variant="default">47</Badge>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm">Take-Home Bundle Claims:</span>
-                        <Badge variant="secondary">23</Badge>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm">APG Claims:</span>
-                        <Badge variant="outline">12</Badge>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-sm">Dual Eligible Claims:</span>
-                        <Badge variant="destructive">8</Badge>
-                      </div>
+                      {billingLoading ? (
+                        <div className="space-y-2">
+                          {[1, 2, 3, 4].map((i) => (
+                            <Skeleton key={i} className="h-6 w-full" />
+                          ))}
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex justify-between">
+                            <span className="text-sm">Full Bundle Claims:</span>
+                            <Badge variant="default">{billingData?.weeklyBilling?.fullBundle || 0}</Badge>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm">Take-Home Bundle Claims:</span>
+                            <Badge variant="secondary">{billingData?.weeklyBilling?.takeHomeBundle || 0}</Badge>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm">APG Claims:</span>
+                            <Badge variant="outline">{billingData?.weeklyBilling?.apgClaims || 0}</Badge>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-sm">Dual Eligible Claims:</span>
+                            <Badge variant="destructive">{billingData?.weeklyBilling?.dualEligible || 0}</Badge>
+                          </div>
+                        </>
+                      )}
                     </CardContent>
                   </Card>
 
@@ -136,35 +264,57 @@ export function BillingDashboard() {
                       <CardTitle className="text-lg">Rate Code Distribution</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                          <span>7969/7973 (Methadone Full):</span>
-                          <span className="font-medium">32</span>
+                      {billingLoading ? (
+                        <div className="space-y-2">
+                          {[1, 2, 3, 4].map((i) => (
+                            <Skeleton key={i} className="h-5 w-full" />
+                          ))}
                         </div>
-                        <div className="flex justify-between text-sm">
-                          <span>7971/7975 (Buprenorphine Full):</span>
-                          <span className="font-medium">15</span>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>7969/7973 (Methadone Full):</span>
+                            <span className="font-medium">{billingData?.rateCodeDistribution?.methadoneFull || 0}</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>7971/7975 (Buprenorphine Full):</span>
+                            <span className="font-medium">
+                              {billingData?.rateCodeDistribution?.buprenorphineFull || 0}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>7970/7974 (Methadone Take-Home):</span>
+                            <span className="font-medium">
+                              {billingData?.rateCodeDistribution?.methadoneTakeHome || 0}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>7972/7976 (Buprenorphine Take-Home):</span>
+                            <span className="font-medium">
+                              {billingData?.rateCodeDistribution?.buprenorphineTakeHome || 0}
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex justify-between text-sm">
-                          <span>7970/7974 (Methadone Take-Home):</span>
-                          <span className="font-medium">18</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span>7972/7976 (Buprenorphine Take-Home):</span>
-                          <span className="font-medium">5</span>
-                        </div>
-                      </div>
+                      )}
                     </CardContent>
                   </Card>
                 </div>
 
                 <div className="flex gap-2">
-                  <Button className="bg-primary hover:bg-primary/90">
+                  <Button
+                    className="bg-primary hover:bg-primary/90"
+                    onClick={handleProcessWeeklyClaims}
+                    disabled={isProcessing}
+                  >
                     <Package className="mr-2 h-4 w-4" />
-                    Process Weekly Claims
+                    {isProcessing ? "Processing..." : "Process Weekly Claims"}
                   </Button>
-                  <Button variant="outline">Bundle vs APG Calculator</Button>
-                  <Button variant="outline">Dual Eligible Workflow</Button>
+                  <Button variant="outline" onClick={handleBundleCalculator}>
+                    Bundle vs APG Calculator
+                  </Button>
+                  <Button variant="outline" onClick={handleDualEligibleWorkflow}>
+                    Dual Eligible Workflow
+                  </Button>
                 </div>
               </CardContent>
             </Card>
@@ -218,44 +368,47 @@ export function BillingDashboard() {
                 <CardTitle>Recent OTP Claims Activity</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex-1">
-                      <p className="font-medium">Patient: Sarah M. - Week 01/06/25</p>
-                      <p className="text-sm text-muted-foreground">
-                        Methadone Admin + Individual Counseling → Rate Code 7969 (G2067)
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <Badge variant="default">Full Bundle</Badge>
-                      <p className="text-sm text-muted-foreground">$247.50</p>
-                    </div>
+                {billingLoading ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <Skeleton key={i} className="h-20 w-full" />
+                    ))}
                   </div>
-
-                  <div className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex-1">
-                      <p className="font-medium">Patient: Michael R. - Week 01/06/25</p>
-                      <p className="text-sm text-muted-foreground">Take-Home Supply Only → Rate Code 7970 (G2078)</p>
-                    </div>
-                    <div className="text-right">
-                      <Badge variant="secondary">Take-Home</Badge>
-                      <p className="text-sm text-muted-foreground">$89.25</p>
-                    </div>
+                ) : !billingData?.recentClaims || billingData.recentClaims.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Package className="h-8 w-8 mx-auto mb-2" />
+                    <p>No recent claims activity</p>
                   </div>
-
-                  <div className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex-1">
-                      <p className="font-medium">Patient: Jennifer K. - Week 01/06/25 (Dual Eligible)</p>
-                      <p className="text-sm text-muted-foreground">
-                        Buprenorphine + Psychiatric Eval → Bundle + APG Crossover
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <Badge variant="destructive">Dual Eligible</Badge>
-                      <p className="text-sm text-muted-foreground">Medicare → Medicaid</p>
-                    </div>
+                ) : (
+                  <div className="space-y-3">
+                    {billingData.recentClaims.map((claim) => (
+                      <div key={claim.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex-1">
+                          <p className="font-medium">
+                            {claim.patientName} - {claim.weekOf}
+                          </p>
+                          <p className="text-sm text-muted-foreground">{claim.description}</p>
+                        </div>
+                        <div className="text-right">
+                          <Badge
+                            variant={
+                              claim.claimType === "Full Bundle"
+                                ? "default"
+                                : claim.claimType === "Take-Home"
+                                  ? "secondary"
+                                  : "destructive"
+                            }
+                          >
+                            {claim.claimType}
+                          </Badge>
+                          <p className="text-sm text-muted-foreground">
+                            {claim.isMedicareMedicaid ? "Medicare → Medicaid" : `$${claim.amount.toFixed(2)}`}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -271,51 +424,77 @@ export function BillingDashboard() {
 
         <TabsContent value="pmp">
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Pill className="h-5 w-5" />
-                Michigan PMP Aware Integration
-              </CardTitle>
-              <CardDescription>
-                Direct integration with michigan.pmpaware.net for prescription monitoring
-              </CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Pill className="h-5 w-5" />
+                  Michigan PMP Aware Integration
+                </CardTitle>
+                <CardDescription>
+                  Direct integration with michigan.pmpaware.net for prescription monitoring
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => mutatePMP()}>
+                <RefreshCw className={`h-4 w-4 mr-2 ${pmpLoading ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">System Status</CardTitle>
+                    <CardTitle className="text-lg">{"Today's Activity"}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                      <span className="text-sm">Connected to Michigan MAPS</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-2">Last sync: 2 minutes ago</p>
+                    {pmpLoading ? (
+                      <Skeleton className="h-8 w-32" />
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className={`w-3 h-3 rounded-full ${pmpData?.systemStatus === "online" ? "bg-green-500" : "bg-red-500"}`}
+                          ></div>
+                          <span className="text-sm">
+                            {pmpData?.systemStatus === "online"
+                              ? "Connected to Michigan MAPS"
+                              : "Connection Unavailable"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-2">Last sync: just now</p>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
 
                 <Card>
                   <CardHeader>
-                    <CardTitle className="text-lg">Today's Activity</CardTitle>
+                    <CardTitle className="text-lg">PMP Statistics</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>PMP Checks:</span>
-                        <span className="font-medium">47</span>
+                    {pmpLoading ? (
+                      <div className="space-y-2">
+                        {[1, 2, 3].map((i) => (
+                          <Skeleton key={i} className="h-5 w-full" />
+                        ))}
                       </div>
-                      <div className="flex justify-between text-sm">
-                        <span>High Risk Alerts:</span>
-                        <Badge variant="destructive" className="text-xs">
-                          3
-                        </Badge>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>PMP Checks Today:</span>
+                          <span className="font-medium">{pmpData?.todayChecks || 0}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span>High Risk Alerts:</span>
+                          <Badge variant="destructive" className="text-xs">
+                            {pmpData?.highRiskAlerts || 0}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span>New Prescriptions:</span>
+                          <span className="font-medium">{pmpData?.newPrescriptions || 0}</span>
+                        </div>
                       </div>
-                      <div className="flex justify-between text-sm">
-                        <span>New Prescriptions:</span>
-                        <span className="font-medium">12</span>
-                      </div>
-                    </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
@@ -325,40 +504,46 @@ export function BillingDashboard() {
                   <CardTitle className="text-lg">Recent High-Risk Alerts</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between p-3 border rounded-lg">
-                      <div>
-                        <p className="font-medium">Patient: John D.</p>
-                        <p className="text-sm text-muted-foreground">
-                          Multiple opioid prescriptions from different providers
-                        </p>
-                      </div>
-                      <Badge variant="destructive">High Risk</Badge>
+                  {pmpLoading ? (
+                    <div className="space-y-3">
+                      {[1, 2, 3].map((i) => (
+                        <Skeleton key={i} className="h-16 w-full" />
+                      ))}
                     </div>
-                    <div className="flex items-center justify-between p-3 border rounded-lg">
-                      <div>
-                        <p className="font-medium">Patient: Maria S.</p>
-                        <p className="text-sm text-muted-foreground">Benzodiazepine + opioid combination detected</p>
-                      </div>
-                      <Badge variant="destructive">High Risk</Badge>
+                  ) : !pmpData?.recentAlerts || pmpData.recentAlerts.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
+                      <p>No high-risk alerts at this time</p>
+                      <p className="text-sm">All patients are within normal monitoring parameters</p>
                     </div>
-                    <div className="flex items-center justify-between p-3 border rounded-lg">
-                      <div>
-                        <p className="font-medium">Patient: Robert K.</p>
-                        <p className="text-sm text-muted-foreground">Early refill pattern detected</p>
-                      </div>
-                      <Badge variant="secondary">Medium Risk</Badge>
+                  ) : (
+                    <div className="space-y-3">
+                      {pmpData.recentAlerts.map((alert) => (
+                        <div key={alert.id} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div>
+                            <p className="font-medium">{alert.patientName}</p>
+                            <p className="text-sm text-muted-foreground">{alert.message}</p>
+                          </div>
+                          <Badge variant={alert.severity === "critical" ? "destructive" : "secondary"}>
+                            {alert.severity === "critical" ? "High Risk" : "Medium Risk"}
+                          </Badge>
+                        </div>
+                      ))}
                     </div>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
 
               <div className="flex gap-2">
-                <Button className="bg-primary hover:bg-primary/90">
+                <Button className="bg-primary hover:bg-primary/90" onClick={() => router.push("/pmp")}>
                   <Pill className="mr-2 h-4 w-4" />
-                  Run Batch PMP Check
+                  Open Full PMP Dashboard
                 </Button>
-                <Button variant="outline">View Full PMP Dashboard</Button>
+                <Button variant="outline" asChild>
+                  <a href="https://michigan.pmpaware.net" target="_blank" rel="noopener noreferrer">
+                    View Michigan MAPS Portal
+                  </a>
+                </Button>
               </div>
             </CardContent>
           </Card>
