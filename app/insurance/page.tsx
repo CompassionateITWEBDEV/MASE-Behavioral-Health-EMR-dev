@@ -55,7 +55,7 @@ export default function InsurancePage() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">47</div>
-                  <p className="text-xs text-muted-foreground">Today's verifications</p>
+                  <p className="text-xs text-muted-foreground">{"Today's verifications"}</p>
                 </CardContent>
               </Card>
 

@@ -360,7 +360,7 @@ export default function EncountersPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm" style={{ color: "#64748b" }}>
-                      Today's Encounters
+                      {"Today's Encounters"}
                     </p>
                     <p className="text-2xl font-bold" style={{ color: "#1e293b" }}>
                       12
@@ -611,7 +611,7 @@ export default function EncountersPage() {
               <div>
                 <Label>Chief Complaint</Label>
                 <Textarea
-                  placeholder="Patient's primary reason for visit..."
+                  placeholder="Patient primary reason for visit..."
                   value={chiefComplaint}
                   onChange={(e) => setChiefComplaint(e.target.value)}
                 />
@@ -770,7 +770,7 @@ export default function EncountersPage() {
               <div>
                 <Label>History of Present Illness (HPI)</Label>
                 <Textarea
-                  placeholder="Describe the patient's symptoms, onset, duration, severity, associated factors..."
+                  placeholder="Describe the patient symptoms, onset, duration, severity, associated factors..."
                   className="min-h-[120px]"
                   value={hpiText}
                   onChange={(e) => setHpiText(e.target.value)}

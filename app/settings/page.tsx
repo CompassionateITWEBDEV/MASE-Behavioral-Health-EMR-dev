@@ -1,3 +1,6 @@
+"use client"
+
+import { useState } from "react"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardSidebar } from "@/components/dashboard-sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,68 +12,116 @@ import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Save } from "lucide-react"
+import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { Save, Shield, Menu } from "lucide-react"
 import Link from "next/link"
-import { Shield } from "lucide-react"
 
 export default function SettingsPage() {
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+
   return (
     <div className="min-h-screen bg-background">
-      <DashboardSidebar />
-      <div className="pl-64">
+      <div className="hidden lg:block">
+        <DashboardSidebar />
+      </div>
+
+      <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+        <SheetContent side="left" className="p-0 w-72">
+          <DashboardSidebar />
+        </SheetContent>
+      </Sheet>
+
+      <div className="lg:pl-64">
         <DashboardHeader />
-        <main className="p-6 space-y-6">
-          <div className="flex justify-between items-center">
+
+        <div className="lg:hidden fixed top-4 left-4 z-50">
+          <Button variant="outline" size="icon" onClick={() => setSidebarOpen(true)}>
+            <Menu className="h-5 w-5" />
+          </Button>
+        </div>
+
+        <main className="p-4 md:p-6 space-y-4 md:space-y-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-foreground font-[family-name:var(--font-work-sans)]">Settings</h1>
-              <p className="text-muted-foreground">Manage your EMR system configuration</p>
+              <h1 className="text-2xl md:text-3xl font-bold text-foreground font-[family-name:var(--font-work-sans)]">
+                Settings
+              </h1>
+              <p className="text-sm md:text-base text-muted-foreground">Manage your EMR system configuration</p>
             </div>
-            <Button>
+            <Button className="w-full sm:w-auto">
               <Save className="mr-2 h-4 w-4" />
               Save Changes
             </Button>
           </div>
 
-          <Tabs defaultValue="profile" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-6">
-              <TabsTrigger value="profile">Profile</TabsTrigger>
-              <TabsTrigger value="security">Security</TabsTrigger>
-              <TabsTrigger value="notifications">Notifications</TabsTrigger>
-              <TabsTrigger value="system">System</TabsTrigger>
-              <TabsTrigger value="billing">Billing</TabsTrigger>
-              <TabsTrigger value="appearance">Appearance</TabsTrigger>
-            </TabsList>
+          <Tabs defaultValue="profile" className="space-y-4 md:space-y-6">
+            <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+              <TabsList className="inline-flex w-max md:w-full md:grid md:grid-cols-6">
+                <TabsTrigger value="profile" className="text-xs md:text-sm">
+                  Profile
+                </TabsTrigger>
+                <TabsTrigger value="security" className="text-xs md:text-sm">
+                  Security
+                </TabsTrigger>
+                <TabsTrigger value="notifications" className="text-xs md:text-sm">
+                  Notifications
+                </TabsTrigger>
+                <TabsTrigger value="system" className="text-xs md:text-sm">
+                  System
+                </TabsTrigger>
+                <TabsTrigger value="billing" className="text-xs md:text-sm">
+                  Billing
+                </TabsTrigger>
+                <TabsTrigger value="appearance" className="text-xs md:text-sm">
+                  Appearance
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
-            <TabsContent value="profile" className="space-y-6">
+            <TabsContent value="profile" className="space-y-4 md:space-y-6">
               <Card>
-                <CardHeader>
-                  <CardTitle>Profile Information</CardTitle>
-                  <CardDescription>Update your personal and professional details</CardDescription>
+                <CardHeader className="pb-2 md:pb-4">
+                  <CardTitle className="text-base md:text-lg">Profile Information</CardTitle>
+                  <CardDescription className="text-xs md:text-sm">
+                    Update your personal and professional details
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="firstName">First Name</Label>
+                      <Label htmlFor="firstName" className="text-sm">
+                        First Name
+                      </Label>
                       <Input id="firstName" defaultValue="Dr. Sarah" />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="lastName">Last Name</Label>
+                      <Label htmlFor="lastName" className="text-sm">
+                        Last Name
+                      </Label>
                       <Input id="lastName" defaultValue="Johnson" />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
+                      <Label htmlFor="email" className="text-sm">
+                        Email
+                      </Label>
                       <Input id="email" type="email" defaultValue="sarah.johnson@mase.org" />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="phone">Phone</Label>
+                      <Label htmlFor="phone" className="text-sm">
+                        Phone
+                      </Label>
                       <Input id="phone" defaultValue="(555) 123-4567" />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="license">License Number</Label>
+                      <Label htmlFor="license" className="text-sm">
+                        License Number
+                      </Label>
                       <Input id="license" defaultValue="LMSW-12345" />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="role">Role</Label>
+                      <Label htmlFor="role" className="text-sm">
+                        Role
+                      </Label>
                       <Select defaultValue="lmsw">
                         <SelectTrigger>
                           <SelectValue />
@@ -86,49 +137,59 @@ export default function SettingsPage() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="bio">Professional Bio</Label>
+                    <Label htmlFor="bio" className="text-sm">
+                      Professional Bio
+                    </Label>
                     <Textarea id="bio" placeholder="Brief professional background..." />
                   </div>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            <TabsContent value="security" className="space-y-6">
+            <TabsContent value="security" className="space-y-4 md:space-y-6">
               <Card>
-                <CardHeader>
-                  <CardTitle>Security Settings</CardTitle>
-                  <CardDescription>Manage your account security and access controls</CardDescription>
+                <CardHeader className="pb-2 md:pb-4">
+                  <CardTitle className="text-base md:text-lg">Security Settings</CardTitle>
+                  <CardDescription className="text-xs md:text-sm">
+                    Manage your account security and access controls
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="currentPassword">Current Password</Label>
+                      <Label htmlFor="currentPassword" className="text-sm">
+                        Current Password
+                      </Label>
                       <Input id="currentPassword" type="password" />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="newPassword">New Password</Label>
+                      <Label htmlFor="newPassword" className="text-sm">
+                        New Password
+                      </Label>
                       <Input id="newPassword" type="password" />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                      <Label htmlFor="confirmPassword" className="text-sm">
+                        Confirm New Password
+                      </Label>
                       <Input id="confirmPassword" type="password" />
                     </div>
                   </div>
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="space-y-0.5">
-                        <Label>Two-Factor Authentication</Label>
-                        <p className="text-sm text-muted-foreground">Add an extra layer of security</p>
+                        <Label className="text-sm">Two-Factor Authentication</Label>
+                        <p className="text-xs md:text-sm text-muted-foreground">Add an extra layer of security</p>
                       </div>
                       <Switch />
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="space-y-0.5">
-                        <Label>Session Timeout</Label>
-                        <p className="text-sm text-muted-foreground">Auto-logout after inactivity</p>
+                        <Label className="text-sm">Session Timeout</Label>
+                        <p className="text-xs md:text-sm text-muted-foreground">Auto-logout after inactivity</p>
                       </div>
                       <Select defaultValue="30">
-                        <SelectTrigger className="w-32">
+                        <SelectTrigger className="w-full sm:w-32">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -144,20 +205,20 @@ export default function SettingsPage() {
               </Card>
 
               <Card>
-                <CardHeader>
-                  <CardTitle>Access Log</CardTitle>
-                  <CardDescription>Recent login activity</CardDescription>
+                <CardHeader className="pb-2 md:pb-4">
+                  <CardTitle className="text-base md:text-lg">Access Log</CardTitle>
+                  <CardDescription className="text-xs md:text-sm">Recent login activity</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    <div className="flex justify-between items-center p-3 border border-border rounded-lg">
+                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 p-3 border border-border rounded-lg">
                       <div>
                         <p className="text-sm font-medium">Current Session</p>
                         <p className="text-xs text-muted-foreground">Chrome on Windows • 192.168.1.100</p>
                       </div>
                       <Badge variant="default">Active</Badge>
                     </div>
-                    <div className="flex justify-between items-center p-3 border border-border rounded-lg">
+                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 p-3 border border-border rounded-lg">
                       <div>
                         <p className="text-sm font-medium">Yesterday 3:45 PM</p>
                         <p className="text-xs text-muted-foreground">Safari on iPhone • 192.168.1.105</p>
@@ -169,46 +230,48 @@ export default function SettingsPage() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="notifications" className="space-y-6">
+            <TabsContent value="notifications" className="space-y-4 md:space-y-6">
               <Card>
-                <CardHeader>
-                  <CardTitle>Notification Preferences</CardTitle>
-                  <CardDescription>Choose what notifications you want to receive</CardDescription>
+                <CardHeader className="pb-2 md:pb-4">
+                  <CardTitle className="text-base md:text-lg">Notification Preferences</CardTitle>
+                  <CardDescription className="text-xs md:text-sm">
+                    Choose what notifications you want to receive
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="space-y-0.5">
-                        <Label>Patient Alerts</Label>
-                        <p className="text-sm text-muted-foreground">High-risk patient notifications</p>
+                        <Label className="text-sm">Patient Alerts</Label>
+                        <p className="text-xs md:text-sm text-muted-foreground">High-risk patient notifications</p>
                       </div>
                       <Switch defaultChecked />
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="space-y-0.5">
-                        <Label>Appointment Reminders</Label>
-                        <p className="text-sm text-muted-foreground">Upcoming appointment notifications</p>
+                        <Label className="text-sm">Appointment Reminders</Label>
+                        <p className="text-xs md:text-sm text-muted-foreground">Upcoming appointment notifications</p>
                       </div>
                       <Switch defaultChecked />
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="space-y-0.5">
-                        <Label>Billing Updates</Label>
-                        <p className="text-sm text-muted-foreground">Insurance and payment notifications</p>
+                        <Label className="text-sm">Billing Updates</Label>
+                        <p className="text-xs md:text-sm text-muted-foreground">Insurance and payment notifications</p>
                       </div>
                       <Switch />
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="space-y-0.5">
-                        <Label>System Announcements</Label>
-                        <p className="text-sm text-muted-foreground">Important system updates</p>
+                        <Label className="text-sm">System Announcements</Label>
+                        <p className="text-xs md:text-sm text-muted-foreground">Important system updates</p>
                       </div>
                       <Switch defaultChecked />
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="space-y-0.5">
-                        <Label>Email Notifications</Label>
-                        <p className="text-sm text-muted-foreground">Receive notifications via email</p>
+                        <Label className="text-sm">Email Notifications</Label>
+                        <p className="text-xs md:text-sm text-muted-foreground">Receive notifications via email</p>
                       </div>
                       <Switch />
                     </div>
@@ -217,42 +280,46 @@ export default function SettingsPage() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="system" className="space-y-6">
+            <TabsContent value="system" className="space-y-4 md:space-y-6">
               <Card>
-                <CardHeader>
-                  <CardTitle>System Configuration</CardTitle>
-                  <CardDescription>EMR system settings and preferences</CardDescription>
+                <CardHeader className="pb-2 md:pb-4">
+                  <CardTitle className="text-base md:text-lg">System Configuration</CardTitle>
+                  <CardDescription className="text-xs md:text-sm">EMR system settings and preferences</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="space-y-0.5">
-                        <Label>Auto-Save Documentation</Label>
-                        <p className="text-sm text-muted-foreground">Automatically save notes every 30 seconds</p>
+                        <Label className="text-sm">Auto-Save Documentation</Label>
+                        <p className="text-xs md:text-sm text-muted-foreground">
+                          Automatically save notes every 30 seconds
+                        </p>
                       </div>
                       <Switch defaultChecked />
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="space-y-0.5">
-                        <Label>AI Assistance</Label>
-                        <p className="text-sm text-muted-foreground">Enable AI-powered suggestions</p>
+                        <Label className="text-sm">AI Assistance</Label>
+                        <p className="text-xs md:text-sm text-muted-foreground">Enable AI-powered suggestions</p>
                       </div>
                       <Switch defaultChecked />
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="space-y-0.5">
-                        <Label>Voice Recording</Label>
-                        <p className="text-sm text-muted-foreground">Enable voice-to-text for notes</p>
+                        <Label className="text-sm">Voice Recording</Label>
+                        <p className="text-xs md:text-sm text-muted-foreground">Enable voice-to-text for notes</p>
                       </div>
                       <Switch defaultChecked />
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="space-y-0.5">
-                        <Label>Default ASAM Level</Label>
-                        <p className="text-sm text-muted-foreground">Default assessment level for new patients</p>
+                        <Label className="text-sm">Default ASAM Level</Label>
+                        <p className="text-xs md:text-sm text-muted-foreground">
+                          Default assessment level for new patients
+                        </p>
                       </div>
                       <Select defaultValue="1.0">
-                        <SelectTrigger className="w-40">
+                        <SelectTrigger className="w-full sm:w-40">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -268,30 +335,36 @@ export default function SettingsPage() {
               </Card>
 
               <Card>
-                <CardHeader>
-                  <CardTitle>Regulatory Access Management</CardTitle>
-                  <CardDescription>Manage inspector and surveyor access to the system</CardDescription>
+                <CardHeader className="pb-2 md:pb-4">
+                  <CardTitle className="text-base md:text-lg">Regulatory Access Management</CardTitle>
+                  <CardDescription className="text-xs md:text-sm">
+                    Manage inspector and surveyor access to the system
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="space-y-0.5">
-                        <Label>Enable Regulatory Portals</Label>
-                        <p className="text-sm text-muted-foreground">Allow DEA and Joint Commission access</p>
+                        <Label className="text-sm">Enable Regulatory Portals</Label>
+                        <p className="text-xs md:text-sm text-muted-foreground">
+                          Allow DEA and Joint Commission access
+                        </p>
                       </div>
                       <Switch defaultChecked />
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="space-y-0.5">
-                        <Label>Audit Logging</Label>
-                        <p className="text-sm text-muted-foreground">Log all regulatory access activities</p>
+                        <Label className="text-sm">Audit Logging</Label>
+                        <p className="text-xs md:text-sm text-muted-foreground">Log all regulatory access activities</p>
                       </div>
                       <Switch defaultChecked />
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="space-y-0.5">
-                        <Label>Auto-Generate Reports</Label>
-                        <p className="text-sm text-muted-foreground">Automatically prepare compliance reports</p>
+                        <Label className="text-sm">Auto-Generate Reports</Label>
+                        <p className="text-xs md:text-sm text-muted-foreground">
+                          Automatically prepare compliance reports
+                        </p>
                       </div>
                       <Switch defaultChecked />
                     </div>
@@ -308,25 +381,25 @@ export default function SettingsPage() {
               </Card>
 
               <Card>
-                <CardHeader>
-                  <CardTitle>Data Management</CardTitle>
-                  <CardDescription>Backup and data retention settings</CardDescription>
+                <CardHeader className="pb-2 md:pb-4">
+                  <CardTitle className="text-base md:text-lg">Data Management</CardTitle>
+                  <CardDescription className="text-xs md:text-sm">Backup and data retention settings</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="space-y-0.5">
-                      <Label>Automatic Backups</Label>
-                      <p className="text-sm text-muted-foreground">Daily system backups</p>
+                      <Label className="text-sm">Automatic Backups</Label>
+                      <p className="text-xs md:text-sm text-muted-foreground">Daily system backups</p>
                     </div>
                     <Switch defaultChecked />
                   </div>
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div className="space-y-0.5">
-                      <Label>Data Retention Period</Label>
-                      <p className="text-sm text-muted-foreground">How long to keep patient records</p>
+                      <Label className="text-sm">Data Retention Period</Label>
+                      <p className="text-xs md:text-sm text-muted-foreground">How long to keep patient records</p>
                     </div>
                     <Select defaultValue="7">
-                      <SelectTrigger className="w-32">
+                      <SelectTrigger className="w-full sm:w-32">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -341,21 +414,21 @@ export default function SettingsPage() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="billing" className="space-y-6">
+            <TabsContent value="billing" className="space-y-4 md:space-y-6">
               <Card>
-                <CardHeader>
-                  <CardTitle>Billing Configuration</CardTitle>
-                  <CardDescription>OTP billing and insurance settings</CardDescription>
+                <CardHeader className="pb-2 md:pb-4">
+                  <CardTitle className="text-base md:text-lg">Billing Configuration</CardTitle>
+                  <CardDescription className="text-xs md:text-sm">OTP billing and insurance settings</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="space-y-0.5">
-                        <Label>Default Billing Method</Label>
-                        <p className="text-sm text-muted-foreground">Preferred billing approach</p>
+                        <Label className="text-sm">Default Billing Method</Label>
+                        <p className="text-xs md:text-sm text-muted-foreground">Preferred billing approach</p>
                       </div>
                       <Select defaultValue="bundle">
-                        <SelectTrigger className="w-40">
+                        <SelectTrigger className="w-full sm:w-40">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -365,17 +438,19 @@ export default function SettingsPage() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="space-y-0.5">
-                        <Label>Auto-Submit Claims</Label>
-                        <p className="text-sm text-muted-foreground">Automatically submit completed claims</p>
+                        <Label className="text-sm">Auto-Submit Claims</Label>
+                        <p className="text-xs md:text-sm text-muted-foreground">
+                          Automatically submit completed claims
+                        </p>
                       </div>
                       <Switch defaultChecked />
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="space-y-0.5">
-                        <Label>PMP Integration</Label>
-                        <p className="text-sm text-muted-foreground">Enable Michigan PMP monitoring</p>
+                        <Label className="text-sm">PMP Integration</Label>
+                        <p className="text-xs md:text-sm text-muted-foreground">Enable Michigan PMP monitoring</p>
                       </div>
                       <Switch defaultChecked />
                     </div>
@@ -384,21 +459,23 @@ export default function SettingsPage() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="appearance" className="space-y-6">
+            <TabsContent value="appearance" className="space-y-4 md:space-y-6">
               <Card>
-                <CardHeader>
-                  <CardTitle>Appearance Settings</CardTitle>
-                  <CardDescription>Customize the look and feel of your EMR</CardDescription>
+                <CardHeader className="pb-2 md:pb-4">
+                  <CardTitle className="text-base md:text-lg">Appearance Settings</CardTitle>
+                  <CardDescription className="text-xs md:text-sm">
+                    Customize the look and feel of your EMR
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="space-y-0.5">
-                        <Label>Theme</Label>
-                        <p className="text-sm text-muted-foreground">Choose your preferred theme</p>
+                        <Label className="text-sm">Theme</Label>
+                        <p className="text-xs md:text-sm text-muted-foreground">Choose your preferred theme</p>
                       </div>
                       <Select defaultValue="light">
-                        <SelectTrigger className="w-32">
+                        <SelectTrigger className="w-full sm:w-32">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
@@ -408,20 +485,20 @@ export default function SettingsPage() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="space-y-0.5">
-                        <Label>Compact Mode</Label>
-                        <p className="text-sm text-muted-foreground">Reduce spacing for more content</p>
+                        <Label className="text-sm">Compact Mode</Label>
+                        <p className="text-xs md:text-sm text-muted-foreground">Reduce spacing for more content</p>
                       </div>
                       <Switch />
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="space-y-0.5">
-                        <Label>Font Size</Label>
-                        <p className="text-sm text-muted-foreground">Adjust text size for readability</p>
+                        <Label className="text-sm">Font Size</Label>
+                        <p className="text-xs md:text-sm text-muted-foreground">Adjust text size for readability</p>
                       </div>
                       <Select defaultValue="medium">
-                        <SelectTrigger className="w-32">
+                        <SelectTrigger className="w-full sm:w-32">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>

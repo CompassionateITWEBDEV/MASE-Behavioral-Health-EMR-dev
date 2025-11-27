@@ -222,7 +222,7 @@ export default function ClinicalAlertsPage() {
           patient_name: "John Smith",
           mrn: "MRN-001234",
           precaution_type: "water_off",
-          custom_text: "Patient's water service disconnected - offer water at each visit",
+          custom_text: "Patient water service disconnected - offer water at each visit",
           icon: "Droplets",
           color: "#3b82f6",
           created_by: "Case Manager Amy",

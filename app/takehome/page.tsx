@@ -625,7 +625,7 @@ export default function TakeHomePage() {
             <div className="text-sm text-muted-foreground space-y-1">
               <div>• Override will be logged with timestamp and user ID</div>
               <div>• Medical Director will be automatically notified</div>
-              <div>• Patient's take-home privileges will be reviewed within 24 hours</div>
+              <div>{"• Patient's take-home privileges will be reviewed within 24 hours"}</div>
             </div>
 
             <div className="flex gap-2">

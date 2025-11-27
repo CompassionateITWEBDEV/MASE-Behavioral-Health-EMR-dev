@@ -620,7 +620,7 @@ export default function PatientChartPage({ params }: { params: { id: string } })
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {[
-                      { name: "Driver's License", type: "ID", date: "2024-01-15", size: "2.1 MB" },
+                      { name: "Driver License", type: "ID", date: "2024-01-15", size: "2.1 MB" },
                       { name: "Court Order - Treatment", type: "Legal", date: "2024-01-10", size: "1.8 MB" },
                       { name: "Previous Treatment Records", type: "Medical", date: "2024-01-08", size: "5.2 MB" },
                       { name: "Insurance Card", type: "Insurance", date: "2024-01-15", size: "0.8 MB" },

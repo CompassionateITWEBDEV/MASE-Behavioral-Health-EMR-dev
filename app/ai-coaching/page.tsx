@@ -299,8 +299,10 @@ export default function AICoachingPage() {
                 <CardContent className="space-y-4">
                   <div className="bg-muted p-3 rounded-lg">
                     <p className="text-sm">
-                      <strong>AI Coach:</strong> I noticed you've been working on documentation efficiency. Would you
-                      like some tips for faster SOAP note completion?
+                      <strong>AI Coach:</strong>{" "}
+                      {
+                        "I noticed you've been working on documentation efficiency. Would you like some tips for faster SOAP note completion?"
+                      }
                     </p>
                   </div>
                   <div className="flex space-x-2">

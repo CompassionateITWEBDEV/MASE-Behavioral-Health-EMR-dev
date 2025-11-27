@@ -13,7 +13,7 @@ export default function CheckEmailPage() {
               <Mail className="h-6 w-6 text-primary" />
             </div>
             <CardTitle className="text-2xl font-semibold">Check Your Email</CardTitle>
-            <CardDescription>We've sent you a confirmation link to complete your registration</CardDescription>
+            <CardDescription>{"We've sent you a confirmation link to complete your registration"}</CardDescription>
           </CardHeader>
           <CardContent className="text-center space-y-4">
             <p className="text-sm text-muted-foreground">

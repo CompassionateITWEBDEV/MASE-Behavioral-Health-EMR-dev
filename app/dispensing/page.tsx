@@ -97,7 +97,7 @@ const PatientBanner = ({ order }: { order: DoseOrder }) => (
               MRN: {order.mrn} • DOB: {order.dob}
             </p>
             <p className="text-sm font-medium text-blue-600">
-              Today's Order: {order.daily_dose_mg}mg ({(order.daily_dose_mg / 10).toFixed(1)}ml)
+              {"Today's Order:"} {order.daily_dose_mg}mg ({(order.daily_dose_mg / 10).toFixed(1)}ml)
             </p>
           </div>
         </div>
