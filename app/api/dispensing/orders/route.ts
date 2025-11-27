@@ -1,9 +1,9 @@
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 
 export async function GET(request: Request) {
   try {
-    const supabase = await createClient()
+    const supabase = createServiceClient()
     const { searchParams } = new URL(request.url)
     const status = searchParams.get("status") || "active"
 
@@ -30,8 +30,10 @@ export async function GET(request: Request) {
 
     if (error) {
       console.error("[v0] Error fetching dose orders:", error.message)
-      // Return mock data if table doesn't exist
-      return NextResponse.json(getMockDoseOrders())
+      if ((error as any)?.code === "42P01") {
+        return NextResponse.json(getMockDoseOrders())
+      }
+      return NextResponse.json({ error: "Failed to load dispensing orders" }, { status: 500 })
     }
 
     const formattedOrders = (orders || []).map((order) => ({
@@ -57,7 +59,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient()
+    const supabase = createServiceClient()
     const body = await request.json()
 
     const { data, error } = await supabase

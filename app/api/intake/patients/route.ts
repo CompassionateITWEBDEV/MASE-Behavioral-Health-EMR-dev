@@ -1,9 +1,9 @@
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 
 export async function GET(request: Request) {
   try {
-    const supabase = await createClient()
+    const supabase = createServiceClient()
     const { searchParams } = new URL(request.url)
     const stage = searchParams.get("stage")
     const status = searchParams.get("status")
@@ -19,6 +19,7 @@ export async function GET(request: Request) {
         email,
         gender,
         address,
+        status,
         created_at,
         patient_insurance(
           id,
@@ -34,6 +35,10 @@ export async function GET(request: Request) {
       query = query.eq("status", status)
     }
 
+    if (stage) {
+      query = query.eq("status", stage)
+    }
+
     const { data: patients, error } = await query
 
     if (error) {
@@ -43,25 +48,30 @@ export async function GET(request: Request) {
     }
 
     // Transform to intake queue format
-    const intakePatients = (patients || []).map((patient, index) => ({
-      id: `INT-2025-${String(patient.id).padStart(3, "0")}`,
-      patientId: patient.id,
-      name: `${patient.first_name} ${patient.last_name}`,
-      age: calculateAge(patient.date_of_birth),
-      phone: patient.phone || "(555) 000-0000",
-      email: patient.email,
-      gender: patient.gender,
-      address: patient.address,
-      entryTime: new Date(patient.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      currentStage: getRandomStage(index),
-      eligibilityStatus: patient.patient_insurance?.some((ins: any) => ins.is_active) ? "approved" : "pending",
-      udsRequired: Math.random() > 0.5,
-      pregnancyTestRequired: Math.random() > 0.7,
-      priority: Math.random() > 0.8 ? "urgent" : "normal",
-      estimatedWait: `${Math.floor(Math.random() * 45) + 5} min`,
-      alerts: getRandomAlerts(),
-      dob: patient.date_of_birth,
-    }))
+    const intakePatients = (patients || []).map((patient) => {
+      const hasActiveInsurance = patient.patient_insurance?.some((ins: any) => ins.is_active)
+      const derivedStage = patient.status || "intake"
+
+      return {
+        id: `INT-2025-${String(patient.id).padStart(3, "0")}`,
+        patientId: patient.id,
+        name: `${patient.first_name} ${patient.last_name}`,
+        age: calculateAge(patient.date_of_birth),
+        phone: patient.phone || "(555) 000-0000",
+        email: patient.email,
+        gender: patient.gender,
+        address: patient.address,
+        entryTime: new Date(patient.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        currentStage: derivedStage,
+        eligibilityStatus: hasActiveInsurance ? "approved" : "pending",
+        udsRequired: hasActiveInsurance ? false : true,
+        pregnancyTestRequired: false,
+        priority: "normal",
+        estimatedWait: "15 min",
+        alerts: [],
+        dob: patient.date_of_birth,
+      }
+    })
 
     return NextResponse.json(intakePatients)
   } catch (error) {
@@ -72,7 +82,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient()
+    const supabase = createServiceClient()
     const body = await request.json()
 
     const { data, error } = await supabase
@@ -112,30 +122,6 @@ function calculateAge(dob: string): number {
     age--
   }
   return age
-}
-
-function getRandomStage(index: number): string {
-  const stages = [
-    "data-entry",
-    "eligibility",
-    "tech-onboarding",
-    "consent-forms",
-    "collector-queue",
-    "nurse-queue",
-    "counselor-queue",
-    "doctor-queue",
-    "dosing",
-  ]
-  return stages[index % stages.length]
-}
-
-function getRandomAlerts(): string[] {
-  const allAlerts = ["Withdrawal symptoms", "Pregnant", "High risk", "New patient"]
-  const alerts: string[] = []
-  if (Math.random() > 0.7) {
-    alerts.push(allAlerts[Math.floor(Math.random() * allAlerts.length)])
-  }
-  return alerts
 }
 
 function getMockIntakePatients() {
