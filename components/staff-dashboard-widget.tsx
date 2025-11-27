@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Activity, AlertTriangle, Users, FileText } from "lucide-react"
+import { Activity, AlertTriangle, Users, FileText, Loader2 } from "lucide-react"
 import Link from "next/link"
 
 interface StaffMetrics {
@@ -30,54 +30,53 @@ interface RecentTask {
 export function StaffDashboardWidget() {
   const [metrics, setMetrics] = useState<StaffMetrics | null>(null)
   const [recentTasks, setRecentTasks] = useState<RecentTask[]>([])
-  // const { user } = useAuth()
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    loadMetrics()
-    loadRecentTasks()
+    loadData()
   }, [])
 
-  const loadMetrics = async () => {
-    // Mock data - replace with actual API call
-    setMetrics({
-      total_tasks: 47,
-      pending_tasks: 12,
-      overdue_tasks: 3,
-      completed_today: 8,
-      active_staff: 24,
-      avg_completion_time: 2.5,
-      productivity_score: 87,
-    })
+  const loadData = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+
+      const response = await fetch("/api/dashboard/staff")
+      if (!response.ok) {
+        throw new Error("Failed to fetch staff data")
+      }
+
+      const data = await response.json()
+      setMetrics(data.metrics)
+      setRecentTasks(data.recentTasks || [])
+    } catch (err) {
+      console.error("Error loading staff data:", err)
+      setError("Unable to load staff metrics")
+      // Set empty defaults on error
+      setMetrics({
+        total_tasks: 0,
+        pending_tasks: 0,
+        overdue_tasks: 0,
+        completed_today: 0,
+        active_staff: 0,
+        avg_completion_time: 0,
+        productivity_score: 100,
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const loadRecentTasks = async () => {
-    // Mock data - replace with actual API call
-    setRecentTasks([
-      {
-        id: "task-001",
-        title: "Patient Intake Assessment",
-        assigned_to_name: "Dr. Smith",
-        status: "in_progress",
-        due_date: "2024-01-18T17:00:00Z",
-        priority: "high",
-      },
-      {
-        id: "task-002",
-        title: "Medication Review",
-        assigned_to_name: "Nurse Wilson",
-        status: "overdue",
-        due_date: "2024-01-17T15:00:00Z",
-        priority: "urgent",
-      },
-      {
-        id: "task-003",
-        title: "Compliance Check",
-        assigned_to_name: "Counselor Davis",
-        status: "pending",
-        due_date: "2024-01-19T12:00:00Z",
-        priority: "medium",
-      },
-    ])
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="text-center py-8">
+          <Loader2 className="h-12 w-12 mx-auto mb-4 opacity-50 animate-spin" />
+          <p className="text-muted-foreground">Loading staff metrics...</p>
+        </CardContent>
+      </Card>
+    )
   }
 
   if (!metrics) {
@@ -85,7 +84,7 @@ export function StaffDashboardWidget() {
       <Card>
         <CardContent className="text-center py-8">
           <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
-          <p className="text-muted-foreground">Loading staff metrics...</p>
+          <p className="text-muted-foreground">No staff data available</p>
         </CardContent>
       </Card>
     )
@@ -101,6 +100,12 @@ export function StaffDashboardWidget() {
         <CardDescription>Team productivity and task management</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {error && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
         {/* Staff Metrics Overview */}
         <div className="grid grid-cols-2 gap-4">
           <div className="text-center">
@@ -142,6 +147,14 @@ export function StaffDashboardWidget() {
               </Link>
             </AlertDescription>
           </Alert>
+        )}
+
+        {/* Empty state when no tasks */}
+        {metrics.total_tasks === 0 && (
+          <div className="text-center py-4 text-muted-foreground">
+            <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            <p className="text-sm">No tasks in the system yet</p>
+          </div>
         )}
 
         <Link href="/workflows">

@@ -189,15 +189,15 @@ export default function PatientCheckInPage() {
       <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: "#f0f9ff" }}>
         <Card className="w-full max-w-md">
           <CardHeader
-            className="text-center text-white"
-            style={{ backgroundColor: "#0891b2", borderRadius: "8px 8px 0 0" }}
+            className="text-center"
+            style={{ backgroundColor: "#0891b2", color: "#fff", borderRadius: "8px 8px 0 0" }}
           >
             <div className="flex justify-center mb-2">
               <Smartphone className="h-12 w-12" />
             </div>
             <CardTitle className="text-2xl">Mobile Check-In</CardTitle>
             <CardDescription style={{ color: "#e0f2fe" }}>
-              Check in from your phone and we'll notify you when it's your turn
+              {"Check in from your phone and we'll notify you when it's your turn"}
             </CardDescription>
           </CardHeader>
           <CardContent className="p-6 space-y-6">
@@ -246,7 +246,9 @@ export default function PatientCheckInPage() {
               </div>
               {enableNotifications && (
                 <div>
-                  <Label htmlFor="phone">Mobile Phone</Label>
+                  <Label htmlFor="phone" className="text-sm">
+                    Mobile Phone
+                  </Label>
                   <Input
                     id="phone"
                     type="tel"
@@ -256,7 +258,7 @@ export default function PatientCheckInPage() {
                     className="mt-1"
                   />
                   <p className="text-xs mt-1" style={{ color: "#64748b" }}>
-                    We'll text you when it's almost your turn
+                    {"We'll text you when it's almost your turn"}
                   </p>
                 </div>
               )}

@@ -27,7 +27,7 @@
     "@radix-ui/react-popover": "1.1.4",
     "@radix-ui/react-progress": "latest",
     "@radix-ui/react-radio-group": "1.2.2",
-    "@radix-ui/react-scroll-area": "1.2.2",
+    "@radix-ui/react-scroll-area": "latest",
     "@radix-ui/react-select": "latest",
     "@radix-ui/react-separator": "latest",
     "@radix-ui/react-slider": "1.2.2",
@@ -63,7 +63,6 @@
     "sonner": "latest",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
-    "twilio": "latest",
     "vaul": "^0.9.9",
     "zod": "3.25.67"
   },

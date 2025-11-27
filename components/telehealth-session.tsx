@@ -40,9 +40,9 @@ export function TelehealthSession({ sessionId, onClose }: TelehealthSessionProps
         const sampleTranscripts = [
           "Patient reports feeling anxious about upcoming job interview...",
           "Counselor: Can you tell me more about what specifically makes you anxious?",
-          "Patient: I worry that I won't be able to answer their questions properly...",
-          "Counselor: That's a very common concern. Let's explore some coping strategies...",
-          "Patient: I've been practicing deep breathing like we discussed last session...",
+          "Patient: I worry that I will not be able to answer their questions properly...",
+          "Counselor: That is a very common concern. Let us explore some coping strategies...",
+          "Patient: I have been practicing deep breathing like we discussed last session...",
         ]
 
         setTranscript((prev) => {

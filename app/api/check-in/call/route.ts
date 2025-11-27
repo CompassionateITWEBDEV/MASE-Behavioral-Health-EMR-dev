@@ -1,37 +1,33 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createServiceClient } from "@/lib/supabase/server"
-import { sendSMS } from "@/lib/sms/twilio-service"
+import { createClient } from "@/lib/supabase/server"
+import { sendQueueSmsNotification } from "../_utils/notifications"
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createServiceClient()
+    const supabase = await createClient()
     const body = await request.json()
-    const { queueId, staffMember, sendSMS: shouldSendSMS } = body
+    const { queueId, staffMember, sendSMS } = body
 
-    // Get current check-in data with patient info
-    const { data: checkIn, error: fetchError } = await supabase
+    // Fetch current notification counters to increment accurately
+    const { data: existing, error: fetchError } = await supabase
       .from("patient_check_ins")
-      .select(`
-        *,
-        patients(first_name, last_name, phone)
-      `)
+      .select("patient_id, patient_number, service_type, mobile_phone, notifications_sent, last_notification")
       .eq("id", queueId)
       .single()
 
-    if (fetchError) throw fetchError
+    if (fetchError || !existing) throw fetchError
 
-    // Calculate new notification count
-    const newNotificationCount = (checkIn.notifications_sent || 0) + 1
+    const now = new Date().toISOString()
+    const notificationCount = sendSMS ? (existing.notifications_sent || 0) + 1 : existing.notifications_sent || 0
 
-    // Update check-in status
     const { data, error } = await supabase
       .from("patient_check_ins")
       .update({
         status: "called",
         assigned_to: staffMember,
-        called_time: new Date().toISOString(),
-        notifications_sent: newNotificationCount,
-        last_notification: new Date().toISOString(),
+        called_time: now,
+        notifications_sent: notificationCount,
+        last_notification: sendSMS ? now : existing.last_notification,
       })
       .eq("id", queueId)
       .select()
@@ -39,18 +35,16 @@ export async function POST(request: NextRequest) {
 
     if (error) throw error
 
-    let smsResult = null
-    if (shouldSendSMS && checkIn.patients?.phone) {
-      const message = `${checkIn.patients.first_name}, you are being called! Please proceed to the front desk. - BehavioralHealth Clinic`
-      smsResult = await sendSMS(checkIn.patients.phone, message)
-    }
+    const notification = sendSMS
+      ? await sendQueueSmsNotification({
+          queueId,
+          patientId: existing.patient_id,
+          phone: existing.mobile_phone,
+          message: `Hi! We're ready for you now for your ${existing.service_type || "visit"}. Please proceed to the front desk.`,
+        })
+      : null
 
-    return NextResponse.json({
-      success: true,
-      data,
-      smsResult,
-      notificationCount: newNotificationCount,
-    })
+    return NextResponse.json({ success: true, data, notification })
   } catch (error) {
     console.error("Error calling patient:", error)
     return NextResponse.json({ message: "Failed to call patient" }, { status: 500 })

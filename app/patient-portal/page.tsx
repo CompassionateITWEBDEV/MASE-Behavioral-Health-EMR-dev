@@ -59,7 +59,7 @@ function generateAIResponse(userMessage: string) {
   if (lowerMessage.includes("anxious") || lowerMessage.includes("anxiety")) {
     return {
       message:
-        "I hear you're feeling anxious. That's a common experience in recovery. Would you like me to guide you through a quick breathing exercise, or would you prefer to talk to your counselor?",
+        "I hear you are feeling anxious. That is a common experience in recovery. Would you like me to guide you through a quick breathing exercise, or would you prefer to talk to your counselor?",
       escalate: false,
     }
   } else if (lowerMessage.includes("craving") || lowerMessage.includes("urge")) {
@@ -851,13 +851,13 @@ export default function PatientPortalPage() {
 
                     <div className="flex gap-2 mt-2">
                       <Button variant="outline" size="sm" onClick={() => setNewMessage("I'm feeling anxious today")}>
-                        {"I'm anxious"}
+                        I&apos;m anxious
                       </Button>
                       <Button variant="outline" size="sm" onClick={() => setNewMessage("I'm having cravings")}>
-                        {"Having cravings"}
+                        Having cravings
                       </Button>
                       <Button variant="outline" size="sm" onClick={() => setNewMessage("I need support")}>
-                        {"Need support"}
+                        Need support
                       </Button>
                     </div>
                   </div>

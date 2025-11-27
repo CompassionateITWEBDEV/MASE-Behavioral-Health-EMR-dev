@@ -1,7 +1,8 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { Shield } from "lucide-react"
+
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,9 +10,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Heart, Users, ArrowLeft } from "lucide-react"
+import { useState } from "react"
 
-export default function StaffLoginPage() {
+export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
@@ -39,184 +40,69 @@ export default function StaffLoginPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#f8fafc" }}>
-      {/* Header */}
-      <header
-        style={{
-          borderBottom: "1px solid #e5e7eb",
-          backgroundColor: "#ffffff",
-          padding: "16px 24px",
-        }}
-      >
-        <div
-          style={{
-            maxWidth: "1280px",
-            margin: "0 auto",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <Link href="/landing" style={{ display: "flex", alignItems: "center", gap: "12px", textDecoration: "none" }}>
-            <div
-              style={{
-                width: "40px",
-                height: "40px",
-                backgroundColor: "#0891b2",
-                borderRadius: "8px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Heart style={{ color: "#ffffff", width: "24px", height: "24px" }} />
-            </div>
-            <span style={{ fontSize: "20px", fontWeight: "700", color: "#0f172a" }}>MASE Behavioral Health</span>
-          </Link>
-          <Link
-            href="/landing"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              color: "#64748b",
-              textDecoration: "none",
-              fontSize: "14px",
-            }}
-          >
-            <ArrowLeft style={{ width: "16px", height: "16px" }} />
-            Back to Portal Selection
-          </Link>
-        </div>
-      </header>
-
-      {/* Login Form */}
-      <main
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "48px 24px",
-          minHeight: "calc(100vh - 73px)",
-        }}
-      >
-        <div style={{ width: "100%", maxWidth: "440px" }}>
-          <Card>
-            <CardHeader style={{ textAlign: "center" }}>
-              <div
-                style={{
-                  width: "64px",
-                  height: "64px",
-                  backgroundColor: "#ecfdf5",
-                  borderRadius: "16px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  margin: "0 auto 16px",
-                }}
-              >
-                <Users style={{ width: "32px", height: "32px", color: "#059669" }} />
+    <div className="min-h-screen flex items-center justify-center bg-background p-6">
+      <div className="w-full max-w-md">
+        <Card>
+          <CardHeader className="text-center">
+            <CardTitle className="text-2xl font-semibold">MASE Behavioral Health EMR</CardTitle>
+            <CardDescription>Sign in to access your clinical dashboard</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="provider@clinic.com"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
               </div>
-              <CardTitle style={{ fontSize: "24px" }}>Staff Portal Login</CardTitle>
-              <CardDescription>Access patient check-in, scheduling, and daily operations</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <Label htmlFor="email">Email Address</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="staff@clinic.com"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+              {error && <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">{error}</div>}
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? "Signing in..." : "Sign In"}
+              </Button>
+            </form>
+            <div className="mt-6 text-center text-sm text-muted-foreground">
+              Need an account?{" "}
+              <Link href="/auth/register" className="text-primary hover:underline">
+                Register as Provider
+              </Link>
+            </div>
+            <div className="mt-4 text-center">
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <Label htmlFor="password">Password</Label>
-                    <Link href="/auth/forgot-password" style={{ color: "#059669", fontSize: "13px" }}>
-                      Forgot password?
-                    </Link>
-                  </div>
-                  <Input
-                    id="password"
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">Or</span>
                 </div>
-                {error && (
-                  <div
-                    style={{
-                      padding: "12px",
-                      backgroundColor: "#fef2f2",
-                      borderRadius: "8px",
-                      color: "#dc2626",
-                      fontSize: "14px",
-                    }}
-                  >
-                    {error}
-                  </div>
-                )}
-                <Button
-                  type="submit"
-                  disabled={isLoading}
-                  style={{
-                    width: "100%",
-                    backgroundColor: "#059669",
-                    marginTop: "8px",
-                  }}
+              </div>
+              <div className="mt-4">
+                <Link
+                  href="/auth/regulatory-login"
+                  className="inline-flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-muted-foreground border border-input bg-background hover:bg-accent hover:text-accent-foreground rounded-md transition-colors"
                 >
-                  {isLoading ? "Signing in..." : "Sign In to Staff Portal"}
-                </Button>
-              </form>
-
-              <div style={{ marginTop: "24px", textAlign: "center" }}>
-                <p style={{ fontSize: "14px", color: "#64748b", marginBottom: "8px" }}>Need an account?</p>
-                <Link href="/auth/register" style={{ color: "#059669", fontSize: "14px" }}>
-                  Request staff access
+                  <Shield className="w-4 h-4 mr-2" />
+                  Regulatory Portal Access
                 </Link>
               </div>
-
-              <div style={{ marginTop: "24px" }}>
-                <div style={{ position: "relative", marginBottom: "16px" }}>
-                  <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center" }}>
-                    <span style={{ width: "100%", borderTop: "1px solid #e5e7eb" }} />
-                  </div>
-                  <div style={{ position: "relative", display: "flex", justifyContent: "center" }}>
-                    <span
-                      style={{
-                        backgroundColor: "#ffffff",
-                        padding: "0 12px",
-                        fontSize: "12px",
-                        color: "#64748b",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      Other Portals
-                    </span>
-                  </div>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <Link href="/auth/provider-login">
-                    <Button variant="outline" style={{ width: "100%" }}>
-                      Provider Login
-                    </Button>
-                  </Link>
-                  <Link href="/auth/admin-login">
-                    <Button variant="outline" style={{ width: "100%" }}>
-                      Administrator Login
-                    </Button>
-                  </Link>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </main>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }
