@@ -111,7 +111,7 @@ export default function StaffManagement() {
           <CardContent className="p-6 text-center">
             <Shield className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">Access Restricted</h3>
-            <p className="text-muted-foreground">You don't have permission to view staff management.</p>
+            <p className="text-muted-foreground">{"You don't have permission to view staff management."}</p>
           </CardContent>
         </Card>
       </div>

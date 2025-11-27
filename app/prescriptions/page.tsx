@@ -217,7 +217,7 @@ export default function PrescriptionsPage() {
 
   const handleCreatePrescription = async () => {
     if (!hasPermission(PERMISSIONS.MEDICATIONS_PRESCRIBE)) {
-      alert("You don't have permission to prescribe medications")
+      alert("You do not have permission to prescribe medications")
       return
     }
 

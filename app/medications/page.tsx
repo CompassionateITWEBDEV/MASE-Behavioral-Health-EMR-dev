@@ -116,7 +116,7 @@ export default function MedicationsPage() {
 
   const handleAddMedication = async () => {
     if (!hasPermission(PERMISSIONS.MEDICATIONS_WRITE)) {
-      alert("You don't have permission to add medications")
+      alert("You do not have permission to add medications")
       return
     }
 
@@ -157,7 +157,7 @@ export default function MedicationsPage() {
 
   const handleDiscontinueMedication = async (medicationId: string, reason: string) => {
     if (!hasPermission(PERMISSIONS.MEDICATIONS_WRITE)) {
-      alert("You don't have permission to modify medications")
+      alert("You do not have permission to modify medications")
       return
     }
 

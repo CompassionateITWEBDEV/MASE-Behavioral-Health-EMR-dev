@@ -9,11 +9,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Heart, Users, ArrowLeft } from "lucide-react"
+import { Heart, Stethoscope, ArrowLeft, Shield } from "lucide-react"
 
-export default function StaffLoginPage() {
+export default function ProviderLoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [npi, setNpi] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
@@ -107,7 +108,7 @@ export default function StaffLoginPage() {
                 style={{
                   width: "64px",
                   height: "64px",
-                  backgroundColor: "#ecfdf5",
+                  backgroundColor: "#f5f3ff",
                   borderRadius: "16px",
                   display: "flex",
                   alignItems: "center",
@@ -115,10 +116,10 @@ export default function StaffLoginPage() {
                   margin: "0 auto 16px",
                 }}
               >
-                <Users style={{ width: "32px", height: "32px", color: "#059669" }} />
+                <Stethoscope style={{ width: "32px", height: "32px", color: "#7c3aed" }} />
               </div>
-              <CardTitle style={{ fontSize: "24px" }}>Staff Portal Login</CardTitle>
-              <CardDescription>Access patient check-in, scheduling, and daily operations</CardDescription>
+              <CardTitle style={{ fontSize: "24px" }}>Provider Portal Login</CardTitle>
+              <CardDescription>Access clinical workflows, e-prescribing, and patient management</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -127,25 +128,30 @@ export default function StaffLoginPage() {
                   <Input
                     id="email"
                     type="email"
-                    placeholder="staff@clinic.com"
+                    placeholder="provider@clinic.com"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <Label htmlFor="password">Password</Label>
-                    <Link href="/auth/forgot-password" style={{ color: "#059669", fontSize: "13px" }}>
-                      Forgot password?
-                    </Link>
-                  </div>
+                  <Label htmlFor="password">Password</Label>
                   <Input
                     id="password"
                     type="password"
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                  />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <Label htmlFor="npi">NPI Number (Optional)</Label>
+                  <Input
+                    id="npi"
+                    type="text"
+                    placeholder="10-digit NPI"
+                    value={npi}
+                    onChange={(e) => setNpi(e.target.value)}
                   />
                 </div>
                 {error && (
@@ -166,20 +172,13 @@ export default function StaffLoginPage() {
                   disabled={isLoading}
                   style={{
                     width: "100%",
-                    backgroundColor: "#059669",
+                    backgroundColor: "#7c3aed",
                     marginTop: "8px",
                   }}
                 >
-                  {isLoading ? "Signing in..." : "Sign In to Staff Portal"}
+                  {isLoading ? "Signing in..." : "Sign In to Provider Portal"}
                 </Button>
               </form>
-
-              <div style={{ marginTop: "24px", textAlign: "center" }}>
-                <p style={{ fontSize: "14px", color: "#64748b", marginBottom: "8px" }}>Need an account?</p>
-                <Link href="/auth/register" style={{ color: "#059669", fontSize: "14px" }}>
-                  Request staff access
-                </Link>
-              </div>
 
               <div style={{ marginTop: "24px" }}>
                 <div style={{ position: "relative", marginBottom: "16px" }}>
@@ -196,22 +195,31 @@ export default function StaffLoginPage() {
                         textTransform: "uppercase",
                       }}
                     >
-                      Other Portals
+                      Security Note
                     </span>
                   </div>
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <Link href="/auth/provider-login">
-                    <Button variant="outline" style={{ width: "100%" }}>
-                      Provider Login
-                    </Button>
-                  </Link>
-                  <Link href="/auth/admin-login">
-                    <Button variant="outline" style={{ width: "100%" }}>
-                      Administrator Login
-                    </Button>
-                  </Link>
+                <div
+                  style={{
+                    padding: "16px",
+                    backgroundColor: "#f5f3ff",
+                    borderRadius: "8px",
+                    display: "flex",
+                    gap: "12px",
+                  }}
+                >
+                  <Shield style={{ width: "20px", height: "20px", color: "#7c3aed", flexShrink: 0 }} />
+                  <p style={{ fontSize: "13px", color: "#64748b", lineHeight: "1.5" }}>
+                    Provider accounts require DEA verification for e-prescribing controlled substances. Contact IT if
+                    you need DEA credentials added to your account.
+                  </p>
                 </div>
+              </div>
+
+              <div style={{ marginTop: "16px", textAlign: "center" }}>
+                <Link href="/auth/register" style={{ color: "#7c3aed", fontSize: "14px" }}>
+                  New provider? Request access
+                </Link>
               </div>
             </CardContent>
           </Card>

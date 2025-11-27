@@ -851,13 +851,13 @@ export default function PatientPortalPage() {
 
                     <div className="flex gap-2 mt-2">
                       <Button variant="outline" size="sm" onClick={() => setNewMessage("I'm feeling anxious today")}>
-                        I&apos;m anxious
+                        {"I'm anxious"}
                       </Button>
                       <Button variant="outline" size="sm" onClick={() => setNewMessage("I'm having cravings")}>
-                        Having cravings
+                        {"Having cravings"}
                       </Button>
                       <Button variant="outline" size="sm" onClick={() => setNewMessage("I need support")}>
-                        Need support
+                        {"Need support"}
                       </Button>
                     </div>
                   </div>

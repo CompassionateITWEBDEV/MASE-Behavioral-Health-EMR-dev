@@ -1,31 +1,31 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { createClient } from "@/lib/supabase/server"
-import { sendQueueSmsNotification } from "../_utils/notifications"
+import { createServiceClient } from "@/lib/supabase/server"
+import { sendSMS } from "@/lib/sms/twilio-service"
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
+    const supabase = createServiceClient()
     const body = await request.json()
-    const { queueId, returnTime, sendSMS } = body
+    const { queueId, returnTime, sendSMS: shouldSendSMS } = body
 
-    const { data: existing, error: fetchError } = await supabase
+    // Get current check-in data with patient info
+    const { data: checkIn, error: fetchError } = await supabase
       .from("patient_check_ins")
-      .select("patient_id, mobile_phone, notifications_sent, last_notification")
+      .select(`
+        *,
+        patients(first_name, last_name, phone)
+      `)
       .eq("id", queueId)
       .single()
 
-    if (fetchError || !existing) throw fetchError
+    if (fetchError) throw fetchError
 
-    const now = new Date().toISOString()
-    const notificationCount = sendSMS ? (existing.notifications_sent || 0) + 1 : existing.notifications_sent || 0
-
+    // Update check-in status
     const { data, error } = await supabase
       .from("patient_check_ins")
       .update({
         status: "return-later",
         return_time: returnTime,
-        notifications_sent: notificationCount,
-        last_notification: sendSMS ? now : existing.last_notification,
       })
       .eq("id", queueId)
       .select()
@@ -33,19 +33,23 @@ export async function POST(request: NextRequest) {
 
     if (error) throw error
 
-    const notification = sendSMS
-      ? await sendQueueSmsNotification({
-          queueId,
-          patientId: existing.patient_id,
-          phone: existing.mobile_phone,
-          message: `We've noted your return time for ${new Date(returnTime).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })}. Please check in at the front desk when you return.`,
-        })
-      : null
+    let smsResult = null
+    if (shouldSendSMS && checkIn.patients?.phone) {
+      const returnDate = new Date(returnTime)
+      const formattedTime = returnDate.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      })
+      const message = `${checkIn.patients.first_name}, please return at ${formattedTime}. Your place in line has been saved. - BehavioralHealth Clinic`
+      smsResult = await sendSMS(checkIn.patients.phone, message)
+    }
 
-    return NextResponse.json({ success: true, data, notification })
+    return NextResponse.json({
+      success: true,
+      data,
+      smsResult,
+    })
   } catch (error) {
     console.error("Error marking return later:", error)
     return NextResponse.json({ message: "Failed to update status" }, { status: 500 })

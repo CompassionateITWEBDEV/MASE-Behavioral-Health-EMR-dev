@@ -129,7 +129,7 @@ export default function WorkflowsPage() {
 
   const handleCreateTask = async () => {
     if (!hasPermission(PERMISSIONS.STAFF_WRITE)) {
-      alert("You don't have permission to create tasks")
+      alert("You do not have permission to create tasks")
       return
     }
 

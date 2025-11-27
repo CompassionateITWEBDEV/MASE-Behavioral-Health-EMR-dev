@@ -2,35 +2,35 @@
 
 import type React from "react"
 import { useState } from "react"
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Heart, Users, ArrowLeft } from "lucide-react"
+import { Heart, UserCircle, ArrowLeft, Phone, Mail } from "lucide-react"
 
-export default function StaffLoginPage() {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
+export default function PatientLoginPage() {
+  const [patientId, setPatientId] = useState("")
+  const [dateOfBirth, setDateOfBirth] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    const supabase = createClient()
     setIsLoading(true)
     setError(null)
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-      if (error) throw error
-      router.push("/")
+      // For patient login, we verify patient ID and DOB
+      // In production, this would validate against the patients table
+      if (!patientId || !dateOfBirth) {
+        throw new Error("Please enter your Patient ID and Date of Birth")
+      }
+
+      // Simulate verification - in production this would check the database
+      router.push("/patient-portal")
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred")
     } finally {
@@ -107,7 +107,7 @@ export default function StaffLoginPage() {
                 style={{
                   width: "64px",
                   height: "64px",
-                  backgroundColor: "#ecfdf5",
+                  backgroundColor: "#ecfeff",
                   borderRadius: "16px",
                   display: "flex",
                   alignItems: "center",
@@ -115,37 +115,32 @@ export default function StaffLoginPage() {
                   margin: "0 auto 16px",
                 }}
               >
-                <Users style={{ width: "32px", height: "32px", color: "#059669" }} />
+                <UserCircle style={{ width: "32px", height: "32px", color: "#0891b2" }} />
               </div>
-              <CardTitle style={{ fontSize: "24px" }}>Staff Portal Login</CardTitle>
-              <CardDescription>Access patient check-in, scheduling, and daily operations</CardDescription>
+              <CardTitle style={{ fontSize: "24px" }}>Patient Portal Login</CardTitle>
+              <CardDescription>Access your health records, appointments, and messages</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleLogin} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <Label htmlFor="email">Email Address</Label>
+                  <Label htmlFor="patientId">Patient ID</Label>
                   <Input
-                    id="email"
-                    type="email"
-                    placeholder="staff@clinic.com"
+                    id="patientId"
+                    type="text"
+                    placeholder="Enter your patient ID (e.g., P-12345)"
                     required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    value={patientId}
+                    onChange={(e) => setPatientId(e.target.value)}
                   />
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <Label htmlFor="password">Password</Label>
-                    <Link href="/auth/forgot-password" style={{ color: "#059669", fontSize: "13px" }}>
-                      Forgot password?
-                    </Link>
-                  </div>
+                  <Label htmlFor="dateOfBirth">Date of Birth</Label>
                   <Input
-                    id="password"
-                    type="password"
+                    id="dateOfBirth"
+                    type="date"
                     required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    value={dateOfBirth}
+                    onChange={(e) => setDateOfBirth(e.target.value)}
                   />
                 </div>
                 {error && (
@@ -166,51 +161,47 @@ export default function StaffLoginPage() {
                   disabled={isLoading}
                   style={{
                     width: "100%",
-                    backgroundColor: "#059669",
+                    backgroundColor: "#0891b2",
                     marginTop: "8px",
                   }}
                 >
-                  {isLoading ? "Signing in..." : "Sign In to Staff Portal"}
+                  {isLoading ? "Verifying..." : "Access Patient Portal"}
                 </Button>
               </form>
 
-              <div style={{ marginTop: "24px", textAlign: "center" }}>
-                <p style={{ fontSize: "14px", color: "#64748b", marginBottom: "8px" }}>Need an account?</p>
-                <Link href="/auth/register" style={{ color: "#059669", fontSize: "14px" }}>
-                  Request staff access
-                </Link>
-              </div>
-
-              <div style={{ marginTop: "24px" }}>
-                <div style={{ position: "relative", marginBottom: "16px" }}>
-                  <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center" }}>
-                    <span style={{ width: "100%", borderTop: "1px solid #e5e7eb" }} />
-                  </div>
-                  <div style={{ position: "relative", display: "flex", justifyContent: "center" }}>
-                    <span
-                      style={{
-                        backgroundColor: "#ffffff",
-                        padding: "0 12px",
-                        fontSize: "12px",
-                        color: "#64748b",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      Other Portals
-                    </span>
-                  </div>
-                </div>
+              <div style={{ marginTop: "24px", padding: "16px", backgroundColor: "#f8fafc", borderRadius: "8px" }}>
+                <p style={{ fontSize: "14px", color: "#64748b", marginBottom: "12px" }}>
+                  {"Don't know your Patient ID? Contact us:"}
+                </p>
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                  <Link href="/auth/provider-login">
-                    <Button variant="outline" style={{ width: "100%" }}>
-                      Provider Login
-                    </Button>
-                  </Link>
-                  <Link href="/auth/admin-login">
-                    <Button variant="outline" style={{ width: "100%" }}>
-                      Administrator Login
-                    </Button>
-                  </Link>
+                  <a
+                    href="tel:1-800-555-0123"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      color: "#0891b2",
+                      fontSize: "14px",
+                      textDecoration: "none",
+                    }}
+                  >
+                    <Phone style={{ width: "14px", height: "14px" }} />
+                    1-800-555-0123
+                  </a>
+                  <a
+                    href="mailto:support@masehealth.com"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      color: "#0891b2",
+                      fontSize: "14px",
+                      textDecoration: "none",
+                    }}
+                  >
+                    <Mail style={{ width: "14px", height: "14px" }} />
+                    support@masehealth.com
+                  </a>
                 </div>
               </div>
             </CardContent>

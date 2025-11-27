@@ -189,8 +189,8 @@ export default function PatientCheckInPage() {
       <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: "#f0f9ff" }}>
         <Card className="w-full max-w-md">
           <CardHeader
-            className="text-center"
-            style={{ backgroundColor: "#0891b2", color: "#fff", borderRadius: "8px 8px 0 0" }}
+            className="text-center text-white"
+            style={{ backgroundColor: "#0891b2", borderRadius: "8px 8px 0 0" }}
           >
             <div className="flex justify-center mb-2">
               <Smartphone className="h-12 w-12" />
@@ -246,9 +246,7 @@ export default function PatientCheckInPage() {
               </div>
               {enableNotifications && (
                 <div>
-                  <Label htmlFor="phone" className="text-sm">
-                    Mobile Phone
-                  </Label>
+                  <Label htmlFor="phone">Mobile Phone</Label>
                   <Input
                     id="phone"
                     type="tel"
