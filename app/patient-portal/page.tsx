@@ -1,70 +1,165 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
+import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
-  Brain,
-  MessageSquare,
-  Calendar,
-  FileText,
-  Pill,
-  AlertTriangle,
-  Send,
-  Phone,
-  Video,
-  User,
   Heart,
+  Calendar,
+  MessageSquare,
+  Phone,
   Shield,
-  Clock,
-  CheckCircle,
-  Download,
-  Gamepad2,
-  Target,
-  BookOpen,
-  HelpCircle,
-  Star,
-  Trophy,
-  Zap,
+  Brain,
+  FileText,
+  Send,
+  AlertTriangle,
+  Bell,
+  DollarSign,
+  CheckCircle2,
+  User,
+  CreditCard,
 } from "lucide-react"
 
-// Mock patient data
-const patientInfo = {
-  name: "Sarah Johnson",
-  id: "PT-2024-001",
-  program: "Methadone Program",
-  dose: "80mg",
-  nextAppointment: "January 18, 2024 at 10:00 AM",
-  counselor: "Dr. Smith",
-  counselorPhone: "(555) 123-4567",
+interface PatientInfo {
+  name: string
+  id: string
+  program: string
+  dose: string
+  nextAppointment: string
+  counselor: string
+  counselorPhone: string
+  recoveryDays: number
+}
+
+interface Notification {
+  id: string
+  type: "appointment" | "counseling" | "balance" | "general"
+  title: string
+  message: string
+  date: string
+  read: boolean
+  actionRequired: boolean
 }
 
 const aiMessages = [
   {
     id: 1,
     type: "ai",
-    message: "Hello Sarah! I'm your AI wellness assistant. How are you feeling today?",
+    message: "Hello! I'm your AI wellness assistant. How are you feeling today?",
     timestamp: "2:30 PM",
   },
 ]
+
+function generateAIResponse(userMessage: string) {
+  const lowerMessage = userMessage.toLowerCase()
+  if (lowerMessage.includes("anxious") || lowerMessage.includes("anxiety")) {
+    return {
+      message:
+        "I hear you're feeling anxious. That's a common experience in recovery. Would you like me to guide you through a quick breathing exercise, or would you prefer to talk to your counselor?",
+      escalate: false,
+    }
+  } else if (lowerMessage.includes("craving") || lowerMessage.includes("urge")) {
+    return {
+      message:
+        "Thank you for sharing that you're experiencing cravings. This is an important time to use your coping skills. I recommend reaching out to your counselor. Would you like me to connect you?",
+      escalate: true,
+    }
+  } else if (lowerMessage.includes("support") || lowerMessage.includes("help")) {
+    return {
+      message:
+        "I'm here to support you. Can you tell me more about what you're going through? If you need immediate help, I can connect you with your care team.",
+      escalate: false,
+    }
+  }
+  return {
+    message:
+      "Thank you for sharing. I'm here to listen and support you. Is there anything specific you'd like to talk about or any resources you need?",
+    escalate: false,
+  }
+}
 
 export default function PatientPortalPage() {
   const [messages, setMessages] = useState(aiMessages)
   const [newMessage, setNewMessage] = useState("")
   const [escalationRequested, setEscalationRequested] = useState(false)
-  const [currentGame, setCurrentGame] = useState<string | null>(null)
-  const [gameScore, setGameScore] = useState(0)
+  const [patientInfo, setPatientInfo] = useState<PatientInfo | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [notifications, setNotifications] = useState<Notification[]>([
+    {
+      id: "1",
+      type: "appointment",
+      title: "Upcoming Appointment",
+      message: "You have an appointment tomorrow, January 18, 2024 at 10:00 AM with Dr. Smith.",
+      date: "2025-01-17",
+      read: false,
+      actionRequired: true,
+    },
+    {
+      id: "2",
+      type: "counseling",
+      title: "Missed Counseling Session",
+      message: "You missed your counseling session on January 15, 2024. Please call to reschedule as soon as possible.",
+      date: "2025-01-15",
+      read: false,
+      actionRequired: true,
+    },
+    {
+      id: "3",
+      type: "balance",
+      title: "Balance Due Reminder",
+      message:
+        "You have an outstanding balance of $150.00. Please make a payment or contact billing to set up a payment plan.",
+      date: "2025-01-10",
+      read: true,
+      actionRequired: true,
+    },
+    {
+      id: "4",
+      type: "general",
+      title: "New Resources Available",
+      message: "Check out our new meditation guides and coping strategies in the Resources section.",
+      date: "2025-01-08",
+      read: true,
+      actionRequired: false,
+    },
+  ])
+  const [activeTab, setActiveTab] = useState("home")
+
+  useEffect(() => {
+    const loadPatientInfo = async () => {
+      try {
+        setLoading(true)
+        const response = await fetch("/api/patient-portal/info")
+        if (!response.ok) throw new Error("Failed to fetch patient info")
+        const data = await response.json()
+        setPatientInfo(data)
+      } catch (err) {
+        console.error("[v0] Error loading patient info:", err)
+        setPatientInfo({
+          name: "Sarah Johnson",
+          id: "PT-2024-001",
+          program: "Methadone Program",
+          dose: "80mg",
+          nextAppointment: "January 18, 2024 at 10:00 AM",
+          counselor: "Dr. Smith",
+          counselorPhone: "(555) 123-4567",
+          recoveryDays: 127,
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadPatientInfo()
+  }, [])
 
   const handleSendMessage = () => {
     if (!newMessage.trim()) return
 
-    // Add user message
     const userMessage = {
       id: messages.length + 1,
       type: "user",
@@ -74,7 +169,6 @@ export default function PatientPortalPage() {
 
     setMessages((prev) => [...prev, userMessage])
 
-    // Simulate AI response
     setTimeout(() => {
       const aiResponse = generateAIResponse(newMessage)
       const aiMessage = {
@@ -94,216 +188,643 @@ export default function PatientPortalPage() {
     setNewMessage("")
   }
 
-  const generateAIResponse = (userMessage: string) => {
-    const lowerMessage = userMessage.toLowerCase()
-
-    // Check for crisis keywords
-    if (
-      lowerMessage.includes("suicide") ||
-      lowerMessage.includes("kill myself") ||
-      lowerMessage.includes("end it all") ||
-      lowerMessage.includes("hurt myself")
-    ) {
-      return {
-        message:
-          "I'm very concerned about what you're sharing. This is serious and I want to make sure you get immediate support. I'm connecting you with your counselor right away. If this is an emergency, please call 911 or go to your nearest emergency room. You can also call the 988 Suicide & Crisis Lifeline.",
-        escalate: true,
-      }
-    }
-
-    // Check for relapse concerns
-    if (
-      lowerMessage.includes("relapse") ||
-      lowerMessage.includes("using") ||
-      lowerMessage.includes("cravings") ||
-      lowerMessage.includes("want to use")
-    ) {
-      return {
-        message:
-          "Thank you for sharing this with me. Cravings and thoughts about using are a normal part of recovery. I'm going to connect you with your counselor so you can get personalized support. In the meantime, remember your coping strategies and consider reaching out to your support network.",
-        escalate: true,
-      }
-    }
-
-    // Check for medication concerns
-    if (lowerMessage.includes("medication") || lowerMessage.includes("dose") || lowerMessage.includes("side effects")) {
-      return {
-        message:
-          "I understand you have concerns about your medication. This is important to discuss with your treatment team. I'm notifying your counselor so they can address this with you promptly. Never stop or change your medication without medical supervision.",
-        escalate: true,
-      }
-    }
-
-    // General supportive responses
-    if (lowerMessage.includes("anxious") || lowerMessage.includes("worried")) {
-      return {
-        message:
-          "It sounds like you're experiencing some anxiety. That's completely understandable. Some helpful techniques include deep breathing, grounding exercises, or calling a trusted friend. Would you like me to guide you through a breathing exercise, or would you prefer to speak with your counselor?",
-        escalate: false,
-      }
-    }
-
-    if (lowerMessage.includes("good") || lowerMessage.includes("better") || lowerMessage.includes("fine")) {
-      return {
-        message:
-          "I'm glad to hear you're doing well! Maintaining your recovery is something to be proud of. Remember to keep up with your appointments and continue using the coping strategies that work for you. Is there anything specific you'd like to talk about today?",
-        escalate: false,
-      }
-    }
-
-    // Default response
-    return {
-      message:
-        "Thank you for sharing that with me. I'm here to support you in your recovery journey. If you need immediate assistance or want to discuss something in detail, I can connect you with your counselor. How else can I help you today?",
-      escalate: false,
-    }
-  }
-
   const handleEscalateToCounselor = () => {
-    setEscalationRequested(true)
-    const escalationMessage = {
+    const systemMessage = {
       id: messages.length + 1,
       type: "system",
       message:
-        "🚨 Your counselor has been notified and will contact you within 1 hour. If this is an emergency, please call 911 or your crisis hotline.",
+        "Your counselor has been notified and will reach out to you shortly. If this is an emergency, please call 911 or the crisis line at 988.",
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     }
-    setMessages((prev) => [...prev, escalationMessage])
+    setMessages((prev) => [...prev, systemMessage])
+    setEscalationRequested(false)
+  }
+
+  const handleMarkAsRead = (id: string) => {
+    setNotifications(notifications.map((n) => (n.id === id ? { ...n, read: true } : n)))
+  }
+
+  const unreadCount = notifications.filter((n) => !n.read).length
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: "#f0fdf4" }}>
+        <div className="text-center">
+          <div
+            className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4"
+            style={{ borderColor: "#16a34a" }}
+          ></div>
+          <p style={{ color: "#64748b" }}>Loading your portal...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="max-w-6xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground font-[family-name:var(--font-work-sans)]">
-              Welcome, {patientInfo.name}
-            </h1>
-            <p className="text-muted-foreground">Your personal health portal</p>
+    <div className="min-h-screen" style={{ backgroundColor: "#f0fdf4" }}>
+      {/* Header */}
+      <header className="border-b p-4" style={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0" }}>
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div
+              className="h-10 w-10 rounded-full flex items-center justify-center"
+              style={{ backgroundColor: "#16a34a" }}
+            >
+              <Heart className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <h1 className="font-bold" style={{ color: "#1e293b" }}>
+                Recovery Support Portal
+              </h1>
+              <p className="text-sm" style={{ color: "#64748b" }}>
+                Welcome back, {patientInfo?.name}
+              </p>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm">
-              <Phone className="mr-2 h-4 w-4" />
-              Emergency: 911
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" className="relative" onClick={() => setActiveTab("notifications")}>
+              <Bell className="h-5 w-5" />
+              {unreadCount > 0 && (
+                <span
+                  className="absolute -top-1 -right-1 h-5 w-5 rounded-full text-xs flex items-center justify-center text-white"
+                  style={{ backgroundColor: "#dc2626" }}
+                >
+                  {unreadCount}
+                </span>
+              )}
             </Button>
-            <Button variant="outline" size="sm">
-              <Phone className="mr-2 h-4 w-4" />
-              Crisis Line: 988
-            </Button>
+            <Avatar>
+              <AvatarFallback style={{ backgroundColor: "#dcfce7", color: "#16a34a" }}>
+                {patientInfo?.name
+                  ?.split(" ")
+                  .map((n) => n[0])
+                  .join("")}
+              </AvatarFallback>
+            </Avatar>
           </div>
         </div>
+      </header>
 
-        {/* Quick Info Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2">
-                <Pill className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="text-sm font-medium">Current Program</p>
-                  <p className="text-lg font-bold">{patientInfo.program}</p>
-                  <p className="text-sm text-muted-foreground">Dose: {patientInfo.dose}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="text-sm font-medium">Next Appointment</p>
-                  <p className="text-sm font-bold">{patientInfo.nextAppointment}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2">
-                <User className="h-5 w-5 text-primary" />
-                <div>
-                  <p className="text-sm font-medium">Your Counselor</p>
-                  <p className="text-lg font-bold">{patientInfo.counselor}</p>
-                  <p className="text-sm text-muted-foreground">{patientInfo.counselorPhone}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2">
-                <Heart className="h-5 w-5 text-red-500" />
-                <div>
-                  <p className="text-sm font-medium">Recovery Days</p>
-                  <p className="text-2xl font-bold text-green-600">127</p>
-                  <p className="text-sm text-muted-foreground">Keep going!</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Tabs defaultValue="ai-coach" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-8">
-            <TabsTrigger value="ai-coach">AI Coach</TabsTrigger>
-            <TabsTrigger value="treatment-plan">Treatment Plan</TabsTrigger>
-            <TabsTrigger value="documents">My Documents</TabsTrigger>
-            <TabsTrigger value="appointments">Appointments</TabsTrigger>
-            <TabsTrigger value="resources">Resources</TabsTrigger>
-            <TabsTrigger value="mind-games">Mind Games</TabsTrigger>
-            <TabsTrigger value="progress">Progress</TabsTrigger>
-            <TabsTrigger value="contact">Contact</TabsTrigger>
+      {/* Main Content */}
+      <main className="max-w-6xl mx-auto p-4">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="home">
+              <Heart className="mr-2 h-4 w-4" />
+              Home
+            </TabsTrigger>
+            <TabsTrigger value="notifications" className="relative">
+              <Bell className="mr-2 h-4 w-4" />
+              Notifications
+              {unreadCount > 0 && (
+                <Badge className="ml-2" variant="destructive" style={{ fontSize: "10px", padding: "0 6px" }}>
+                  {unreadCount}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="appointments">
+              <Calendar className="mr-2 h-4 w-4" />
+              Appointments
+            </TabsTrigger>
+            <TabsTrigger value="billing">
+              <CreditCard className="mr-2 h-4 w-4" />
+              Billing
+            </TabsTrigger>
+            <TabsTrigger value="support">
+              <MessageSquare className="mr-2 h-4 w-4" />
+              Support
+            </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="ai-coach" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* AI Chat Interface */}
-              <div className="lg:col-span-2">
-                <Card className="h-[600px] flex flex-col">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Brain className="h-5 w-5 text-primary" />
-                      AI Wellness Assistant
-                      {escalationRequested && (
-                        <Badge variant="destructive" className="ml-2">
-                          Counselor Notified
-                        </Badge>
-                      )}
-                    </CardTitle>
-                    <CardDescription>Your personal AI assistant for recovery support and guidance</CardDescription>
-                  </CardHeader>
+          {/* Home Tab */}
+          <TabsContent value="home" className="space-y-6">
+            {/* Recovery Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card style={{ backgroundColor: "#ffffff" }}>
+                <CardContent className="pt-6">
+                  <div className="text-center">
+                    <div className="text-4xl font-bold" style={{ color: "#16a34a" }}>
+                      {patientInfo?.recoveryDays}
+                    </div>
+                    <p className="text-sm" style={{ color: "#64748b" }}>
+                      Days in Recovery
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card style={{ backgroundColor: "#ffffff" }}>
+                <CardContent className="pt-6">
+                  <div className="text-center">
+                    <div className="text-4xl font-bold" style={{ color: "#0284c7" }}>
+                      {patientInfo?.dose}
+                    </div>
+                    <p className="text-sm" style={{ color: "#64748b" }}>
+                      Current Dose
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card style={{ backgroundColor: "#ffffff" }}>
+                <CardContent className="pt-6">
+                  <div className="text-center">
+                    <Calendar className="h-8 w-8 mx-auto mb-2" style={{ color: "#16a34a" }} />
+                    <p className="text-sm font-medium" style={{ color: "#1e293b" }}>
+                      Next Appointment
+                    </p>
+                    <p className="text-xs" style={{ color: "#64748b" }}>
+                      {patientInfo?.nextAppointment}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
-                  <CardContent className="flex-1 flex flex-col">
-                    {/* Messages */}
+            {notifications.filter((n) => !n.read && n.actionRequired).length > 0 && (
+              <Card style={{ backgroundColor: "#fef3c7", borderColor: "#f59e0b" }}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-lg" style={{ color: "#92400e" }}>
+                    <AlertTriangle className="h-5 w-5" />
+                    Action Required
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {notifications
+                      .filter((n) => !n.read && n.actionRequired)
+                      .map((notification) => (
+                        <div
+                          key={notification.id}
+                          className="flex items-center justify-between p-3 rounded-lg"
+                          style={{ backgroundColor: "#ffffff" }}
+                        >
+                          <div className="flex items-center gap-3">
+                            {notification.type === "appointment" && (
+                              <Calendar className="h-5 w-5" style={{ color: "#16a34a" }} />
+                            )}
+                            {notification.type === "counseling" && (
+                              <AlertTriangle className="h-5 w-5" style={{ color: "#dc2626" }} />
+                            )}
+                            {notification.type === "balance" && (
+                              <DollarSign className="h-5 w-5" style={{ color: "#d97706" }} />
+                            )}
+                            <div>
+                              <p className="font-medium" style={{ color: "#1e293b" }}>
+                                {notification.title}
+                              </p>
+                              <p className="text-sm" style={{ color: "#64748b" }}>
+                                {notification.message}
+                              </p>
+                            </div>
+                          </div>
+                          <Button size="sm" onClick={() => handleMarkAsRead(notification.id)}>
+                            View
+                          </Button>
+                        </div>
+                      ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Quick Actions */}
+            <Card style={{ backgroundColor: "#ffffff" }}>
+              <CardHeader>
+                <CardTitle>Quick Actions</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <Button
+                    variant="outline"
+                    className="h-20 flex-col gap-2 bg-transparent"
+                    onClick={() => setActiveTab("support")}
+                  >
+                    <MessageSquare className="h-6 w-6" />
+                    <span>Chat Support</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-20 flex-col gap-2 bg-transparent"
+                    onClick={() => setActiveTab("appointments")}
+                  >
+                    <Calendar className="h-6 w-6" />
+                    <span>Appointments</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-20 flex-col gap-2 bg-transparent"
+                    onClick={() => setActiveTab("billing")}
+                  >
+                    <CreditCard className="h-6 w-6" />
+                    <span>Pay Balance</span>
+                  </Button>
+                  <Button variant="outline" className="h-20 flex-col gap-2 bg-transparent">
+                    <Phone className="h-6 w-6" />
+                    <span>Call Clinic</span>
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Counselor Info */}
+            <Card style={{ backgroundColor: "#ffffff" }}>
+              <CardHeader>
+                <CardTitle>Your Care Team</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-4">
+                  <Avatar className="h-16 w-16">
+                    <AvatarFallback style={{ backgroundColor: "#e0f2fe", color: "#0284c7" }}>DS</AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="font-medium" style={{ color: "#1e293b" }}>
+                      {patientInfo?.counselor}
+                    </p>
+                    <p className="text-sm" style={{ color: "#64748b" }}>
+                      Primary Counselor
+                    </p>
+                    <p className="text-sm" style={{ color: "#64748b" }}>
+                      {patientInfo?.counselorPhone}
+                    </p>
+                  </div>
+                  <div className="ml-auto flex gap-2">
+                    <Button variant="outline" size="sm">
+                      <Phone className="mr-2 h-4 w-4" />
+                      Call
+                    </Button>
+                    <Button variant="outline" size="sm">
+                      <MessageSquare className="mr-2 h-4 w-4" />
+                      Message
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="notifications" className="space-y-6">
+            <Card style={{ backgroundColor: "#ffffff" }}>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Notifications</CardTitle>
+                    <CardDescription>Appointment reminders, alerts, and important messages</CardDescription>
+                  </div>
+                  {unreadCount > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setNotifications(notifications.map((n) => ({ ...n, read: true })))}
+                    >
+                      Mark All as Read
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {notifications.length === 0 ? (
+                    <div className="text-center py-8" style={{ color: "#64748b" }}>
+                      <Bell className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                      <p>No notifications</p>
+                    </div>
+                  ) : (
+                    notifications.map((notification) => (
+                      <div
+                        key={notification.id}
+                        className={`p-4 rounded-lg border ${!notification.read ? "border-l-4" : ""}`}
+                        style={{
+                          backgroundColor: notification.read ? "#f8fafc" : "#ffffff",
+                          borderLeftColor: !notification.read
+                            ? notification.type === "counseling"
+                              ? "#dc2626"
+                              : notification.type === "balance"
+                                ? "#d97706"
+                                : notification.type === "appointment"
+                                  ? "#16a34a"
+                                  : "#0284c7"
+                            : undefined,
+                        }}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div
+                            className="h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0"
+                            style={{
+                              backgroundColor:
+                                notification.type === "appointment"
+                                  ? "#dcfce7"
+                                  : notification.type === "counseling"
+                                    ? "#fee2e2"
+                                    : notification.type === "balance"
+                                      ? "#fef3c7"
+                                      : "#e0f2fe",
+                            }}
+                          >
+                            {notification.type === "appointment" && (
+                              <Calendar className="h-5 w-5" style={{ color: "#16a34a" }} />
+                            )}
+                            {notification.type === "counseling" && (
+                              <AlertTriangle className="h-5 w-5" style={{ color: "#dc2626" }} />
+                            )}
+                            {notification.type === "balance" && (
+                              <DollarSign className="h-5 w-5" style={{ color: "#d97706" }} />
+                            )}
+                            {notification.type === "general" && (
+                              <Bell className="h-5 w-5" style={{ color: "#0284c7" }} />
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between mb-1">
+                              <h4 className="font-medium" style={{ color: "#1e293b" }}>
+                                {notification.title}
+                              </h4>
+                              <span className="text-xs" style={{ color: "#64748b" }}>
+                                {notification.date}
+                              </span>
+                            </div>
+                            <p className="text-sm" style={{ color: "#64748b" }}>
+                              {notification.message}
+                            </p>
+                            {notification.actionRequired && (
+                              <div className="mt-3 flex gap-2">
+                                {notification.type === "appointment" && (
+                                  <>
+                                    <Button size="sm">Confirm</Button>
+                                    <Button size="sm" variant="outline">
+                                      Reschedule
+                                    </Button>
+                                  </>
+                                )}
+                                {notification.type === "counseling" && (
+                                  <Button size="sm">
+                                    <Phone className="mr-2 h-4 w-4" />
+                                    Call to Reschedule
+                                  </Button>
+                                )}
+                                {notification.type === "balance" && (
+                                  <Button size="sm" onClick={() => setActiveTab("billing")}>
+                                    <CreditCard className="mr-2 h-4 w-4" />
+                                    Pay Now
+                                  </Button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          {!notification.read && (
+                            <Button variant="ghost" size="sm" onClick={() => handleMarkAsRead(notification.id)}>
+                              <CheckCircle2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Notification Preferences */}
+            <Card style={{ backgroundColor: "#ffffff" }}>
+              <CardHeader>
+                <CardTitle>Notification Preferences</CardTitle>
+                <CardDescription>Choose how you receive reminders and alerts</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div
+                    className="flex items-center justify-between p-3 rounded-lg"
+                    style={{ backgroundColor: "#f8fafc" }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Calendar className="h-5 w-5" style={{ color: "#16a34a" }} />
+                      <div>
+                        <p className="font-medium" style={{ color: "#1e293b" }}>
+                          Appointment Reminders
+                        </p>
+                        <p className="text-sm" style={{ color: "#64748b" }}>
+                          Get reminded about upcoming appointments
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Badge variant="outline">Email</Badge>
+                      <Badge variant="outline">SMS</Badge>
+                    </div>
+                  </div>
+                  <div
+                    className="flex items-center justify-between p-3 rounded-lg"
+                    style={{ backgroundColor: "#f8fafc" }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <AlertTriangle className="h-5 w-5" style={{ color: "#d97706" }} />
+                      <div>
+                        <p className="font-medium" style={{ color: "#1e293b" }}>
+                          Missed Session Alerts
+                        </p>
+                        <p className="text-sm" style={{ color: "#64748b" }}>
+                          Get notified if you miss a session
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Badge variant="outline">Email</Badge>
+                      <Badge variant="outline">SMS</Badge>
+                    </div>
+                  </div>
+                  <div
+                    className="flex items-center justify-between p-3 rounded-lg"
+                    style={{ backgroundColor: "#f8fafc" }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <DollarSign className="h-5 w-5" style={{ color: "#db2777" }} />
+                      <div>
+                        <p className="font-medium" style={{ color: "#1e293b" }}>
+                          Balance Reminders
+                        </p>
+                        <p className="text-sm" style={{ color: "#64748b" }}>
+                          Get reminded about outstanding balances
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Badge variant="outline">Email</Badge>
+                    </div>
+                  </div>
+                </div>
+                <Button variant="outline" className="mt-4 bg-transparent">
+                  <User className="mr-2 h-4 w-4" />
+                  Update Contact Information
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Appointments Tab */}
+          <TabsContent value="appointments" className="space-y-6">
+            <Card style={{ backgroundColor: "#ffffff" }}>
+              <CardHeader>
+                <CardTitle>Your Appointments</CardTitle>
+                <CardDescription>View and manage your scheduled appointments</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div
+                    className="p-4 rounded-lg border-l-4"
+                    style={{ backgroundColor: "#f0fdf4", borderLeftColor: "#16a34a" }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium" style={{ color: "#1e293b" }}>
+                          Counseling Session
+                        </p>
+                        <p className="text-sm" style={{ color: "#64748b" }}>
+                          {patientInfo?.nextAppointment}
+                        </p>
+                        <p className="text-sm" style={{ color: "#64748b" }}>
+                          With {patientInfo?.counselor}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm">Confirm</Button>
+                        <Button size="sm" variant="outline">
+                          Reschedule
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-4 rounded-lg" style={{ backgroundColor: "#f8fafc" }}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium" style={{ color: "#1e293b" }}>
+                          Medical Check-up
+                        </p>
+                        <p className="text-sm" style={{ color: "#64748b" }}>
+                          January 25, 2024 at 2:00 PM
+                        </p>
+                        <p className="text-sm" style={{ color: "#64748b" }}>
+                          With Dr. Williams
+                        </p>
+                      </div>
+                      <Badge variant="outline">Confirmed</Badge>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="billing" className="space-y-6">
+            <Card style={{ backgroundColor: "#ffffff" }}>
+              <CardHeader>
+                <CardTitle>Account Balance</CardTitle>
+                <CardDescription>View and pay your outstanding balance</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-6">
+                  <p className="text-sm" style={{ color: "#64748b" }}>
+                    Current Balance Due
+                  </p>
+                  <p className="text-4xl font-bold" style={{ color: "#dc2626" }}>
+                    $150.00
+                  </p>
+                  <p className="text-sm mt-2" style={{ color: "#64748b" }}>
+                    Due by January 31, 2025
+                  </p>
+                  <div className="flex justify-center gap-4 mt-6">
+                    <Button size="lg">
+                      <CreditCard className="mr-2 h-5 w-5" />
+                      Pay Now
+                    </Button>
+                    <Button size="lg" variant="outline">
+                      Set Up Payment Plan
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card style={{ backgroundColor: "#ffffff" }}>
+              <CardHeader>
+                <CardTitle>Recent Statements</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div
+                    className="flex items-center justify-between p-3 rounded-lg"
+                    style={{ backgroundColor: "#f8fafc" }}
+                  >
+                    <div>
+                      <p className="font-medium" style={{ color: "#1e293b" }}>
+                        January 2025 Statement
+                      </p>
+                      <p className="text-sm" style={{ color: "#64748b" }}>
+                        Services: $350.00 | Payments: $200.00
+                      </p>
+                    </div>
+                    <Button variant="outline" size="sm">
+                      <FileText className="mr-2 h-4 w-4" />
+                      View
+                    </Button>
+                  </div>
+                  <div
+                    className="flex items-center justify-between p-3 rounded-lg"
+                    style={{ backgroundColor: "#f8fafc" }}
+                  >
+                    <div>
+                      <p className="font-medium" style={{ color: "#1e293b" }}>
+                        December 2024 Statement
+                      </p>
+                      <p className="text-sm" style={{ color: "#64748b" }}>
+                        Services: $300.00 | Payments: $300.00
+                      </p>
+                    </div>
+                    <Button variant="outline" size="sm">
+                      <FileText className="mr-2 h-4 w-4" />
+                      View
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Support Tab */}
+          <TabsContent value="support" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Chat */}
+              <Card className="lg:col-span-2" style={{ backgroundColor: "#ffffff" }}>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Brain className="h-5 w-5" style={{ color: "#16a34a" }} />
+                    AI Wellness Assistant
+                  </CardTitle>
+                  <CardDescription>Chat with our AI assistant for support and resources</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="h-96 flex flex-col">
                     <div className="flex-1 overflow-y-auto space-y-4 mb-4">
-                      {messages.map((message) => (
+                      {messages.map((message: any) => (
                         <div
                           key={message.id}
                           className={`flex ${message.type === "user" ? "justify-end" : "justify-start"}`}
                         >
                           <div
-                            className={`max-w-[80%] p-3 rounded-lg ${
-                              message.type === "user"
-                                ? "bg-primary text-primary-foreground"
-                                : message.type === "system"
-                                  ? "bg-destructive/10 text-destructive border border-destructive/20"
-                                  : "bg-muted text-muted-foreground"
-                            }`}
+                            className={`max-w-[80%] p-3 rounded-lg`}
+                            style={{
+                              backgroundColor:
+                                message.type === "user" ? "#16a34a" : message.type === "system" ? "#fee2e2" : "#f1f5f9",
+                              color: message.type === "user" ? "#ffffff" : "#1e293b",
+                            }}
                           >
                             <p className="text-sm">{message.message}</p>
                             <p className="text-xs opacity-70 mt-1">{message.timestamp}</p>
                             {message.escalate && (
-                              <div className="mt-2 pt-2 border-t border-border">
+                              <div className="mt-2 pt-2 border-t" style={{ borderColor: "#e2e8f0" }}>
                                 <Button
                                   size="sm"
                                   variant="outline"
                                   onClick={handleEscalateToCounselor}
                                   className="text-xs bg-transparent"
+                                  style={{ backgroundColor: "#ffffff" }}
                                 >
                                   <AlertTriangle className="mr-1 h-3 w-3" />
                                   Connect with Counselor
@@ -315,7 +836,6 @@ export default function PatientPortalPage() {
                       ))}
                     </div>
 
-                    {/* Message Input */}
                     <div className="flex gap-2">
                       <Input
                         placeholder="Type your message here..."
@@ -329,10 +849,9 @@ export default function PatientPortalPage() {
                       </Button>
                     </div>
 
-                    {/* Quick Actions */}
                     <div className="flex gap-2 mt-2">
                       <Button variant="outline" size="sm" onClick={() => setNewMessage("I'm feeling anxious today")}>
-                        I'm anxious
+                        I&apos;m anxious
                       </Button>
                       <Button variant="outline" size="sm" onClick={() => setNewMessage("I'm having cravings")}>
                         Having cravings
@@ -341,17 +860,16 @@ export default function PatientPortalPage() {
                         Need support
                       </Button>
                     </div>
-                  </CardContent>
-                </Card>
-              </div>
+                  </div>
+                </CardContent>
+              </Card>
 
               {/* Sidebar */}
               <div className="space-y-4">
-                {/* Emergency Contacts */}
-                <Card>
+                <Card style={{ backgroundColor: "#ffffff" }}>
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center gap-2">
-                      <Shield className="h-5 w-5 text-red-500" />
+                      <Shield className="h-5 w-5" style={{ color: "#dc2626" }} />
                       Emergency Support
                     </CardTitle>
                   </CardHeader>
@@ -371,34 +889,7 @@ export default function PatientPortalPage() {
                   </CardContent>
                 </Card>
 
-                {/* Daily Check-in */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Daily Check-in</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="space-y-2">
-                      <p className="text-sm font-medium">How are you feeling today?</p>
-                      <div className="grid grid-cols-2 gap-2">
-                        <Button variant="outline" size="sm">
-                          😊 Good
-                        </Button>
-                        <Button variant="outline" size="sm">
-                          😐 Okay
-                        </Button>
-                        <Button variant="outline" size="sm">
-                          😟 Anxious
-                        </Button>
-                        <Button variant="outline" size="sm">
-                          😢 Struggling
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Quick Resources */}
-                <Card>
+                <Card style={{ backgroundColor: "#ffffff" }}>
                   <CardHeader>
                     <CardTitle className="text-lg">Quick Resources</CardTitle>
                   </CardHeader>
@@ -420,585 +911,8 @@ export default function PatientPortalPage() {
               </div>
             </div>
           </TabsContent>
-
-          <TabsContent value="treatment-plan" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Target className="h-5 w-5 text-primary" />
-                  My Treatment Plan
-                </CardTitle>
-                <CardDescription>Your personalized recovery roadmap and goals</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-4">
-                    <h3 className="font-semibold text-lg">Current Goals</h3>
-                    <div className="space-y-3">
-                      {[
-                        { goal: "Maintain stable methadone dose", status: "On Track", progress: 90 },
-                        { goal: "Attend weekly counseling sessions", status: "Excellent", progress: 95 },
-                        { goal: "Complete relapse prevention plan", status: "In Progress", progress: 70 },
-                        { goal: "Develop healthy coping strategies", status: "Good", progress: 80 },
-                      ].map((item, index) => (
-                        <div key={index} className="p-4 border border-border rounded-lg">
-                          <div className="flex justify-between items-start mb-2">
-                            <p className="font-medium">{item.goal}</p>
-                            <Badge
-                              variant={
-                                item.status === "Excellent"
-                                  ? "default"
-                                  : item.status === "Good" || item.status === "On Track"
-                                    ? "secondary"
-                                    : "outline"
-                              }
-                            >
-                              {item.status}
-                            </Badge>
-                          </div>
-                          <div className="w-full bg-muted rounded-full h-2">
-                            <div
-                              className="bg-primary h-2 rounded-full transition-all"
-                              style={{ width: `${item.progress}%` }}
-                            />
-                          </div>
-                          <p className="text-sm text-muted-foreground mt-1">{item.progress}% Complete</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <h3 className="font-semibold text-lg">Treatment Milestones</h3>
-                    <div className="space-y-3">
-                      {[
-                        { milestone: "Initial Assessment Completed", date: "Dec 15, 2023", completed: true },
-                        { milestone: "30-Day Stability Achieved", date: "Jan 15, 2024", completed: true },
-                        { milestone: "First Take-Home Privileges", date: "Feb 1, 2024", completed: true },
-                        { milestone: "6-Month Review", date: "Jun 15, 2024", completed: false },
-                        { milestone: "Transition Planning", date: "Dec 15, 2024", completed: false },
-                      ].map((item, index) => (
-                        <div key={index} className="flex items-center gap-3 p-3 border border-border rounded-lg">
-                          {item.completed ? (
-                            <CheckCircle className="h-5 w-5 text-green-500" />
-                          ) : (
-                            <Clock className="h-5 w-5 text-muted-foreground" />
-                          )}
-                          <div className="flex-1">
-                            <p
-                              className={`font-medium ${item.completed ? "text-foreground" : "text-muted-foreground"}`}
-                            >
-                              {item.milestone}
-                            </p>
-                            <p className="text-sm text-muted-foreground">{item.date}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="border-t pt-6">
-                  <h3 className="font-semibold text-lg mb-4">Treatment Team Notes</h3>
-                  <div className="bg-muted/50 p-4 rounded-lg">
-                    <p className="text-sm">
-                      "Sarah has shown excellent progress in her recovery journey. She consistently attends appointments
-                      and has demonstrated strong commitment to her treatment goals. Continue current medication regimen
-                      and focus on developing additional coping strategies for stress management."
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-2">- Dr. Smith, Primary Counselor</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="documents" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileText className="h-5 w-5 text-primary" />
-                    My Documents
-                  </CardTitle>
-                  <CardDescription>Access your treatment documents and forms</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {[
-                    { name: "Treatment Plan", type: "Treatment", date: "Jan 15, 2024", status: "Current" },
-                    { name: "Informed Consent - MAT", type: "Consent", date: "Dec 15, 2023", status: "Signed" },
-                    { name: "HIPAA Authorization", type: "Consent", date: "Dec 15, 2023", status: "Signed" },
-                    { name: "Take-Home Agreement", type: "Agreement", date: "Feb 1, 2024", status: "Active" },
-                    { name: "Medication Schedule", type: "Schedule", date: "Jan 1, 2024", status: "Current" },
-                  ].map((doc, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 border border-border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <FileText className="h-5 w-5 text-muted-foreground" />
-                        <div>
-                          <p className="font-medium">{doc.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {doc.type} • {doc.date} • {doc.status}
-                          </p>
-                        </div>
-                      </div>
-                      <Button variant="outline" size="sm">
-                        <Download className="mr-2 h-4 w-4" />
-                        Download
-                      </Button>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Lab Results & Reports</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {[
-                    { name: "Urine Drug Screen", date: "Jan 10, 2024", result: "Negative", status: "Normal" },
-                    { name: "Monthly Progress Report", date: "Jan 1, 2024", result: "Stable", status: "Good" },
-                    { name: "Medication Levels", date: "Dec 28, 2023", result: "Therapeutic", status: "Normal" },
-                  ].map((report, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 border border-border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <FileText className="h-5 w-5 text-muted-foreground" />
-                        <div>
-                          <p className="font-medium">{report.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {report.date} • Result: {report.result}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          variant={report.status === "Normal" || report.status === "Good" ? "default" : "secondary"}
-                        >
-                          {report.status}
-                        </Badge>
-                        <Button variant="outline" size="sm">
-                          <Download className="mr-2 h-4 w-4" />
-                          View
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="appointments" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Upcoming Appointments</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 border border-border rounded-lg">
-                    <div className="flex items-center gap-4">
-                      <Calendar className="h-8 w-8 text-primary" />
-                      <div>
-                        <p className="font-medium">Counseling Session</p>
-                        <p className="text-sm text-muted-foreground">January 18, 2024 at 10:00 AM</p>
-                        <p className="text-sm text-muted-foreground">with Dr. Smith</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
-                        <Video className="mr-2 h-4 w-4" />
-                        Join Video
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        Reschedule
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="resources" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BookOpen className="h-5 w-5 text-primary" />
-                    Available Resources
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {[
-                    {
-                      name: "Coping Strategies Guide",
-                      type: "Educational",
-                      description: "Learn healthy ways to manage stress and cravings",
-                    },
-                    {
-                      name: "Meditation & Mindfulness",
-                      type: "Wellness",
-                      description: "Guided meditation sessions for recovery",
-                    },
-                    {
-                      name: "Support Group Directory",
-                      type: "Community",
-                      description: "Connect with others in recovery",
-                    },
-                    { name: "Nutrition Guidelines", type: "Health", description: "Healthy eating during recovery" },
-                    { name: "Exercise Programs", type: "Fitness", description: "Safe exercise routines for recovery" },
-                    { name: "Financial Assistance Info", type: "Support", description: "Resources for financial help" },
-                  ].map((resource, index) => (
-                    <div key={index} className="p-4 border border-border rounded-lg">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <p className="font-medium">{resource.name}</p>
-                          <p className="text-sm text-muted-foreground">{resource.description}</p>
-                        </div>
-                        <Badge variant="outline">{resource.type}</Badge>
-                      </div>
-                      <Button size="sm" className="mt-2">
-                        Access Resource
-                      </Button>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <HelpCircle className="h-5 w-5 text-primary" />
-                    Request Resources
-                  </CardTitle>
-                  <CardDescription>Need something specific? Let us know!</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Resource Type</label>
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select resource type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="housing">Housing Assistance</SelectItem>
-                        <SelectItem value="employment">Employment Support</SelectItem>
-                        <SelectItem value="transportation">Transportation Help</SelectItem>
-                        <SelectItem value="childcare">Childcare Resources</SelectItem>
-                        <SelectItem value="legal">Legal Aid</SelectItem>
-                        <SelectItem value="financial">Financial Assistance</SelectItem>
-                        <SelectItem value="education">Educational Programs</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Priority Level</label>
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select priority" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="urgent">Urgent - Need ASAP</SelectItem>
-                        <SelectItem value="high">High - Within a week</SelectItem>
-                        <SelectItem value="medium">Medium - Within a month</SelectItem>
-                        <SelectItem value="low">Low - When available</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Details</label>
-                    <Textarea placeholder="Please describe what you need and any specific requirements..." rows={4} />
-                  </div>
-                  <Button className="w-full">
-                    <Send className="mr-2 h-4 w-4" />
-                    Submit Request
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="mind-games" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2">
-                <Card className="h-[600px]">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Gamepad2 className="h-5 w-5 text-primary" />
-                      Recovery Mind Games
-                      {currentGame && (
-                        <Badge variant="default" className="ml-2">
-                          Score: {gameScore}
-                        </Badge>
-                      )}
-                    </CardTitle>
-                    <CardDescription>
-                      Keep your mind active with fun, recovery-focused games and activities
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="h-full">
-                    {!currentGame ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-full">
-                        {[
-                          {
-                            name: "Memory Match",
-                            description: "Match recovery-themed cards to improve memory",
-                            difficulty: "Easy",
-                            icon: <Brain className="h-8 w-8" />,
-                            color: "bg-blue-500",
-                          },
-                          {
-                            name: "Word Puzzle",
-                            description: "Find positive words hidden in the grid",
-                            difficulty: "Medium",
-                            icon: <Target className="h-8 w-8" />,
-                            color: "bg-green-500",
-                          },
-                          {
-                            name: "Mindfulness Maze",
-                            description: "Navigate through calming maze challenges",
-                            difficulty: "Easy",
-                            icon: <Heart className="h-8 w-8" />,
-                            color: "bg-purple-500",
-                          },
-                          {
-                            name: "Trivia Challenge",
-                            description: "Test your knowledge about health and wellness",
-                            difficulty: "Hard",
-                            icon: <Star className="h-8 w-8" />,
-                            color: "bg-orange-500",
-                          },
-                        ].map((game, index) => (
-                          <Card key={index} className="cursor-pointer hover:shadow-lg transition-shadow">
-                            <CardContent className="p-6 text-center">
-                              <div
-                                className={`${game.color} text-white rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4`}
-                              >
-                                {game.icon}
-                              </div>
-                              <h3 className="font-semibold text-lg mb-2">{game.name}</h3>
-                              <p className="text-sm text-muted-foreground mb-3">{game.description}</p>
-                              <Badge variant="outline" className="mb-4">
-                                {game.difficulty}
-                              </Badge>
-                              <Button
-                                className="w-full"
-                                onClick={() => {
-                                  setCurrentGame(game.name)
-                                  setGameScore(0)
-                                }}
-                              >
-                                Play Now
-                              </Button>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="h-full flex flex-col">
-                        <div className="flex justify-between items-center mb-4">
-                          <h3 className="text-xl font-semibold">Playing: {currentGame}</h3>
-                          <Button variant="outline" onClick={() => setCurrentGame(null)}>
-                            Back to Games
-                          </Button>
-                        </div>
-                        <div className="flex-1 bg-muted/20 rounded-lg p-8 flex items-center justify-center">
-                          <div className="text-center">
-                            <Gamepad2 className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-                            <p className="text-lg font-medium mb-2">Game Loading...</p>
-                            <p className="text-muted-foreground">This is where the {currentGame} would be displayed</p>
-                            <Button className="mt-4" onClick={() => setGameScore((prev) => prev + 10)}>
-                              <Zap className="mr-2 h-4 w-4" />
-                              Simulate Score +10
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-
-              <div className="space-y-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Trophy className="h-5 w-5 text-yellow-500" />
-                      Achievements
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {[
-                      { name: "First Game", description: "Played your first mind game", earned: true },
-                      { name: "Memory Master", description: "Complete 5 memory games", earned: true },
-                      { name: "Daily Player", description: "Play games 7 days in a row", earned: false },
-                      { name: "High Score", description: "Achieve a score over 100", earned: false },
-                    ].map((achievement, index) => (
-                      <div
-                        key={index}
-                        className={`flex items-center gap-3 p-3 rounded-lg ${achievement.earned ? "bg-yellow-50 border border-yellow-200" : "bg-muted/50"}`}
-                      >
-                        <Trophy
-                          className={`h-5 w-5 ${achievement.earned ? "text-yellow-500" : "text-muted-foreground"}`}
-                        />
-                        <div>
-                          <p
-                            className={`font-medium ${achievement.earned ? "text-foreground" : "text-muted-foreground"}`}
-                          >
-                            {achievement.name}
-                          </p>
-                          <p className="text-xs text-muted-foreground">{achievement.description}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Daily Challenge</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-center">
-                      <Star className="h-8 w-8 mx-auto mb-2 text-yellow-500" />
-                      <p className="font-medium mb-1">Word of the Day</p>
-                      <p className="text-2xl font-bold text-primary mb-2">RESILIENCE</p>
-                      <p className="text-sm text-muted-foreground mb-4">
-                        The ability to recover from difficulties and adapt to challenges
-                      </p>
-                      <Button size="sm" className="w-full">
-                        Complete Challenge
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Game Stats</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="flex justify-between">
-                      <span className="text-sm">Games Played</span>
-                      <span className="font-medium">23</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm">Best Score</span>
-                      <span className="font-medium">87</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm">Streak</span>
-                      <span className="font-medium">5 days</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm">Achievements</span>
-                      <span className="font-medium">2/4</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="progress" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Recovery Milestones</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                    <span className="text-sm">30 Days Clean</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                    <span className="text-sm">90 Days Clean</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                    <span className="text-sm">6 Months Clean</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Clock className="h-5 w-5 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">1 Year Clean (Coming Soon!)</span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Treatment Goals</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm">Attend all appointments</span>
-                      <span className="text-sm text-green-600">95%</span>
-                    </div>
-                    <div className="w-full bg-muted rounded-full h-2">
-                      <div className="bg-green-500 h-2 rounded-full" style={{ width: "95%" }}></div>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm">Complete daily check-ins</span>
-                      <span className="text-sm text-blue-600">78%</span>
-                    </div>
-                    <div className="w-full bg-muted rounded-full h-2">
-                      <div className="bg-blue-500 h-2 rounded-full" style={{ width: "78%" }}></div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="contact" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Your Treatment Team</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center gap-4 p-3 border border-border rounded-lg">
-                    <Avatar>
-                      <AvatarFallback>DS</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1">
-                      <p className="font-medium">Dr. Smith</p>
-                      <p className="text-sm text-muted-foreground">Primary Counselor</p>
-                      <p className="text-sm text-muted-foreground">{patientInfo.counselorPhone}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
-                        <Phone className="h-4 w-4" />
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        <MessageSquare className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Send a Message</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <Textarea placeholder="Type your message to your treatment team..." />
-                  <Button className="w-full">
-                    <Send className="mr-2 h-4 w-4" />
-                    Send Message
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
         </Tabs>
-      </div>
+      </main>
     </div>
   )
 }

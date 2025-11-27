@@ -1,22 +1,20 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { GeistSans } from "geist/font/sans"
-import { GeistMono } from "geist/font/mono"
-import { Work_Sans, Open_Sans } from "next/font/google"
+import { Inter, JetBrains_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { Suspense } from "react"
 import "./globals.css"
 
-const workSans = Work_Sans({
+const inter = Inter({
   subsets: ["latin"],
-  variable: "--font-work-sans",
-  weight: ["400", "600", "700"],
+  variable: "--font-geist-sans",
+  display: "swap",
 })
 
-const openSans = Open_Sans({
+const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
-  variable: "--font-open-sans",
-  weight: ["400", "500", "600"],
+  variable: "--font-geist-mono",
+  display: "swap",
 })
 
 export const metadata: Metadata = {
@@ -31,11 +29,18 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`} style={{ backgroundColor: "#ffffff" }}>
       <body
-        className={`font-sans ${GeistSans.variable} ${GeistMono.variable} ${workSans.variable} ${openSans.variable}`}
+        className="font-sans antialiased"
+        style={{
+          backgroundColor: "#ffffff",
+          color: "#0a0a0a",
+          minHeight: "100vh",
+          margin: 0,
+          padding: 0,
+        }}
       >
-        <Suspense fallback={null}>{children}</Suspense>
+        <Suspense fallback={<div style={{ padding: "20px", color: "#0a0a0a" }}>Loading...</div>}>{children}</Suspense>
         <Analytics />
       </body>
     </html>

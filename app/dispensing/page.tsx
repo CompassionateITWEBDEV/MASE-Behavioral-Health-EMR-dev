@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -248,103 +248,11 @@ export default function DispensingPage() {
     notes: "",
   })
 
-  const [activeOrders] = useState<DoseOrder[]>([
-    {
-      id: 1,
-      patient_id: 1,
-      patient_name: "John Smith",
-      mrn: "MRN001234",
-      daily_dose_mg: 80.0,
-      max_takehome: 6,
-      prescriber_id: "DR001",
-      status: "active",
-      start_date: "2024-01-01",
-      dob: "1970-05-15",
-    },
-    {
-      id: 2,
-      patient_id: 2,
-      patient_name: "Sarah Johnson",
-      mrn: "MRN001235",
-      daily_dose_mg: 120.0,
-      max_takehome: 13,
-      prescriber_id: "DR002",
-      status: "active",
-      start_date: "2024-01-05",
-      dob: "1982-11-02",
-    },
-    {
-      id: 3,
-      patient_id: 3,
-      patient_name: "Michael Brown",
-      mrn: "MRN001236",
-      daily_dose_mg: 60.0,
-      max_takehome: 0,
-      prescriber_id: "DR001",
-      status: "active",
-      start_date: "2024-01-10",
-      dob: "1995-03-21",
-    },
-  ])
-
-  const [activeBottles] = useState<Bottle[]>([
-    {
-      id: 1,
-      lot_id: 1,
-      start_volume_ml: 1000.0,
-      current_volume_ml: 850.5,
-      opened_at: "2024-01-15T08:00:00Z",
-      status: "active",
-      serial_no: "BTL001",
-      medication_name: "Methadone HCl Oral Solution",
-      concentration: 10.0,
-      lot_number: "LOT2024001",
-      exp_date: "2025-12-31",
-    },
-  ])
-
-  const [devices] = useState<Device[]>([
-    {
-      id: 1,
-      type: "MethaSpense",
-      location: "Dispensing Station 1",
-      com_port: "COM3",
-      firmware: "v2.1.4",
-      status: "online",
-      last_heartbeat: new Date().toISOString(),
-    },
-  ])
-
-  const [recentDoseEvents] = useState<DoseEvent[]>([
-    {
-      id: 1,
-      patient_id: 1,
-      order_id: 1,
-      requested_mg: 80.0,
-      dispensed_mg: 80.0,
-      dispensed_ml: 8.0,
-      bottle_id: 1,
-      device_id: 1,
-      by_user: "nurse001",
-      time: "2024-01-16T09:15:00Z",
-      outcome: "success",
-      signature_hash: "abc123def456",
-    },
-    {
-      id: 2,
-      patient_id: 2,
-      order_id: 2,
-      requested_mg: 120.0,
-      dispensed_mg: 120.0,
-      dispensed_ml: 12.0,
-      bottle_id: 1,
-      device_id: 1,
-      by_user: "nurse002",
-      time: "2024-01-16T09:30:00Z",
-      outcome: "success",
-      signature_hash: "def456ghi789",
-    },
-  ])
+  const [activeOrders, setActiveOrders] = useState<DoseOrder[]>([])
+  const [activeBottles, setActiveBottles] = useState<Bottle[]>([])
+  const [devices, setDevices] = useState<Device[]>([])
+  const [recentDoseEvents, setRecentDoseEvents] = useState<DoseEvent[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
   const [liveEvents, setLiveEvents] = useState([
     { timestamp: new Date(), message: "Device initialized successfully" },
@@ -356,6 +264,58 @@ export default function DispensingPage() {
     "dispenser" | "charge_nurse" | "pharmacist" | "medical_director" | "auditor"
   >("dispenser")
   const [mfaVerified, setMfaVerified] = useState(false)
+
+  useEffect(() => {
+    async function loadData() {
+      setIsLoading(true)
+      try {
+        const [ordersRes, bottlesRes, devicesRes] = await Promise.all([
+          fetch("/api/dispensing/orders"),
+          fetch("/api/dispensing/bottles"),
+          fetch("/api/dispensing/devices"),
+        ])
+
+        if (ordersRes.ok) {
+          const ordersData = await ordersRes.json()
+          setActiveOrders(ordersData.orders || [])
+        }
+
+        if (bottlesRes.ok) {
+          const bottlesData = await bottlesRes.json()
+          setActiveBottles(bottlesData.bottles || [])
+        }
+
+        if (devicesRes.ok) {
+          const devicesData = await devicesRes.json()
+          setDevices(devicesData.devices || [])
+        }
+
+        // Set mock dose events for now
+        setRecentDoseEvents([
+          {
+            id: 1,
+            patient_id: 1,
+            order_id: 1,
+            requested_mg: 80.0,
+            dispensed_mg: 80.0,
+            dispensed_ml: 8.0,
+            bottle_id: 1,
+            device_id: 1,
+            by_user: "nurse001",
+            time: new Date().toISOString(),
+            outcome: "success",
+            signature_hash: "abc123def456",
+          },
+        ])
+      } catch (error) {
+        console.error("[v0] Error loading dispensing data:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadData()
+  }, [])
 
   const handleNurseAuth = () => {
     if (nurseBadge && nursePIN) {
@@ -444,6 +404,7 @@ export default function DispensingPage() {
       return
     }
 
+    const currentDevice = devices[0]
     if (currentDevice?.status !== "online") {
       alert("Device must be online and ready before dispensing")
       return

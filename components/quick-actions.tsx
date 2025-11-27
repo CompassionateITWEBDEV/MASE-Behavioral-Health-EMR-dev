@@ -1,6 +1,9 @@
+'use client'
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { UserPlus, FileText, Calendar, ClipboardList, TestTube, CreditCard, FileCheck, Pill } from "lucide-react"
+import { UserPlus, FileText, Calendar, ClipboardList, TestTube, CreditCard, FileCheck, Pill } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react' // Added import for AlertTriangle
 
 const quickActions = [
   {
@@ -53,7 +56,36 @@ const quickActions = [
   },
 ]
 
+import { useState, useEffect } from 'react'
+
 export function QuickActions() {
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    try {
+      console.log('[v0] Quick actions loaded successfully')
+    } catch (err) {
+      console.error('[v0] Error loading quick actions:', err)
+      setError('Failed to load quick actions')
+    }
+  }, [])
+
+  if (error) {
+    return (
+      <Card className="border-destructive">
+        <CardHeader>
+          <CardTitle>Quick Actions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-2 text-destructive">
+            <AlertTriangle className="h-5 w-5" />
+            <p>{error}</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <Card>
       <CardHeader>

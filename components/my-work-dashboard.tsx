@@ -1,173 +1,80 @@
 "use client"
 
-import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState, useEffect } from "react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  Search,
-  Clock,
-  AlertTriangle,
-  CheckCircle,
-  FileText,
-  Calendar,
-  User,
-  Ligature as Signature,
-  Eye,
-  Target,
-} from "lucide-react"
+import { Search, Clock, AlertTriangle, CheckCircle, FileText, Calendar, Eye, Target, Loader2 } from "lucide-react"
 
-// Mock data for work queue items
-const workQueueItems = [
-  {
-    id: 1,
-    patientName: "Sarah Johnson",
-    patientId: "P001",
-    taskType: "assessment_due",
-    taskDescription: "PHQ-9 Depression Assessment Due",
-    priority: "high",
-    dueDate: "2024-01-15",
-    status: "overdue",
-    documentType: "Assessment",
-    lastUpdated: "2024-01-10T10:30:00Z",
-    assignedTo: "Dr. Smith",
-    estimatedTime: 5,
-  },
-  {
-    id: 2,
-    patientName: "Michael Chen",
-    patientId: "P002",
-    taskType: "signature_needed",
-    taskDescription: "Treatment Plan Requires Signature",
-    priority: "urgent",
-    dueDate: "2024-01-16",
-    status: "pending",
-    documentType: "Treatment Plan",
-    lastUpdated: "2024-01-14T14:20:00Z",
-    assignedTo: "Dr. Smith",
-    estimatedTime: 2,
-  },
-  {
-    id: 3,
-    patientName: "Emily Rodriguez",
-    patientId: "P003",
-    taskType: "review_required",
-    taskDescription: "COWS Assessment Needs Review",
-    priority: "medium",
-    dueDate: "2024-01-17",
-    status: "in_progress",
-    documentType: "Assessment",
-    lastUpdated: "2024-01-15T09:15:00Z",
-    assignedTo: "Dr. Smith",
-    estimatedTime: 10,
-  },
-  {
-    id: 4,
-    patientName: "David Wilson",
-    patientId: "P004",
-    taskType: "assessment_due",
-    taskDescription: "C-SSRS Suicide Risk Assessment Due",
-    priority: "urgent",
-    dueDate: "2024-01-16",
-    status: "pending",
-    documentType: "Assessment",
-    lastUpdated: "2024-01-15T11:45:00Z",
-    assignedTo: "Dr. Smith",
-    estimatedTime: 15,
-  },
-  {
-    id: 5,
-    patientName: "Lisa Thompson",
-    patientId: "P005",
-    taskType: "signature_needed",
-    taskDescription: "Consent Form Requires Signature",
-    priority: "medium",
-    dueDate: "2024-01-18",
-    status: "pending",
-    documentType: "Consent Form",
-    lastUpdated: "2024-01-15T16:30:00Z",
-    assignedTo: "Dr. Smith",
-    estimatedTime: 1,
-  },
-  {
-    id: 6,
-    patientName: "Robert Garcia",
-    patientId: "P006",
-    taskType: "review_required",
-    taskDescription: "Progress Note Needs Supervisory Review",
-    priority: "low",
-    dueDate: "2024-01-20",
-    status: "pending",
-    documentType: "Progress Note",
-    lastUpdated: "2024-01-15T13:20:00Z",
-    assignedTo: "Dr. Smith",
-    estimatedTime: 5,
-  },
-]
+interface WorkTask {
+  id: string
+  task_name: string
+  task_description: string
+  status: string
+  priority: string
+  due_date: string
+  estimated_duration_minutes: number
+  assigned_to: string
+  patient_id?: string
+}
 
-const completedItems = [
-  {
-    id: 7,
-    patientName: "Jennifer Lee",
-    patientId: "P007",
-    taskType: "assessment_completed",
-    taskDescription: "GAD-7 Anxiety Assessment Completed",
-    priority: "medium",
-    completedDate: "2024-01-15",
-    status: "completed",
-    documentType: "Assessment",
-    completedBy: "Dr. Smith",
-    score: "12 (Moderate Anxiety)",
-  },
-  {
-    id: 8,
-    patientName: "Mark Davis",
-    patientId: "P008",
-    taskType: "document_finalized",
-    taskDescription: "Treatment Plan Finalized",
-    priority: "high",
-    completedDate: "2024-01-14",
-    status: "finalized",
-    documentType: "Treatment Plan",
-    completedBy: "Dr. Smith",
-    reviewedBy: "Dr. Johnson",
-  },
-]
-
-const priorityColors = {
+const priorityColors: Record<string, string> = {
   low: "bg-green-100 text-green-800",
   medium: "bg-yellow-100 text-yellow-800",
   high: "bg-orange-100 text-orange-800",
   urgent: "bg-red-100 text-red-800",
 }
 
-const statusColors = {
+const statusColors: Record<string, string> = {
   pending: "bg-blue-100 text-blue-800",
   in_progress: "bg-purple-100 text-purple-800",
   overdue: "bg-red-100 text-red-800",
   completed: "bg-green-100 text-green-800",
-  finalized: "bg-gray-100 text-gray-800",
 }
 
 export function MyWorkDashboard() {
+  const [tasks, setTasks] = useState<WorkTask[]>([])
+  const [completedTasks, setCompletedTasks] = useState<WorkTask[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedPriority, setSelectedPriority] = useState("all")
   const [selectedStatus, setSelectedStatus] = useState("all")
   const [sortBy, setSortBy] = useState("dueDate")
 
-  const pendingCount = workQueueItems.filter((item) => item.status === "pending").length
-  const overdueCount = workQueueItems.filter((item) => item.status === "overdue").length
-  const inProgressCount = workQueueItems.filter((item) => item.status === "in_progress").length
-  const totalEstimatedTime = workQueueItems.reduce((sum, item) => sum + item.estimatedTime, 0)
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true)
+        const response = await fetch("/api/dashboard/work-queue")
+        if (!response.ok) throw new Error("Failed to fetch work queue")
 
-  const filteredItems = workQueueItems.filter((item) => {
+        const data = await response.json()
+        setTasks(data.pendingTasks || [])
+        setCompletedTasks(data.completedTasks || [])
+      } catch (err) {
+        console.error("Error loading work queue:", err)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    loadData()
+  }, [])
+
+  const pendingCount = tasks.filter((item) => item.status === "pending").length
+  const overdueCount = tasks.filter((item) => {
+    if (!item.due_date) return false
+    return new Date(item.due_date) < new Date() && item.status !== "completed"
+  }).length
+  const inProgressCount = tasks.filter((item) => item.status === "in_progress").length
+  const totalEstimatedTime = tasks.reduce((sum, item) => sum + (item.estimated_duration_minutes || 0), 0)
+
+  const filteredItems = tasks.filter((item) => {
     const matchesSearch =
-      item.patientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.taskDescription.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.patientId.toLowerCase().includes(searchTerm.toLowerCase())
+      (item.task_name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+      (item.task_description?.toLowerCase() || "").includes(searchTerm.toLowerCase())
     const matchesPriority = selectedPriority === "all" || item.priority === selectedPriority
     const matchesStatus = selectedStatus === "all" || item.status === selectedStatus
     return matchesSearch && matchesPriority && matchesStatus
@@ -176,19 +83,22 @@ export function MyWorkDashboard() {
   const sortedItems = [...filteredItems].sort((a, b) => {
     switch (sortBy) {
       case "dueDate":
-        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
+        return new Date(a.due_date || 0).getTime() - new Date(b.due_date || 0).getTime()
       case "priority":
-        const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 }
-        return (
-          priorityOrder[a.priority as keyof typeof priorityOrder] -
-          priorityOrder[b.priority as keyof typeof priorityOrder]
-        )
-      case "patient":
-        return a.patientName.localeCompare(b.patientName)
+        const priorityOrder: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 }
+        return (priorityOrder[a.priority] || 3) - (priorityOrder[b.priority] || 3)
       default:
         return 0
     }
   })
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -241,7 +151,7 @@ export function MyWorkDashboard() {
         <div className="relative flex-1">
           <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search tasks, patients, or documents..."
+            placeholder="Search tasks..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-8"
@@ -267,7 +177,6 @@ export function MyWorkDashboard() {
             <SelectItem value="all">All Status</SelectItem>
             <SelectItem value="pending">Pending</SelectItem>
             <SelectItem value="in_progress">In Progress</SelectItem>
-            <SelectItem value="overdue">Overdue</SelectItem>
           </SelectContent>
         </Select>
         <Select value={sortBy} onValueChange={setSortBy}>
@@ -277,152 +186,110 @@ export function MyWorkDashboard() {
           <SelectContent>
             <SelectItem value="dueDate">Due Date</SelectItem>
             <SelectItem value="priority">Priority</SelectItem>
-            <SelectItem value="patient">Patient</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       <Tabs defaultValue="pending" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="pending">Pending Work ({workQueueItems.length})</TabsTrigger>
-          <TabsTrigger value="completed">Completed ({completedItems.length})</TabsTrigger>
-          <TabsTrigger value="calendar">Calendar View</TabsTrigger>
+          <TabsTrigger value="pending">Pending Work ({tasks.length})</TabsTrigger>
+          <TabsTrigger value="completed">Completed ({completedTasks.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="pending" className="space-y-4">
-          <div className="space-y-4">
-            {sortedItems.map((item) => (
-              <Card key={item.id} className={`${item.status === "overdue" ? "border-red-200 bg-red-50" : ""}`}>
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-2 flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">{item.taskDescription}</h3>
-                        <Badge className={priorityColors[item.priority as keyof typeof priorityColors]}>
-                          {item.priority.toUpperCase()}
-                        </Badge>
-                        <Badge className={statusColors[item.status as keyof typeof statusColors]}>
-                          {item.status.replace("_", " ").toUpperCase()}
-                        </Badge>
+          {sortedItems.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">
+                No pending tasks. Your work queue is empty.
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {sortedItems.map((item) => {
+                const isOverdue = item.due_date && new Date(item.due_date) < new Date()
+                return (
+                  <Card key={item.id} className={isOverdue ? "border-red-200 bg-red-50" : ""}>
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-2 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-semibold">{item.task_name}</h3>
+                            {item.priority && (
+                              <Badge className={priorityColors[item.priority] || priorityColors.medium}>
+                                {item.priority.toUpperCase()}
+                              </Badge>
+                            )}
+                            <Badge className={statusColors[item.status] || statusColors.pending}>
+                              {(item.status || "pending").replace("_", " ").toUpperCase()}
+                            </Badge>
+                          </div>
+                          {item.task_description && (
+                            <p className="text-sm text-muted-foreground">{item.task_description}</p>
+                          )}
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
+                            {item.due_date && (
+                              <div className="flex items-center gap-1">
+                                <Calendar className="h-4 w-4" />
+                                <span>Due: {new Date(item.due_date).toLocaleDateString()}</span>
+                              </div>
+                            )}
+                            {item.estimated_duration_minutes && (
+                              <div className="flex items-center gap-1">
+                                <Clock className="h-4 w-4" />
+                                <span>{item.estimated_duration_minutes} min</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button size="sm">
+                            <FileText className="h-4 w-4 mr-1" />
+                            Complete
+                          </Button>
+                          <Button size="sm" variant="outline">
+                            View
+                          </Button>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <User className="h-4 w-4" />
-                          <span>
-                            {item.patientName} ({item.patientId})
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-4 w-4" />
-                          <span>Due: {new Date(item.dueDate).toLocaleDateString()}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-4 w-4" />
-                          <span>{item.estimatedTime} min</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <FileText className="h-4 w-4" />
-                          <span>{item.documentType}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      {item.taskType === "signature_needed" && (
-                        <Button size="sm" variant="outline">
-                          <Signature className="h-4 w-4 mr-1" />
-                          Sign
-                        </Button>
-                      )}
-                      {item.taskType === "review_required" && (
-                        <Button size="sm" variant="outline">
-                          <Eye className="h-4 w-4 mr-1" />
-                          Review
-                        </Button>
-                      )}
-                      {item.taskType === "assessment_due" && (
-                        <Button size="sm">
-                          <FileText className="h-4 w-4 mr-1" />
-                          Complete
-                        </Button>
-                      )}
-                      <Button size="sm" variant="outline">
-                        View Details
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="completed" className="space-y-4">
-          <div className="space-y-4">
-            {completedItems.map((item) => (
-              <Card key={item.id} className="border-green-200 bg-green-50">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-2 flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold">{item.taskDescription}</h3>
-                        <Badge className="bg-green-100 text-green-800">{item.status.toUpperCase()}</Badge>
-                        <CheckCircle className="h-4 w-4 text-green-600" />
-                      </div>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <User className="h-4 w-4" />
-                          <span>
-                            {item.patientName} ({item.patientId})
-                          </span>
+          {completedTasks.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground">No completed tasks today.</CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {completedTasks.map((item) => (
+                <Card key={item.id} className="border-green-200 bg-green-50">
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between">
+                      <div className="space-y-2 flex-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-semibold">{item.task_name}</h3>
+                          <Badge className="bg-green-100 text-green-800">COMPLETED</Badge>
+                          <CheckCircle className="h-4 w-4 text-green-600" />
                         </div>
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-4 w-4" />
-                          <span>Completed: {new Date(item.completedDate).toLocaleDateString()}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <FileText className="h-4 w-4" />
-                          <span>{item.documentType}</span>
-                        </div>
-                        {item.score && (
-                          <div className="flex items-center gap-1">
-                            <Target className="h-4 w-4" />
-                            <span>Score: {item.score}</span>
-                          </div>
+                        {item.task_description && (
+                          <p className="text-sm text-muted-foreground">{item.task_description}</p>
                         )}
                       </div>
-                      {item.reviewedBy && (
-                        <div className="text-sm text-muted-foreground">Reviewed by: {item.reviewedBy}</div>
-                      )}
-                    </div>
-                    <div className="flex gap-2">
                       <Button size="sm" variant="outline">
                         <Eye className="h-4 w-4 mr-1" />
                         View
                       </Button>
-                      <Button size="sm" variant="outline">
-                        Print
-                      </Button>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="calendar" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Calendar View</CardTitle>
-              <CardDescription>View your work queue organized by due dates</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                Calendar view would be implemented here with a proper calendar component showing tasks organized by due
-                dates, with color coding for priorities.
-              </div>
-            </CardContent>
-          </Card>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

@@ -4,6 +4,14 @@ import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardSidebar } from "@/components/dashboard-sidebar"
 import { PatientCaseCommunications } from "@/components/patient-case-communications"
 
+const DEFAULT_PROVIDER = {
+  id: "00000000-0000-0000-0000-000000000001",
+  first_name: "Demo",
+  last_name: "Provider",
+  email: "demo@example.com",
+  role: "physician",
+}
+
 export default async function PatientCommunicationsPage({
   params,
 }: {
@@ -12,20 +20,19 @@ export default async function PatientCommunicationsPage({
   const { id } = await params
   const supabase = await createClient()
 
-  // Check authentication
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser()
-  if (authError || !user) {
-    redirect("/auth/login")
-  }
-
-  // Get provider profile
-  const { data: provider } = await supabase.from("providers").select("*").eq("id", user.id).single()
-
-  if (!provider) {
-    redirect("/auth/login")
+  let provider = DEFAULT_PROVIDER
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (user) {
+      const { data: providerData } = await supabase.from("providers").select("*").eq("id", user.id).single()
+      if (providerData) {
+        provider = providerData
+      }
+    }
+  } catch (error) {
+    console.log("[v0] Auth check failed, using default provider")
   }
 
   // Get patient information

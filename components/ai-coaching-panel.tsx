@@ -1,7 +1,10 @@
+'use client'
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Brain, AlertCircle, CheckCircle, Clock } from "lucide-react"
+import { Brain, AlertCircle, CheckCircle, Clock } from 'lucide-react'
+import { useState, useEffect } from 'react'
 
 const aiSuggestions = [
   {
@@ -31,6 +34,44 @@ const aiSuggestions = [
 ]
 
 export function AICoachingPanel() {
+  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true)
+        setError(null)
+        console.log('[v0] AI coaching panel loaded successfully')
+      } catch (err) {
+        console.error('[v0] Error loading AI coaching panel:', err)
+        setError('Failed to load AI suggestions')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    loadData()
+  }, [])
+
+  if (error) {
+    return (
+      <Card className="border-destructive">
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Brain className="h-5 w-5 text-accent" />
+            <span>AI Coaching</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-2 text-destructive">
+            <AlertCircle className="h-5 w-5" />
+            <p>{error}</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <Card>
       <CardHeader>

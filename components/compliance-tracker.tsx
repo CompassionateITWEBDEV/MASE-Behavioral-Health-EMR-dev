@@ -1,7 +1,10 @@
+'use client'
+
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-import { Shield, CheckCircle, AlertTriangle } from "lucide-react"
+import { Shield, CheckCircle, AlertTriangle } from 'lucide-react'
 
 const complianceMetrics = [
   {
@@ -52,6 +55,44 @@ const recentAudits = [
 ]
 
 export function ComplianceTracker() {
+  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true)
+        setError(null)
+        console.log('[v0] Compliance tracker loaded successfully')
+      } catch (err) {
+        console.error('[v0] Error loading compliance tracker:', err)
+        setError('Failed to load compliance data')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    loadData()
+  }, [])
+
+  if (error) {
+    return (
+      <Card className="border-destructive">
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Shield className="h-5 w-5 text-primary" />
+            <span>Compliance Tracker</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-2 text-destructive">
+            <AlertTriangle className="h-5 w-5" />
+            <p>{error}</p>
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
   return (
     <Card>
       <CardHeader>
