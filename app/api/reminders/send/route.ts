@@ -1,9 +1,9 @@
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
 import { type NextRequest, NextResponse } from "next/server"
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
+    const supabase = createServiceClient()
     const body = await request.json()
     const { patientId, type, channel, message, subject } = body
 
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient()
+    const supabase = createServiceClient()
     const { searchParams } = new URL(request.url)
     const patientId = searchParams.get("patientId")
     const type = searchParams.get("type")
@@ -100,21 +100,11 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query
 
     if (error) {
-      // Return mock data if table doesn't exist
-      return NextResponse.json([
-        {
-          id: "1",
-          patient_id: "pt-001",
-          type: "appointment",
-          channel: "both",
-          subject: "Appointment Reminder",
-          message: "Your appointment is tomorrow at 10:00 AM",
-          email_status: "sent",
-          sms_status: "sent",
-          sent_at: new Date().toISOString(),
-          patients: { first_name: "Sarah", last_name: "Johnson" },
-        },
-      ])
+      if ((error as any)?.code === "42P01") {
+        return NextResponse.json([])
+      }
+      console.error("[v0] Error fetching reminders:", error)
+      return NextResponse.json({ error: "Failed to fetch reminders" }, { status: 500 })
     }
 
     return NextResponse.json(data)
