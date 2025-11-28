@@ -41,6 +41,8 @@ import {
   Crown,
   ChevronDown,
   ChevronRight,
+  Handshake,
+  HeartHandshake,
   type LucideIcon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -93,6 +95,7 @@ const navigationCategories: NavCategory[] = [
     icon: Stethoscope,
     items: [
       { icon: ClipboardPlus, label: "Encounters", href: "/encounters", count: 12 },
+      { icon: HeartHandshake, label: "CHW Encounter", href: "/chw-encounter", count: 3 },
       { icon: Video, label: "Telehealth", href: "/telehealth", count: 8 },
       { icon: Calendar, label: "Appointments", href: "/appointments" },
       { icon: FileText, label: "Documentation", href: "/documentation" },
@@ -144,6 +147,7 @@ const navigationCategories: NavCategory[] = [
     items: [
       { icon: MessageSquare, label: "Messages", href: "/communications", count: 4 },
       { icon: Bell, label: "Patient Reminders", href: "/patient-reminders", count: 5 },
+      { icon: Handshake, label: "Provider Collaboration", href: "/provider-collaboration", count: 3 },
     ],
   },
   {

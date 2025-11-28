@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import useSWR from "swr"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -9,7 +10,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Skeleton } from "@/components/ui/skeleton"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   Dialog,
   DialogContent,
@@ -18,6 +20,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DashboardSidebar } from "@/components/dashboard-sidebar"
 import {
   Stethoscope,
@@ -26,34 +29,23 @@ import {
   Calendar,
   Clock,
   Activity,
-  Heart,
-  Thermometer,
-  Scale,
-  Brain,
   Pill,
-  Save,
-  Send,
   Printer,
   CheckCircle,
   AlertTriangle,
   ChevronRight,
   History,
   Filter,
+  FileText,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  X,
+  Eye,
 } from "lucide-react"
+import { toast } from "sonner"
 
-interface Encounter {
-  id: string
-  patient_id: string
-  patient_name: string
-  provider_id: string
-  provider_name: string
-  encounter_date: string
-  encounter_type: string
-  chief_complaint: string
-  status: string
-  visit_reason: string
-  created_at: string
-}
+const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
 interface VitalSigns {
   systolic_bp: number | null
@@ -66,6 +58,25 @@ interface VitalSigns {
   height_feet: number | null
   height_inches: number | null
   pain_scale: number | null
+  pain_location?: string
+  notes?: string
+}
+
+interface DiagnosisCode {
+  code: string
+  description: string
+}
+
+interface Medication {
+  id: string
+  medication_name: string
+  generic_name: string
+  dosage: string
+  frequency: string
+  route: string
+  status: string
+  start_date: string
+  prescribed_by: string
 }
 
 const encounterTypes = [
@@ -163,25 +174,27 @@ const physicalExamSections = [
 ]
 
 export default function EncountersPage() {
-  const [encounters, setEncounters] = useState<Encounter[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data, error, isLoading, mutate } = useSWR("/api/encounters", fetcher)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [showNewEncounter, setShowNewEncounter] = useState(false)
   const [activeTab, setActiveTab] = useState("list")
+  const [selectedEncounter, setSelectedEncounter] = useState<any>(null)
+  const [showEncounterDetail, setShowEncounterDetail] = useState(false)
+  const [encounterDetailData, setEncounterDetailData] = useState<any>(null)
+  const [loadingDetail, setLoadingDetail] = useState(false)
 
   // New Encounter Form State
   const [selectedPatient, setSelectedPatient] = useState("")
+  const [selectedProvider, setSelectedProvider] = useState("")
   const [encounterType, setEncounterType] = useState("")
   const [chiefComplaint, setChiefComplaint] = useState("")
-  const [visitReason, setVisitReason] = useState("")
 
   // SOAP Note State
   const [subjective, setSubjective] = useState("")
   const [hpiText, setHpiText] = useState("")
   const [rosChecked, setRosChecked] = useState<Record<string, string[]>>({})
   const [pmh, setPmh] = useState("")
-  const [medications, setMedications] = useState("")
   const [allergies, setAllergies] = useState("")
   const [socialHistory, setSocialHistory] = useState("")
   const [familyHistory, setFamilyHistory] = useState("")
@@ -198,6 +211,8 @@ export default function EncountersPage() {
     height_feet: null,
     height_inches: null,
     pain_scale: null,
+    pain_location: "",
+    notes: "",
   })
 
   // Physical Exam State
@@ -205,13 +220,14 @@ export default function EncountersPage() {
 
   // Assessment & Plan State
   const [assessment, setAssessment] = useState("")
-  const [diagnoses, setDiagnoses] = useState<{ code: string; description: string }[]>([])
+  const [diagnoses, setDiagnoses] = useState<DiagnosisCode[]>([])
+  const [diagnosisSearch, setDiagnosisSearch] = useState("")
+  const [diagnosisResults, setDiagnosisResults] = useState<DiagnosisCode[]>([])
   const [plan, setPlan] = useState("")
-  const [orders, setOrders] = useState<string[]>([])
   const [followUp, setFollowUp] = useState("")
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    loadEncounters()
     // Initialize physical exam with defaults
     const defaults: Record<string, string> = {}
     physicalExamSections.forEach((section) => {
@@ -220,71 +236,22 @@ export default function EncountersPage() {
     setPhysicalExam(defaults)
   }, [])
 
-  const loadEncounters = async () => {
-    setLoading(true)
-    try {
-      // Mock data for now - would fetch from API
-      const mockEncounters: Encounter[] = [
-        {
-          id: "enc-001",
-          patient_id: "p-001",
-          patient_name: "Sarah Johnson",
-          provider_id: "prov-001",
-          provider_name: "Dr. Michael Smith",
-          encounter_date: "2025-01-15T10:30:00Z",
-          encounter_type: "established",
-          chief_complaint: "Follow-up for hypertension management",
-          status: "completed",
-          visit_reason: "Chronic Care",
-          created_at: "2025-01-15T10:00:00Z",
-        },
-        {
-          id: "enc-002",
-          patient_id: "p-002",
-          patient_name: "Michael Chen",
-          provider_id: "prov-001",
-          provider_name: "Dr. Michael Smith",
-          encounter_date: "2025-01-15T14:00:00Z",
-          encounter_type: "new_patient",
-          chief_complaint: "New patient intake - diabetes management",
-          status: "in_progress",
-          visit_reason: "New Patient",
-          created_at: "2025-01-15T13:45:00Z",
-        },
-        {
-          id: "enc-003",
-          patient_id: "p-003",
-          patient_name: "Emily Davis",
-          provider_id: "prov-001",
-          provider_name: "Dr. Michael Smith",
-          encounter_date: "2025-01-15T15:30:00Z",
-          encounter_type: "annual_physical",
-          chief_complaint: "Annual wellness exam",
-          status: "scheduled",
-          visit_reason: "Preventive Care",
-          created_at: "2025-01-10T09:00:00Z",
-        },
-        {
-          id: "enc-004",
-          patient_id: "p-004",
-          patient_name: "Robert Wilson",
-          provider_id: "prov-001",
-          provider_name: "Dr. Michael Smith",
-          encounter_date: "2025-01-14T11:00:00Z",
-          encounter_type: "urgent",
-          chief_complaint: "Acute upper respiratory infection",
-          status: "completed",
-          visit_reason: "Sick Visit",
-          created_at: "2025-01-14T10:30:00Z",
-        },
-      ]
-      setEncounters(mockEncounters)
-    } catch (error) {
-      console.error("Failed to load encounters:", error)
-    } finally {
-      setLoading(false)
+  // Search ICD-10 codes
+  useEffect(() => {
+    if (diagnosisSearch.length >= 2) {
+      fetch(`/api/encounters/icd10?q=${encodeURIComponent(diagnosisSearch)}`)
+        .then((res) => res.json())
+        .then((data) => setDiagnosisResults(data))
+        .catch(() => setDiagnosisResults([]))
+    } else {
+      setDiagnosisResults([])
     }
-  }
+  }, [diagnosisSearch])
+
+  const encounters = data?.encounters || []
+  const patients = data?.patients || []
+  const providers = data?.providers || []
+  const stats = data?.stats || { todayCount: 0, inProgress: 0, completed: 0, pendingNotes: 0 }
 
   const getStatusBadge = (status: string) => {
     const variants: Record<string, { variant: "default" | "secondary" | "outline" | "destructive"; label: string }> = {
@@ -307,678 +274,935 @@ export default function EncountersPage() {
     })
   }
 
-  const handleSaveEncounter = async () => {
-    // Would save to database
-    console.log("Saving encounter...")
-    setShowNewEncounter(false)
+  const addDiagnosis = (diagnosis: DiagnosisCode) => {
+    if (!diagnoses.find((d) => d.code === diagnosis.code)) {
+      setDiagnoses([...diagnoses, diagnosis])
+    }
+    setDiagnosisSearch("")
+    setDiagnosisResults([])
   }
 
-  const filteredEncounters = encounters.filter((enc) => {
+  const removeDiagnosis = (code: string) => {
+    setDiagnoses(diagnoses.filter((d) => d.code !== code))
+  }
+
+  const handleCreateEncounter = async () => {
+    if (!selectedPatient || !selectedProvider || !encounterType) {
+      toast.error("Please fill in all required fields")
+      return
+    }
+
+    setSaving(true)
+    try {
+      const response = await fetch("/api/encounters", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patient_id: selectedPatient,
+          provider_id: selectedProvider,
+          encounter_type: encounterType,
+          chief_complaint: chiefComplaint,
+        }),
+      })
+
+      if (!response.ok) throw new Error("Failed to create encounter")
+
+      toast.success("Encounter created successfully")
+      setShowNewEncounter(false)
+      mutate()
+
+      // Reset form
+      setSelectedPatient("")
+      setSelectedProvider("")
+      setEncounterType("")
+      setChiefComplaint("")
+    } catch (error) {
+      toast.error("Failed to create encounter")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const openEncounterDetail = async (encounter: any) => {
+    setSelectedEncounter(encounter)
+    setShowEncounterDetail(true)
+    setLoadingDetail(true)
+
+    try {
+      const response = await fetch(`/api/encounters/${encounter.id}`)
+      const data = await response.json()
+      setEncounterDetailData(data)
+    } catch (error) {
+      toast.error("Failed to load encounter details")
+    } finally {
+      setLoadingDetail(false)
+    }
+  }
+
+  const handleSaveEncounter = async () => {
+    if (!selectedEncounter) return
+
+    setSaving(true)
+    try {
+      const response = await fetch(`/api/encounters/${selectedEncounter.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patient_id: selectedEncounter.patient_id,
+          provider_id: selectedEncounter.provider_id,
+          chief_complaint: chiefComplaint,
+          status: "completed",
+          vitals,
+          diagnosis_codes: diagnoses.map((d) => d.code),
+          hpi: hpiText,
+          assessment,
+          plan,
+          note: {
+            subjective,
+            objective: Object.entries(physicalExam)
+              .map(([k, v]) => `${k}: ${v}`)
+              .join("\n"),
+            assessment,
+            plan,
+          },
+        }),
+      })
+
+      if (!response.ok) throw new Error("Failed to save encounter")
+
+      toast.success("Encounter saved successfully")
+      setShowEncounterDetail(false)
+      mutate()
+    } catch (error) {
+      toast.error("Failed to save encounter")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const getVitalTrend = (current: number | null, previous: number | null) => {
+    if (current === null || previous === null) return null
+    if (current > previous) return <TrendingUp className="h-4 w-4 text-red-500" />
+    if (current < previous) return <TrendingDown className="h-4 w-4 text-green-500" />
+    return <Minus className="h-4 w-4 text-gray-500" />
+  }
+
+  const filteredEncounters = encounters.filter((enc: any) => {
     const matchesSearch =
-      enc.patient_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      enc.chief_complaint.toLowerCase().includes(searchTerm.toLowerCase())
+      enc.patient_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      enc.chief_complaint?.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesStatus = statusFilter === "all" || enc.status === statusFilter
     return matchesSearch && matchesStatus
   })
 
   return (
-    <div className="flex min-h-screen" style={{ backgroundColor: "#f8fafc" }}>
+    <div className="min-h-screen bg-slate-50">
       <DashboardSidebar />
-
-      <main className="flex-1 ml-64 p-8">
-        <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h1 className="text-3xl font-bold" style={{ color: "#1e293b" }}>
-                Patient Encounters
-              </h1>
-              <p style={{ color: "#64748b" }} className="mt-2">
-                Primary Care & Family Practice - Encounter Documentation
-              </p>
+      <div className="lg:pl-64">
+        <main className="p-8">
+          <div className="max-w-7xl mx-auto">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h1 className="text-3xl font-bold text-slate-800">Patient Encounters</h1>
+                <p className="text-slate-500 mt-2">Primary Care & Family Practice - Encounter Documentation</p>
+              </div>
+              <div className="flex space-x-2">
+                <Button variant="outline">
+                  <History className="mr-2 h-4 w-4" />
+                  Recent
+                </Button>
+                <Button onClick={() => setShowNewEncounter(true)} className="bg-cyan-600 text-white hover:bg-cyan-700">
+                  <Plus className="mr-2 h-4 w-4" />
+                  New Encounter
+                </Button>
+              </div>
             </div>
-            <div className="flex space-x-2">
-              <Button variant="outline">
-                <History className="mr-2 h-4 w-4" />
-                Recent
-              </Button>
-              <Button
-                onClick={() => setShowNewEncounter(true)}
-                style={{ backgroundColor: "#0891b2" }}
-                className="text-white hover:opacity-90"
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                New Encounter
-              </Button>
-            </div>
-          </div>
 
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-            <Card style={{ backgroundColor: "white", borderColor: "#e2e8f0" }}>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm" style={{ color: "#64748b" }}>
-                      {"Today's Encounters"}
-                    </p>
-                    <p className="text-2xl font-bold" style={{ color: "#1e293b" }}>
-                      12
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-lg" style={{ backgroundColor: "#ecfeff" }}>
-                    <Calendar className="h-6 w-6" style={{ color: "#0891b2" }} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card style={{ backgroundColor: "white", borderColor: "#e2e8f0" }}>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm" style={{ color: "#64748b" }}>
-                      In Progress
-                    </p>
-                    <p className="text-2xl font-bold" style={{ color: "#1e293b" }}>
-                      3
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-lg" style={{ backgroundColor: "#fef3c7" }}>
-                    <Clock className="h-6 w-6" style={{ color: "#f59e0b" }} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card style={{ backgroundColor: "white", borderColor: "#e2e8f0" }}>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm" style={{ color: "#64748b" }}>
-                      Completed
-                    </p>
-                    <p className="text-2xl font-bold" style={{ color: "#1e293b" }}>
-                      8
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-lg" style={{ backgroundColor: "#dcfce7" }}>
-                    <CheckCircle className="h-6 w-6" style={{ color: "#22c55e" }} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card style={{ backgroundColor: "white", borderColor: "#e2e8f0" }}>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm" style={{ color: "#64748b" }}>
-                      Pending Notes
-                    </p>
-                    <p className="text-2xl font-bold" style={{ color: "#1e293b" }}>
-                      2
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-lg" style={{ backgroundColor: "#fee2e2" }}>
-                    <AlertTriangle className="h-6 w-6" style={{ color: "#ef4444" }} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Main Content */}
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="mb-4">
-              <TabsTrigger value="list">Encounter List</TabsTrigger>
-              <TabsTrigger value="calendar">Calendar View</TabsTrigger>
-              <TabsTrigger value="templates">Note Templates</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="list">
-              <Card style={{ backgroundColor: "white", borderColor: "#e2e8f0" }}>
-                <CardHeader>
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+              <Card className="bg-white border-slate-200">
+                <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle style={{ color: "#1e293b" }}>Patient Encounters</CardTitle>
-                      <CardDescription>View and manage patient encounters</CardDescription>
+                      <p className="text-sm text-slate-500">{"Today's Encounters"}</p>
+                      <p className="text-2xl font-bold text-slate-800">
+                        {isLoading ? <Skeleton className="h-8 w-12" /> : stats.todayCount}
+                      </p>
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <div className="relative">
-                        <Search className="absolute left-3 top-3 h-4 w-4" style={{ color: "#94a3b8" }} />
-                        <Input
-                          placeholder="Search encounters..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          className="pl-10 w-64"
-                        />
-                      </div>
-                      <Select value={statusFilter} onValueChange={setStatusFilter}>
-                        <SelectTrigger className="w-40">
-                          <Filter className="h-4 w-4 mr-2" />
-                          <SelectValue placeholder="Filter status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">All Status</SelectItem>
-                          <SelectItem value="scheduled">Scheduled</SelectItem>
-                          <SelectItem value="in_progress">In Progress</SelectItem>
-                          <SelectItem value="completed">Completed</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <div className="p-3 rounded-lg bg-cyan-50">
+                      <Calendar className="h-6 w-6 text-cyan-600" />
                     </div>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  {loading ? (
-                    <div className="text-center py-8">Loading encounters...</div>
-                  ) : (
-                    <div className="space-y-3">
-                      {filteredEncounters.map((encounter) => (
-                        <div
-                          key={encounter.id}
-                          className="flex items-center justify-between p-4 border rounded-lg hover:shadow-sm transition-all cursor-pointer"
-                          style={{ borderColor: "#e2e8f0", backgroundColor: "#fafafa" }}
-                        >
-                          <div className="flex items-center space-x-4">
-                            <div
-                              className="w-12 h-12 rounded-lg flex items-center justify-center"
-                              style={{ backgroundColor: "#ecfeff" }}
-                            >
-                              <Stethoscope className="h-6 w-6" style={{ color: "#0891b2" }} />
-                            </div>
-                            <div>
-                              <h4 className="font-semibold" style={{ color: "#1e293b" }}>
-                                {encounter.patient_name}
-                              </h4>
-                              <p className="text-sm" style={{ color: "#64748b" }}>
-                                {encounter.chief_complaint}
-                              </p>
-                              <div className="flex items-center space-x-2 mt-1 text-xs" style={{ color: "#94a3b8" }}>
-                                <Calendar className="h-3 w-3" />
-                                <span>{new Date(encounter.encounter_date).toLocaleDateString()}</span>
-                                <span>•</span>
-                                <Clock className="h-3 w-3" />
-                                <span>
-                                  {new Date(encounter.encounter_date).toLocaleTimeString([], {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })}
-                                </span>
-                                <span>•</span>
-                                <span>{encounter.provider_name}</span>
+                </CardContent>
+              </Card>
+              <Card className="bg-white border-slate-200">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-slate-500">In Progress</p>
+                      <p className="text-2xl font-bold text-slate-800">
+                        {isLoading ? <Skeleton className="h-8 w-12" /> : stats.inProgress}
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-amber-50">
+                      <Clock className="h-6 w-6 text-amber-500" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="bg-white border-slate-200">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-slate-500">Completed</p>
+                      <p className="text-2xl font-bold text-slate-800">
+                        {isLoading ? <Skeleton className="h-8 w-12" /> : stats.completed}
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-green-50">
+                      <CheckCircle className="h-6 w-6 text-green-500" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="bg-white border-slate-200">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-slate-500">Pending Notes</p>
+                      <p className="text-2xl font-bold text-slate-800">
+                        {isLoading ? <Skeleton className="h-8 w-12" /> : stats.pendingNotes}
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-red-50">
+                      <AlertTriangle className="h-6 w-6 text-red-500" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Main Content */}
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="mb-4">
+                <TabsTrigger value="list">Encounter List</TabsTrigger>
+                <TabsTrigger value="calendar">Calendar View</TabsTrigger>
+                <TabsTrigger value="templates">Note Templates</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="list">
+                <Card className="bg-white border-slate-200">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="text-slate-800">Patient Encounters</CardTitle>
+                        <CardDescription>View and manage patient encounters</CardDescription>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <div className="relative">
+                          <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                          <Input
+                            placeholder="Search encounters..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-10 w-64"
+                          />
+                        </div>
+                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                          <SelectTrigger className="w-40">
+                            <Filter className="h-4 w-4 mr-2" />
+                            <SelectValue placeholder="Filter status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Status</SelectItem>
+                            <SelectItem value="scheduled">Scheduled</SelectItem>
+                            <SelectItem value="in_progress">In Progress</SelectItem>
+                            <SelectItem value="completed">Completed</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {isLoading ? (
+                      <div className="space-y-3">
+                        {[1, 2, 3].map((i) => (
+                          <Skeleton key={i} className="h-20 w-full" />
+                        ))}
+                      </div>
+                    ) : filteredEncounters.length === 0 ? (
+                      <div className="text-center py-8 text-slate-500">
+                        No encounters found. Click &quot;New Encounter&quot; to create one.
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {filteredEncounters.map((encounter: any) => (
+                          <div
+                            key={encounter.id}
+                            className="flex items-center justify-between p-4 border rounded-lg hover:shadow-sm transition-all cursor-pointer bg-slate-50 border-slate-200"
+                            onClick={() => openEncounterDetail(encounter)}
+                          >
+                            <div className="flex items-center space-x-4">
+                              <div className="w-12 h-12 rounded-lg flex items-center justify-center bg-cyan-50">
+                                <Stethoscope className="h-6 w-6 text-cyan-600" />
+                              </div>
+                              <div>
+                                <h4 className="font-semibold text-slate-800">{encounter.patient_name}</h4>
+                                <p className="text-sm text-slate-500">
+                                  {encounter.chief_complaint || "No chief complaint"}
+                                </p>
+                                <div className="flex items-center space-x-2 mt-1 text-xs text-slate-400">
+                                  <Calendar className="h-3 w-3" />
+                                  <span>{new Date(encounter.encounter_date).toLocaleDateString()}</span>
+                                  <span>•</span>
+                                  <Clock className="h-3 w-3" />
+                                  <span>
+                                    {new Date(encounter.encounter_date).toLocaleTimeString([], {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}
+                                  </span>
+                                  <span>•</span>
+                                  <span>{encounter.provider_name}</span>
+                                </div>
                               </div>
                             </div>
+                            <div className="flex items-center space-x-4">
+                              <Badge variant="outline">{encounter.visit_reason}</Badge>
+                              {getStatusBadge(encounter.status)}
+                              <Button variant="ghost" size="sm">
+                                <Eye className="h-4 w-4 mr-1" />
+                                View
+                              </Button>
+                              <ChevronRight className="h-5 w-5 text-slate-400" />
+                            </div>
                           </div>
-                          <div className="flex items-center space-x-4">
-                            <Badge variant="outline">{encounter.visit_reason}</Badge>
-                            {getStatusBadge(encounter.status)}
-                            <Button variant="ghost" size="sm">
-                              <ChevronRight className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
+                        ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
 
-            <TabsContent value="calendar">
-              <Card style={{ backgroundColor: "white" }}>
-                <CardContent className="p-8 text-center">
-                  <Calendar className="h-12 w-12 mx-auto mb-4" style={{ color: "#94a3b8" }} />
-                  <h3 className="text-lg font-semibold mb-2">Calendar View</h3>
-                  <p style={{ color: "#64748b" }}>Calendar integration coming soon</p>
-                </CardContent>
-              </Card>
-            </TabsContent>
+              <TabsContent value="calendar">
+                <Card className="bg-white border-slate-200">
+                  <CardContent className="p-8 text-center text-slate-500">Calendar view coming soon</CardContent>
+                </Card>
+              </TabsContent>
 
-            <TabsContent value="templates">
-              <Card style={{ backgroundColor: "white" }}>
-                <CardHeader>
-                  <CardTitle>Note Templates</CardTitle>
-                  <CardDescription>Pre-built templates for common encounter types</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    {[
-                      { name: "Annual Wellness Visit", icon: Heart, color: "#22c55e" },
-                      { name: "Acute Visit - URI", icon: Thermometer, color: "#ef4444" },
-                      { name: "Chronic Care - Diabetes", icon: Activity, color: "#f59e0b" },
-                      { name: "Chronic Care - Hypertension", icon: Heart, color: "#3b82f6" },
-                      { name: "Mental Health Follow-up", icon: Brain, color: "#8b5cf6" },
-                      { name: "Medication Management", icon: Pill, color: "#0891b2" },
-                    ].map((template) => (
-                      <Button key={template.name} variant="outline" className="h-auto p-4 justify-start bg-transparent">
-                        <div className="p-2 rounded-lg mr-3" style={{ backgroundColor: `${template.color}20` }}>
-                          <template.icon className="h-5 w-5" style={{ color: template.color }} />
-                        </div>
-                        <span>{template.name}</span>
-                      </Button>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-        </div>
-      </main>
+              <TabsContent value="templates">
+                <Card className="bg-white border-slate-200">
+                  <CardContent className="p-8 text-center text-slate-500">Note templates coming soon</CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </div>
+        </main>
+      </div>
 
       {/* New Encounter Dialog */}
       <Dialog open={showNewEncounter} onOpenChange={setShowNewEncounter}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>New Patient Encounter</DialogTitle>
-            <DialogDescription>Complete documentation for this patient visit</DialogDescription>
+            <DialogDescription>Create a new patient encounter</DialogDescription>
           </DialogHeader>
-
-          <Tabs defaultValue="patient" className="mt-4">
-            <TabsList className="grid w-full grid-cols-6">
-              <TabsTrigger value="patient">Patient Info</TabsTrigger>
-              <TabsTrigger value="vitals">Vitals</TabsTrigger>
-              <TabsTrigger value="subjective">Subjective</TabsTrigger>
-              <TabsTrigger value="objective">Objective</TabsTrigger>
-              <TabsTrigger value="assessment">Assessment</TabsTrigger>
-              <TabsTrigger value="plan">Plan</TabsTrigger>
-            </TabsList>
-
-            {/* Patient Info Tab */}
-            <TabsContent value="patient" className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Patient</Label>
-                  <Input
-                    placeholder="Search patient..."
-                    value={selectedPatient}
-                    onChange={(e) => setSelectedPatient(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label>Encounter Type</Label>
-                  <Select value={encounterType} onValueChange={setEncounterType}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {encounterTypes.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
-                          {type.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div>
-                <Label>Chief Complaint</Label>
-                <Textarea
-                  placeholder="Patient primary reason for visit..."
-                  value={chiefComplaint}
-                  onChange={(e) => setChiefComplaint(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label>Visit Reason / Appointment Type</Label>
-                <Input
-                  placeholder="e.g., Follow-up, New Problem, Annual Physical"
-                  value={visitReason}
-                  onChange={(e) => setVisitReason(e.target.value)}
-                />
-              </div>
-            </TabsContent>
-
-            {/* Vitals Tab */}
-            <TabsContent value="vitals" className="space-y-4">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Heart className="h-4 w-4" style={{ color: "#ef4444" }} />
-                    Blood Pressure
-                  </Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      placeholder="Systolic"
-                      value={vitals.systolic_bp || ""}
-                      onChange={(e) => setVitals({ ...vitals, systolic_bp: Number.parseInt(e.target.value) || null })}
-                    />
-                    <span>/</span>
-                    <Input
-                      type="number"
-                      placeholder="Diastolic"
-                      value={vitals.diastolic_bp || ""}
-                      onChange={(e) => setVitals({ ...vitals, diastolic_bp: Number.parseInt(e.target.value) || null })}
-                    />
-                    <span className="text-sm text-muted-foreground">mmHg</span>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Activity className="h-4 w-4" style={{ color: "#22c55e" }} />
-                    Heart Rate
-                  </Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      placeholder="Heart rate"
-                      value={vitals.heart_rate || ""}
-                      onChange={(e) => setVitals({ ...vitals, heart_rate: Number.parseInt(e.target.value) || null })}
-                    />
-                    <span className="text-sm text-muted-foreground">bpm</span>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Activity className="h-4 w-4" style={{ color: "#3b82f6" }} />
-                    Respiratory Rate
-                  </Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      placeholder="Resp rate"
-                      value={vitals.respiratory_rate || ""}
-                      onChange={(e) =>
-                        setVitals({ ...vitals, respiratory_rate: Number.parseInt(e.target.value) || null })
-                      }
-                    />
-                    <span className="text-sm text-muted-foreground">/min</span>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Thermometer className="h-4 w-4" style={{ color: "#f59e0b" }} />
-                    Temperature
-                  </Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      step="0.1"
-                      placeholder="Temperature"
-                      value={vitals.temperature || ""}
-                      onChange={(e) => setVitals({ ...vitals, temperature: Number.parseFloat(e.target.value) || null })}
-                    />
-                    <span className="text-sm text-muted-foreground">°F</span>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Activity className="h-4 w-4" style={{ color: "#8b5cf6" }} />
-                    O2 Saturation
-                  </Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      placeholder="SpO2"
-                      value={vitals.oxygen_saturation || ""}
-                      onChange={(e) =>
-                        setVitals({ ...vitals, oxygen_saturation: Number.parseInt(e.target.value) || null })
-                      }
-                    />
-                    <span className="text-sm text-muted-foreground">%</span>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Scale className="h-4 w-4" style={{ color: "#0891b2" }} />
-                    Weight
-                  </Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      step="0.1"
-                      placeholder="Weight"
-                      value={vitals.weight || ""}
-                      onChange={(e) => setVitals({ ...vitals, weight: Number.parseFloat(e.target.value) || null })}
-                    />
-                    <span className="text-sm text-muted-foreground">lbs</span>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Height</Label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
-                      placeholder="Feet"
-                      value={vitals.height_feet || ""}
-                      onChange={(e) => setVitals({ ...vitals, height_feet: Number.parseInt(e.target.value) || null })}
-                    />
-                    <span className="text-sm">ft</span>
-                    <Input
-                      type="number"
-                      placeholder="Inches"
-                      value={vitals.height_inches || ""}
-                      onChange={(e) => setVitals({ ...vitals, height_inches: Number.parseInt(e.target.value) || null })}
-                    />
-                    <span className="text-sm">in</span>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Pain Scale (0-10)</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    max="10"
-                    placeholder="Pain level"
-                    value={vitals.pain_scale || ""}
-                    onChange={(e) => setVitals({ ...vitals, pain_scale: Number.parseInt(e.target.value) || null })}
-                  />
-                </div>
-              </div>
-            </TabsContent>
-
-            {/* Subjective Tab */}
-            <TabsContent value="subjective" className="space-y-4">
-              <div>
-                <Label>History of Present Illness (HPI)</Label>
-                <Textarea
-                  placeholder="Describe the patient symptoms, onset, duration, severity, associated factors..."
-                  className="min-h-[120px]"
-                  value={hpiText}
-                  onChange={(e) => setHpiText(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <Label className="mb-2 block">Review of Systems (ROS)</Label>
-                <div className="grid grid-cols-2 gap-4 border rounded-lg p-4">
-                  {reviewOfSystemsCategories.map((category) => (
-                    <div key={category.id} className="space-y-2">
-                      <h4 className="font-medium text-sm">{category.label}</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {category.items.map((item) => (
-                          <label key={item} className="flex items-center space-x-1 text-sm">
-                            <Checkbox
-                              checked={rosChecked[category.id]?.includes(item) || false}
-                              onCheckedChange={() => handleRosCheck(category.id, item)}
-                            />
-                            <span>{item}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
+          <div className="space-y-4">
+            <div>
+              <Label>Patient *</Label>
+              <Select value={selectedPatient} onValueChange={setSelectedPatient}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select patient" />
+                </SelectTrigger>
+                <SelectContent>
+                  {patients.map((patient: any) => (
+                    <SelectItem key={patient.id} value={patient.id}>
+                      {patient.first_name} {patient.last_name}
+                    </SelectItem>
                   ))}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Past Medical History</Label>
-                  <Textarea
-                    placeholder="Previous diagnoses, surgeries, hospitalizations..."
-                    value={pmh}
-                    onChange={(e) => setPmh(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label>Current Medications</Label>
-                  <Textarea
-                    placeholder="List current medications with dosages..."
-                    value={medications}
-                    onChange={(e) => setMedications(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label>Allergies</Label>
-                  <Textarea
-                    placeholder="Drug allergies and reactions..."
-                    value={allergies}
-                    onChange={(e) => setAllergies(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label>Social History</Label>
-                  <Textarea
-                    placeholder="Smoking, alcohol, drug use, occupation, exercise..."
-                    value={socialHistory}
-                    onChange={(e) => setSocialHistory(e.target.value)}
-                  />
-                </div>
-              </div>
-              <div>
-                <Label>Family History</Label>
-                <Textarea
-                  placeholder="Relevant family medical history..."
-                  value={familyHistory}
-                  onChange={(e) => setFamilyHistory(e.target.value)}
-                />
-              </div>
-            </TabsContent>
-
-            {/* Objective Tab */}
-            <TabsContent value="objective" className="space-y-4">
-              <div className="flex items-center justify-between mb-2">
-                <Label className="text-base font-semibold">Physical Examination</Label>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const defaults: Record<string, string> = {}
-                    physicalExamSections.forEach((section) => {
-                      defaults[section.id] = section.defaultText
-                    })
-                    setPhysicalExam(defaults)
-                  }}
-                >
-                  Load Normal Defaults
-                </Button>
-              </div>
-              <div className="space-y-4">
-                {physicalExamSections.map((section) => (
-                  <div key={section.id}>
-                    <Label>{section.label}</Label>
-                    <Textarea
-                      placeholder={section.defaultText}
-                      value={physicalExam[section.id] || ""}
-                      onChange={(e) => setPhysicalExam({ ...physicalExam, [section.id]: e.target.value })}
-                      className="min-h-[60px]"
-                    />
-                  </div>
-                ))}
-              </div>
-            </TabsContent>
-
-            {/* Assessment Tab */}
-            <TabsContent value="assessment" className="space-y-4">
-              <div>
-                <Label>Clinical Assessment</Label>
-                <Textarea
-                  placeholder="Your clinical impression and differential diagnosis..."
-                  className="min-h-[120px]"
-                  value={assessment}
-                  onChange={(e) => setAssessment(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label>Diagnosis Codes (ICD-10)</Label>
-                <div className="space-y-2">
-                  {diagnoses.map((dx, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                      <Input placeholder="ICD-10 Code" value={dx.code} className="w-32" />
-                      <Input placeholder="Description" value={dx.description} className="flex-1" />
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setDiagnoses(diagnoses.filter((_, i) => i !== index))}
-                      >
-                        Remove
-                      </Button>
-                    </div>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Provider *</Label>
+              <Select value={selectedProvider} onValueChange={setSelectedProvider}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select provider" />
+                </SelectTrigger>
+                <SelectContent>
+                  {providers.map((provider: any) => (
+                    <SelectItem key={provider.id} value={provider.id}>
+                      Dr. {provider.first_name} {provider.last_name}
+                    </SelectItem>
                   ))}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setDiagnoses([...diagnoses, { code: "", description: "" }])}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Diagnosis
-                  </Button>
-                </div>
-              </div>
-            </TabsContent>
-
-            {/* Plan Tab */}
-            <TabsContent value="plan" className="space-y-4">
-              <div>
-                <Label>Treatment Plan</Label>
-                <Textarea
-                  placeholder="Detailed treatment plan including medications, procedures, referrals..."
-                  className="min-h-[120px]"
-                  value={plan}
-                  onChange={(e) => setPlan(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label>Orders</Label>
-                <div className="space-y-2">
-                  <div className="flex flex-wrap gap-2">
-                    {["Labs", "Imaging", "Referral", "Prescription", "DME", "Patient Education"].map((orderType) => (
-                      <Button
-                        key={orderType}
-                        variant={orders.includes(orderType) ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => {
-                          if (orders.includes(orderType)) {
-                            setOrders(orders.filter((o) => o !== orderType))
-                          } else {
-                            setOrders([...orders, orderType])
-                          }
-                        }}
-                      >
-                        {orderType}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <div>
-                <Label>Follow-Up</Label>
-                <Input
-                  placeholder="e.g., Return in 2 weeks, PRN, Annual"
-                  value={followUp}
-                  onChange={(e) => setFollowUp(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label>Patient Instructions</Label>
-                <Textarea placeholder="Instructions provided to patient..." className="min-h-[80px]" />
-              </div>
-            </TabsContent>
-          </Tabs>
-
-          <DialogFooter className="mt-6">
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Encounter Type *</Label>
+              <Select value={encounterType} onValueChange={setEncounterType}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {encounterTypes.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Chief Complaint</Label>
+              <Textarea
+                value={chiefComplaint}
+                onChange={(e) => setChiefComplaint(e.target.value)}
+                placeholder="Enter chief complaint..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
             <Button variant="outline" onClick={() => setShowNewEncounter(false)}>
               Cancel
             </Button>
-            <Button variant="outline">
-              <Save className="h-4 w-4 mr-2" />
-              Save Draft
+            <Button onClick={handleCreateEncounter} disabled={saving}>
+              {saving ? "Creating..." : "Create Encounter"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Encounter Detail Dialog */}
+      <Dialog open={showEncounterDetail} onOpenChange={setShowEncounterDetail}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Stethoscope className="h-5 w-5" />
+              Patient Encounter - {selectedEncounter?.patient_name}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedEncounter?.encounter_date && new Date(selectedEncounter.encounter_date).toLocaleDateString()} |{" "}
+              {selectedEncounter?.provider_name}
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingDetail ? (
+            <div className="space-y-4">
+              <Skeleton className="h-32 w-full" />
+              <Skeleton className="h-32 w-full" />
+            </div>
+          ) : (
+            <ScrollArea className="h-[70vh] pr-4">
+              <Tabs defaultValue="overview" className="w-full">
+                <TabsList className="mb-4">
+                  <TabsTrigger value="overview">Overview</TabsTrigger>
+                  <TabsTrigger value="vitals">Vitals</TabsTrigger>
+                  <TabsTrigger value="medications">Medications</TabsTrigger>
+                  <TabsTrigger value="diagnosis">Diagnosis</TabsTrigger>
+                  <TabsTrigger value="soap">SOAP Note</TabsTrigger>
+                  <TabsTrigger value="exam">Physical Exam</TabsTrigger>
+                </TabsList>
+
+                {/* Overview Tab */}
+                <TabsContent value="overview" className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <Activity className="h-4 w-4" />
+                          Current Vitals
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {encounterDetailData?.vitals?.length > 0 ? (
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                              <span className="text-slate-500">BP:</span>{" "}
+                              <span className="font-medium">
+                                {encounterDetailData.vitals[0].systolic_bp}/{encounterDetailData.vitals[0].diastolic_bp}{" "}
+                                mmHg
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-slate-500">HR:</span>{" "}
+                              <span className="font-medium">{encounterDetailData.vitals[0].heart_rate} bpm</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-500">Temp:</span>{" "}
+                              <span className="font-medium">{encounterDetailData.vitals[0].temperature}°F</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-500">SpO2:</span>{" "}
+                              <span className="font-medium">{encounterDetailData.vitals[0].oxygen_saturation}%</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-500">Weight:</span>{" "}
+                              <span className="font-medium">{encounterDetailData.vitals[0].weight} lbs</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-500">Pain:</span>{" "}
+                              <span className="font-medium">{encounterDetailData.vitals[0].pain_scale}/10</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-slate-500">No vitals recorded</p>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <Pill className="h-4 w-4" />
+                          Active Medications ({encounterDetailData?.medications?.length || 0})
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {encounterDetailData?.medications?.length > 0 ? (
+                          <div className="space-y-1 text-sm">
+                            {encounterDetailData.medications.slice(0, 4).map((med: any) => (
+                              <div key={med.id} className="flex justify-between">
+                                <span className="font-medium">{med.medication_name}</span>
+                                <span className="text-slate-500">{med.dosage}</span>
+                              </div>
+                            ))}
+                            {encounterDetailData.medications.length > 4 && (
+                              <p className="text-slate-400">+{encounterDetailData.medications.length - 4} more</p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-sm text-slate-500">No active medications</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        Recent Diagnoses
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {encounterDetailData?.assessments?.length > 0 &&
+                      encounterDetailData.assessments[0].diagnosis_codes?.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {encounterDetailData.assessments[0].diagnosis_codes.map((code: string, i: number) => (
+                            <Badge key={i} variant="outline">
+                              {code}
+                            </Badge>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-500">No diagnoses recorded</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                {/* Vitals Tab with History Comparison */}
+                <TabsContent value="vitals" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm">Record New Vitals</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-4 gap-4">
+                        <div>
+                          <Label>Systolic BP</Label>
+                          <Input
+                            type="number"
+                            value={vitals.systolic_bp || ""}
+                            onChange={(e) =>
+                              setVitals({ ...vitals, systolic_bp: Number.parseInt(e.target.value) || null })
+                            }
+                            placeholder="120"
+                          />
+                        </div>
+                        <div>
+                          <Label>Diastolic BP</Label>
+                          <Input
+                            type="number"
+                            value={vitals.diastolic_bp || ""}
+                            onChange={(e) =>
+                              setVitals({ ...vitals, diastolic_bp: Number.parseInt(e.target.value) || null })
+                            }
+                            placeholder="80"
+                          />
+                        </div>
+                        <div>
+                          <Label>Heart Rate</Label>
+                          <Input
+                            type="number"
+                            value={vitals.heart_rate || ""}
+                            onChange={(e) =>
+                              setVitals({ ...vitals, heart_rate: Number.parseInt(e.target.value) || null })
+                            }
+                            placeholder="72"
+                          />
+                        </div>
+                        <div>
+                          <Label>Respiratory Rate</Label>
+                          <Input
+                            type="number"
+                            value={vitals.respiratory_rate || ""}
+                            onChange={(e) =>
+                              setVitals({ ...vitals, respiratory_rate: Number.parseInt(e.target.value) || null })
+                            }
+                            placeholder="16"
+                          />
+                        </div>
+                        <div>
+                          <Label>Temperature (°F)</Label>
+                          <Input
+                            type="number"
+                            step="0.1"
+                            value={vitals.temperature || ""}
+                            onChange={(e) =>
+                              setVitals({ ...vitals, temperature: Number.parseFloat(e.target.value) || null })
+                            }
+                            placeholder="98.6"
+                          />
+                        </div>
+                        <div>
+                          <Label>SpO2 (%)</Label>
+                          <Input
+                            type="number"
+                            value={vitals.oxygen_saturation || ""}
+                            onChange={(e) =>
+                              setVitals({ ...vitals, oxygen_saturation: Number.parseInt(e.target.value) || null })
+                            }
+                            placeholder="98"
+                          />
+                        </div>
+                        <div>
+                          <Label>Weight (lbs)</Label>
+                          <Input
+                            type="number"
+                            value={vitals.weight || ""}
+                            onChange={(e) =>
+                              setVitals({ ...vitals, weight: Number.parseFloat(e.target.value) || null })
+                            }
+                            placeholder="150"
+                          />
+                        </div>
+                        <div>
+                          <Label>Pain Scale (0-10)</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            max="10"
+                            value={vitals.pain_scale || ""}
+                            onChange={(e) =>
+                              setVitals({ ...vitals, pain_scale: Number.parseInt(e.target.value) || null })
+                            }
+                            placeholder="0"
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <History className="h-4 w-4" />
+                        Vital Signs History (with Trend Comparison)
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {encounterDetailData?.vitals?.length > 0 ? (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Date</TableHead>
+                              <TableHead>BP</TableHead>
+                              <TableHead>HR</TableHead>
+                              <TableHead>Temp</TableHead>
+                              <TableHead>SpO2</TableHead>
+                              <TableHead>Weight</TableHead>
+                              <TableHead>Pain</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {encounterDetailData.vitals.map((v: any, i: number) => {
+                              const prev = encounterDetailData.vitals[i + 1]
+                              return (
+                                <TableRow key={v.id}>
+                                  <TableCell className="text-sm">
+                                    {new Date(v.measurement_date).toLocaleDateString()}
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex items-center gap-1">
+                                      {v.systolic_bp}/{v.diastolic_bp}
+                                      {prev && getVitalTrend(v.systolic_bp, prev.systolic_bp)}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex items-center gap-1">
+                                      {v.heart_rate}
+                                      {prev && getVitalTrend(v.heart_rate, prev.heart_rate)}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>{v.temperature}°F</TableCell>
+                                  <TableCell>{v.oxygen_saturation}%</TableCell>
+                                  <TableCell>
+                                    <div className="flex items-center gap-1">
+                                      {v.weight} lbs
+                                      {prev && getVitalTrend(v.weight, prev.weight)}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>{v.pain_scale}/10</TableCell>
+                                </TableRow>
+                              )
+                            })}
+                          </TableBody>
+                        </Table>
+                      ) : (
+                        <p className="text-sm text-slate-500 text-center py-4">No vital signs history</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                {/* Medications Tab */}
+                <TabsContent value="medications" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Pill className="h-4 w-4" />
+                        Current Medications
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {encounterDetailData?.medications?.length > 0 ? (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Medication</TableHead>
+                              <TableHead>Dosage</TableHead>
+                              <TableHead>Frequency</TableHead>
+                              <TableHead>Route</TableHead>
+                              <TableHead>Start Date</TableHead>
+                              <TableHead>Status</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {encounterDetailData.medications.map((med: any) => (
+                              <TableRow key={med.id}>
+                                <TableCell>
+                                  <div>
+                                    <p className="font-medium">{med.medication_name}</p>
+                                    {med.generic_name && <p className="text-xs text-slate-500">{med.generic_name}</p>}
+                                  </div>
+                                </TableCell>
+                                <TableCell>{med.dosage}</TableCell>
+                                <TableCell>{med.frequency}</TableCell>
+                                <TableCell>{med.route || "PO"}</TableCell>
+                                <TableCell>{med.start_date && new Date(med.start_date).toLocaleDateString()}</TableCell>
+                                <TableCell>
+                                  <Badge variant={med.status === "active" ? "default" : "secondary"}>
+                                    {med.status}
+                                  </Badge>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      ) : (
+                        <p className="text-sm text-slate-500 text-center py-4">No medications on file</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                {/* Diagnosis Tab with ICD-10 Search */}
+                <TabsContent value="diagnosis" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm">Add ICD-10 Diagnosis Codes</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                        <Input
+                          placeholder="Search ICD-10 codes (e.g., F11.20, hypertension, diabetes)..."
+                          value={diagnosisSearch}
+                          onChange={(e) => setDiagnosisSearch(e.target.value)}
+                          className="pl-10"
+                        />
+                        {diagnosisResults.length > 0 && (
+                          <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-auto">
+                            {diagnosisResults.map((dx) => (
+                              <div
+                                key={dx.code}
+                                className="p-2 hover:bg-slate-50 cursor-pointer flex justify-between items-center"
+                                onClick={() => addDiagnosis(dx)}
+                              >
+                                <div>
+                                  <span className="font-mono font-medium text-cyan-600">{dx.code}</span>
+                                  <span className="ml-2 text-sm">{dx.description}</span>
+                                </div>
+                                <Plus className="h-4 w-4 text-slate-400" />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {diagnoses.length > 0 && (
+                        <div className="space-y-2">
+                          <Label>Selected Diagnoses</Label>
+                          <div className="space-y-2">
+                            {diagnoses.map((dx, i) => (
+                              <div
+                                key={dx.code}
+                                className="flex items-center justify-between p-2 bg-slate-50 rounded-lg"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline">{i === 0 ? "Primary" : `${i + 1}`}</Badge>
+                                  <span className="font-mono font-medium text-cyan-600">{dx.code}</span>
+                                  <span className="text-sm">{dx.description}</span>
+                                </div>
+                                <Button variant="ghost" size="sm" onClick={() => removeDiagnosis(dx.code)}>
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm">Previous Diagnoses</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {encounterDetailData?.assessments?.some((a: any) => a.diagnosis_codes?.length > 0) ? (
+                        <div className="space-y-2">
+                          {encounterDetailData.assessments.map(
+                            (assessment: any) =>
+                              assessment.diagnosis_codes?.length > 0 && (
+                                <div key={assessment.id} className="p-2 bg-slate-50 rounded-lg">
+                                  <p className="text-xs text-slate-500 mb-1">
+                                    {new Date(assessment.created_at).toLocaleDateString()}
+                                  </p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {assessment.diagnosis_codes.map((code: string) => (
+                                      <Badge key={code} variant="outline">
+                                        {code}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                </div>
+                              ),
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-500 text-center py-4">No previous diagnoses</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                {/* SOAP Note Tab */}
+                <TabsContent value="soap" className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm">Subjective</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <Textarea
+                          value={subjective}
+                          onChange={(e) => setSubjective(e.target.value)}
+                          placeholder="Chief complaint, HPI, ROS..."
+                          rows={6}
+                        />
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm">Objective</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <Textarea
+                          value={Object.entries(physicalExam)
+                            .map(([k, v]) => `${k}: ${v}`)
+                            .join("\n")}
+                          placeholder="Physical exam findings, vitals..."
+                          rows={6}
+                          readOnly
+                        />
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm">Assessment</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <Textarea
+                          value={assessment}
+                          onChange={(e) => setAssessment(e.target.value)}
+                          placeholder="Clinical assessment, diagnoses..."
+                          rows={6}
+                        />
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm">Plan</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <Textarea
+                          value={plan}
+                          onChange={(e) => setPlan(e.target.value)}
+                          placeholder="Treatment plan, medications, follow-up..."
+                          rows={6}
+                        />
+                      </CardContent>
+                    </Card>
+                  </div>
+                </TabsContent>
+
+                {/* Physical Exam Tab */}
+                <TabsContent value="exam" className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    {physicalExamSections.map((section) => (
+                      <Card key={section.id}>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm">{section.label}</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <Textarea
+                            value={physicalExam[section.id] || ""}
+                            onChange={(e) => setPhysicalExam({ ...physicalExam, [section.id]: e.target.value })}
+                            rows={3}
+                          />
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </ScrollArea>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEncounterDetail(false)}>
+              Cancel
             </Button>
             <Button variant="outline">
               <Printer className="h-4 w-4 mr-2" />
               Print
             </Button>
-            <Button onClick={handleSaveEncounter} style={{ backgroundColor: "#0891b2" }} className="text-white">
-              <Send className="h-4 w-4 mr-2" />
-              Sign & Complete
+            <Button onClick={handleSaveEncounter} disabled={saving} className="bg-cyan-600 hover:bg-cyan-700">
+              {saving ? "Saving..." : "Save & Complete"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
@@ -20,8 +21,24 @@ import {
 } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Calendar, Package, CheckCircle, XCircle, Camera, Scale, User, FileText, Shield, RefreshCw } from "lucide-react"
+import {
+  Calendar,
+  Package,
+  CheckCircle,
+  XCircle,
+  Camera,
+  Scale,
+  User,
+  FileText,
+  Shield,
+  RefreshCw,
+  RotateCcw,
+  Box,
+  AlertTriangle,
+  Plus,
+} from "lucide-react"
 import { DashboardSidebar } from "@/components/dashboard-sidebar"
+import { toast } from "sonner"
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
@@ -51,6 +68,8 @@ export default function TakeHomePage() {
   const [returnBottleUid, setReturnBottleUid] = useState("")
   const [isCreating, setIsCreating] = useState(false)
   const [newOrderOpen, setNewOrderOpen] = useState(false)
+  const [newKitOpen, setNewKitOpen] = useState(false)
+  const [newReturnOpen, setNewReturnOpen] = useState(false)
   const [inspectionData, setInspectionData] = useState({
     seal_intact: true,
     residue_ml_est: 0,
@@ -58,16 +77,26 @@ export default function TakeHomePage() {
     outcome: "ok",
   })
 
+  // Kit creation state
+  const [kitData, setKitData] = useState({
+    patient_id: "",
+    days: "7",
+    seal_batch: "",
+    bottles: [] as { bottle_uid: string; dose_mg: number; day_date: string }[],
+  })
+
   // Fetch data using SWR
   const { data: ordersData, error: ordersError, mutate: mutateOrders } = useSWR("/api/takehome/orders", fetcher)
   const { data: patientsData } = useSWR("/api/takehome/patients", fetcher)
   const { data: kitsData, mutate: mutateKits } = useSWR("/api/takehome/kits", fetcher)
   const { data: holdsData, mutate: mutateHolds } = useSWR("/api/takehome/holds", fetcher)
+  const { data: returnsData, mutate: mutateReturns } = useSWR("/api/takehome/returns/intake", fetcher)
 
   const orders: TakehomeOrder[] = ordersData?.orders || []
   const patients: Patient[] = patientsData?.patients || []
   const kits = kitsData?.kits || []
   const holds = holdsData?.holds || []
+  const returns = returnsData?.returns || []
 
   const isLoading = !ordersData && !ordersError
 
@@ -94,9 +123,11 @@ export default function TakeHomePage() {
         setSelectedPatient("")
         setSelectedDays("")
         setSelectedRisk("")
+        toast.success("Take-home order created successfully")
       }
     } catch (error) {
       console.error("[v0] Order creation failed:", error)
+      toast.error("Failed to create order")
     } finally {
       setIsCreating(false)
     }
@@ -112,14 +143,64 @@ export default function TakeHomePage() {
       if (response.ok) {
         mutateKits()
         mutateOrders()
+        toast.success("Kit issued successfully")
       }
     } catch (error) {
       console.error("[v0] Kit issuance failed:", error)
+      toast.error("Failed to issue kit")
+    }
+  }
+
+  const createKit = async () => {
+    if (!kitData.patient_id || !kitData.days) return
+
+    setIsCreating(true)
+    try {
+      // Generate bottles for the kit
+      const days = Number.parseInt(kitData.days)
+      const bottles = []
+      const startDate = new Date()
+
+      for (let i = 0; i < days; i++) {
+        const dayDate = new Date(startDate)
+        dayDate.setDate(dayDate.getDate() + i)
+        bottles.push({
+          bottle_uid: `BTL-${Date.now()}-${i + 1}`,
+          dose_mg: 80,
+          day_date: dayDate.toISOString().split("T")[0],
+        })
+      }
+
+      const response = await fetch("/api/takehome/kits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patient_id: kitData.patient_id,
+          days,
+          seal_batch: kitData.seal_batch || `SB-${new Date().getFullYear()}-${Date.now()}`,
+          bottles,
+        }),
+      })
+
+      if (response.ok) {
+        mutateKits()
+        setNewKitOpen(false)
+        setKitData({ patient_id: "", days: "7", seal_batch: "", bottles: [] })
+        toast.success("Kit created successfully")
+      }
+    } catch (error) {
+      console.error("[v0] Kit creation failed:", error)
+      toast.error("Failed to create kit")
+    } finally {
+      setIsCreating(false)
     }
   }
 
   const handleReturnIntake = async () => {
-    if (!returnBottleUid) return
+    if (!returnBottleUid) {
+      toast.error("Please enter a bottle UID")
+      return
+    }
 
     try {
       const response = await fetch("/api/takehome/returns/intake", {
@@ -133,6 +214,7 @@ export default function TakeHomePage() {
 
       if (response.ok) {
         mutateKits()
+        mutateReturns()
         setReturnBottleUid("")
         setInspectionData({
           seal_intact: true,
@@ -140,9 +222,35 @@ export default function TakeHomePage() {
           notes: "",
           outcome: "ok",
         })
+        setNewReturnOpen(false)
+        toast.success("Return processed successfully")
       }
     } catch (error) {
       console.error("[v0] Return intake failed:", error)
+      toast.error("Failed to process return")
+    }
+  }
+
+  const clearHold = async (holdId: string, notes: string) => {
+    try {
+      const response = await fetch("/api/takehome/holds", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: holdId,
+          action: "clear",
+          notes,
+          cleared_by: "Counselor",
+        }),
+      })
+
+      if (response.ok) {
+        mutateHolds()
+        toast.success("Hold cleared successfully")
+      }
+    } catch (error) {
+      console.error("[v0] Failed to clear hold:", error)
+      toast.error("Failed to clear hold")
     }
   }
 
@@ -154,13 +262,174 @@ export default function TakeHomePage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold">Take-Home Management</h1>
-              <p className="text-muted-foreground">Manage take-home methadone orders, kits, and compliance</p>
+              <p className="text-muted-foreground">Manage take-home methadone orders, kits, returns, and compliance</p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={() => mutateOrders()}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  mutateOrders()
+                  mutateKits()
+                  mutateHolds()
+                  mutateReturns()
+                }}
+              >
                 <RefreshCw className="w-4 h-4 mr-2" />
                 Refresh
               </Button>
+
+              <Dialog open={newReturnOpen} onOpenChange={setNewReturnOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline">
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    Record Return
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Record Bottle Return</DialogTitle>
+                    <DialogDescription>Process a returned take-home bottle</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="bottle_uid">Bottle UID</Label>
+                      <Input
+                        id="bottle_uid"
+                        value={returnBottleUid}
+                        onChange={(e) => setReturnBottleUid(e.target.value)}
+                        placeholder="Scan or enter bottle UID"
+                      />
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="seal_intact"
+                        checked={inspectionData.seal_intact}
+                        onCheckedChange={(checked) =>
+                          setInspectionData({ ...inspectionData, seal_intact: checked as boolean })
+                        }
+                      />
+                      <Label htmlFor="seal_intact">Seal Intact</Label>
+                    </div>
+                    <div>
+                      <Label htmlFor="residue">Residue (ml)</Label>
+                      <Input
+                        id="residue"
+                        type="number"
+                        value={inspectionData.residue_ml_est}
+                        onChange={(e) =>
+                          setInspectionData({
+                            ...inspectionData,
+                            residue_ml_est: Number.parseFloat(e.target.value) || 0,
+                          })
+                        }
+                        placeholder="0"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="outcome">Outcome</Label>
+                      <Select
+                        value={inspectionData.outcome}
+                        onValueChange={(value) => setInspectionData({ ...inspectionData, outcome: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select outcome" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ok">OK - Normal Return</SelectItem>
+                          <SelectItem value="tampered">Tampered - Investigation Required</SelectItem>
+                          <SelectItem value="missing">Missing Doses</SelectItem>
+                          <SelectItem value="damaged">Damaged Container</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="notes">Notes</Label>
+                      <Textarea
+                        id="notes"
+                        value={inspectionData.notes}
+                        onChange={(e) => setInspectionData({ ...inspectionData, notes: e.target.value })}
+                        placeholder="Additional notes..."
+                      />
+                    </div>
+                    <Button className="w-full" onClick={handleReturnIntake}>
+                      Process Return
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              <Dialog open={newKitOpen} onOpenChange={setNewKitOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline">
+                    <Box className="w-4 h-4 mr-2" />
+                    New Kit
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Create Take-Home Kit</DialogTitle>
+                    <DialogDescription>Prepare a new take-home medication kit for a patient</DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="kit_patient">Patient</Label>
+                      <Select
+                        value={kitData.patient_id}
+                        onValueChange={(value) => setKitData({ ...kitData, patient_id: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select patient" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {patients.length === 0 ? (
+                            <SelectItem value="none" disabled>
+                              No patients found
+                            </SelectItem>
+                          ) : (
+                            patients.map((patient) => (
+                              <SelectItem key={patient.id} value={String(patient.id)}>
+                                {patient.name}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="kit_days">Number of Days</Label>
+                      <Select value={kitData.days} onValueChange={(value) => setKitData({ ...kitData, days: value })}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select days" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1">1 day</SelectItem>
+                          <SelectItem value="2">2 days</SelectItem>
+                          <SelectItem value="3">3 days</SelectItem>
+                          <SelectItem value="6">6 days (Sunday)</SelectItem>
+                          <SelectItem value="7">7 days (Weekly)</SelectItem>
+                          <SelectItem value="13">13 days (Bi-weekly)</SelectItem>
+                          <SelectItem value="14">14 days</SelectItem>
+                          <SelectItem value="27">27 days (Monthly)</SelectItem>
+                          <SelectItem value="28">28 days</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="seal_batch">Seal Batch Number</Label>
+                      <Input
+                        id="seal_batch"
+                        value={kitData.seal_batch}
+                        onChange={(e) => setKitData({ ...kitData, seal_batch: e.target.value })}
+                        placeholder="Auto-generated if empty"
+                      />
+                    </div>
+                    <Button className="w-full" onClick={createKit} disabled={!kitData.patient_id || isCreating}>
+                      {isCreating ? "Creating..." : "Create Kit"}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
               <Dialog open={newOrderOpen} onOpenChange={setNewOrderOpen}>
                 <DialogTrigger asChild>
                   <Button>
@@ -235,10 +504,46 @@ export default function TakeHomePage() {
             </div>
           </div>
 
+          <div className="grid gap-4 md:grid-cols-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Active Orders</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{orders.length}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Issued Kits</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{kits.length}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Active Holds</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-600">{holds.length}</div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Recent Returns</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{returns.length}</div>
+              </CardContent>
+            </Card>
+          </div>
+
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="orders">Orders</TabsTrigger>
-              <TabsTrigger value="kits">Kits & Returns</TabsTrigger>
+              <TabsTrigger value="kits">Kits</TabsTrigger>
+              <TabsTrigger value="returns">Returns</TabsTrigger>
               <TabsTrigger value="holds">Compliance Holds</TabsTrigger>
               <TabsTrigger value="intake">Return Intake</TabsTrigger>
             </TabsList>
@@ -320,72 +625,117 @@ export default function TakeHomePage() {
               {kits.length === 0 ? (
                 <Card>
                   <CardContent className="flex flex-col items-center justify-center py-12">
-                    <Package className="h-12 w-12 text-muted-foreground mb-4" />
+                    <Box className="h-12 w-12 text-muted-foreground mb-4" />
                     <p className="text-lg font-medium">No Kits Issued</p>
-                    <p className="text-muted-foreground">Issue a kit from a pending order to see it here</p>
+                    <p className="text-muted-foreground">Create a new kit to see it here</p>
+                    <Button className="mt-4" onClick={() => setNewKitOpen(true)}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Create Kit
+                    </Button>
                   </CardContent>
                 </Card>
               ) : (
                 <div className="grid gap-4">
-                  {kits.map(
-                    (kit: {
-                      id: number
-                      status: string
-                      issue_time: string
-                      issued_by: string
-                      seal_batch: string
-                      doses: Array<{
-                        id: number
-                        day_date: string
-                        dose_mg: number
-                        dose_ml: number
-                        bottle_uid: string
-                        status: string
-                      }>
-                    }) => (
-                      <Card key={kit.id}>
-                        <CardHeader>
-                          <div className="flex items-center justify-between">
-                            <CardTitle className="flex items-center gap-2">
-                              <Package className="w-5 h-5" />
-                              Kit #{kit.id}
-                            </CardTitle>
-                            <Badge variant={kit.status === "issued" ? "default" : "secondary"}>{kit.status}</Badge>
-                          </div>
-                          <CardDescription>
-                            Issued: {new Date(kit.issue_time).toLocaleString()} by {kit.issued_by}
-                          </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-2">
-                            <div className="text-sm">
-                              <strong>Seal Batch:</strong> {kit.seal_batch}
-                            </div>
-                            <div className="grid gap-2">
-                              <div className="text-sm font-medium">Doses:</div>
-                              {kit.doses?.map((dose) => (
-                                <div key={dose.id} className="flex items-center justify-between p-2 border rounded">
-                                  <div className="flex items-center gap-2">
-                                    <Calendar className="w-4 h-4" />
-                                    <span>{dose.day_date}</span>
-                                    <span className="text-muted-foreground">
-                                      {dose.dose_mg}mg ({dose.dose_ml}ml)
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <Badge variant={dose.status === "returned" ? "default" : "secondary"}>
-                                      {dose.status}
-                                    </Badge>
-                                    <span className="text-xs text-muted-foreground">{dose.bottle_uid}</span>
-                                  </div>
+                  {kits.map((kit: any) => (
+                    <Card key={kit.id}>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="flex items-center gap-2">
+                            <Box className="w-5 h-5" />
+                            Kit #{kit.id} - {kit.patient_name}
+                          </CardTitle>
+                          <Badge variant={kit.status === "issued" ? "default" : "secondary"}>{kit.status}</Badge>
+                        </div>
+                        <CardDescription>
+                          Issued: {new Date(kit.issue_time).toLocaleString()} | Seal Batch: {kit.seal_batch}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2">
+                          <div className="text-sm font-medium">Doses ({kit.doses?.length || 0} bottles):</div>
+                          <div className="grid gap-2 max-h-48 overflow-y-auto">
+                            {kit.doses?.map((dose: any) => (
+                              <div
+                                key={dose.id}
+                                className="flex items-center justify-between p-2 border rounded text-sm"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Calendar className="w-4 h-4" />
+                                  <span>{dose.day_date}</span>
+                                  <span className="text-muted-foreground">
+                                    {dose.dose_mg}mg ({dose.dose_ml}ml)
+                                  </span>
                                 </div>
-                              ))}
+                                <div className="flex items-center gap-2">
+                                  <Badge
+                                    variant={
+                                      dose.status === "returned"
+                                        ? "default"
+                                        : dose.status === "dispensed"
+                                          ? "secondary"
+                                          : "outline"
+                                    }
+                                  >
+                                    {dose.status}
+                                  </Badge>
+                                  <span className="text-xs text-muted-foreground font-mono">{dose.bottle_uid}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="returns" className="space-y-4">
+              {returns.length === 0 ? (
+                <Card>
+                  <CardContent className="flex flex-col items-center justify-center py-12">
+                    <RotateCcw className="h-12 w-12 text-muted-foreground mb-4" />
+                    <p className="text-lg font-medium">No Returns Recorded</p>
+                    <p className="text-muted-foreground">Process a return to see it here</p>
+                    <Button className="mt-4" onClick={() => setNewReturnOpen(true)}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      Record Return
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid gap-4">
+                  {returns.map((ret: any) => (
+                    <Card key={ret.id}>
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="flex items-center gap-2">
+                            <RotateCcw className="w-5 h-5" />
+                            Return #{ret.id}
+                          </CardTitle>
+                          <Badge variant={ret.type === "return" ? "default" : "secondary"}>{ret.type}</Badge>
+                        </div>
+                        <CardDescription>
+                          {new Date(ret.at_time).toLocaleString()} | Processed by: {ret.by_user}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-4 text-sm">
+                            <div>
+                              <span className="text-muted-foreground">Quantity:</span> {ret.qty_ml}ml
                             </div>
                           </div>
-                        </CardContent>
-                      </Card>
-                    ),
-                  )}
+                          {ret.reason && (
+                            <div className="text-sm">
+                              <span className="text-muted-foreground">Notes:</span> {ret.reason}
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
               )}
             </TabsContent>
@@ -401,85 +751,70 @@ export default function TakeHomePage() {
                 </Card>
               ) : (
                 <div className="grid gap-4">
-                  {holds.map(
-                    (hold: {
-                      id: number
-                      patient_name: string
-                      reason_code: string
-                      opened_time: string
-                      opened_by: string
-                      requires_counselor: boolean
-                      status: string
-                    }) => (
-                      <Card key={hold.id} className="border-red-200">
-                        <CardHeader>
-                          <div className="flex items-center justify-between">
-                            <CardTitle className="flex items-center gap-2 text-red-700">
-                              <Shield className="w-5 h-5" />
-                              Compliance Hold - {hold.patient_name}
-                            </CardTitle>
-                            <Badge variant="destructive">{hold.status}</Badge>
+                  {holds.map((hold: any) => (
+                    <Card key={hold.id} className="border-red-200">
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <CardTitle className="flex items-center gap-2 text-red-700">
+                            <AlertTriangle className="w-5 h-5" />
+                            Compliance Hold - {hold.patient_name}
+                          </CardTitle>
+                          <Badge variant="destructive">{hold.status}</Badge>
+                        </div>
+                        <CardDescription>
+                          Reason: {hold.reason_code?.replace("_", " ")} - Opened:{" "}
+                          {new Date(hold.opened_time).toLocaleString()}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm">
+                            <div>Opened by: {hold.opened_by}</div>
+                            {hold.requires_counselor && (
+                              <div className="text-amber-600 font-medium">Counselor clearance required</div>
+                            )}
+                            {hold.reason && <div className="text-muted-foreground mt-1">{hold.reason}</div>}
                           </div>
-                          <CardDescription>
-                            Reason: {hold.reason_code?.replace("_", " ")} - Opened:{" "}
-                            {new Date(hold.opened_time).toLocaleString()}
-                          </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="flex items-center justify-between">
-                            <div className="text-sm">
-                              <div>Opened by: {hold.opened_by}</div>
-                              {hold.requires_counselor && (
-                                <div className="text-amber-600 font-medium">Counselor clearance required</div>
-                              )}
-                            </div>
-                            <div className="flex gap-2">
-                              <Dialog>
-                                <DialogTrigger asChild>
-                                  <Button variant="outline" size="sm">
-                                    <FileText className="w-4 h-4 mr-2" />
-                                    Counselor Note
-                                  </Button>
-                                </DialogTrigger>
-                                <DialogContent>
-                                  <DialogHeader>
-                                    <DialogTitle>Counselor Encounter</DialogTitle>
-                                    <DialogDescription>
-                                      Document counselor encounter for {hold.patient_name}
-                                    </DialogDescription>
-                                  </DialogHeader>
-                                  <div className="space-y-4">
-                                    <div>
-                                      <Label htmlFor="summary">Encounter Summary</Label>
-                                      <Textarea placeholder="Document the counselor encounter..." />
-                                    </div>
-                                    <div>
-                                      <Label htmlFor="disposition">Disposition</Label>
-                                      <Select>
-                                        <SelectTrigger>
-                                          <SelectValue placeholder="Select disposition" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="clear_hold">Clear Hold</SelectItem>
-                                          <SelectItem value="maintain_hold">Maintain Hold</SelectItem>
-                                          <SelectItem value="escalate">Escalate to MD</SelectItem>
-                                        </SelectContent>
-                                      </Select>
-                                    </div>
-                                    <Button className="w-full">Submit Encounter</Button>
+                          <div className="flex gap-2">
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button variant="outline" size="sm">
+                                  <FileText className="w-4 h-4 mr-2" />
+                                  Clear Hold
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent>
+                                <DialogHeader>
+                                  <DialogTitle>Clear Compliance Hold</DialogTitle>
+                                  <DialogDescription>Document clearance for {hold.patient_name}</DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4">
+                                  <div>
+                                    <Label htmlFor="clearance_notes">Clearance Notes</Label>
+                                    <Textarea
+                                      id="clearance_notes"
+                                      placeholder="Document the reason for clearing this hold..."
+                                    />
                                   </div>
-                                </DialogContent>
-                              </Dialog>
-                              <Button variant="destructive" size="sm">
-                                <XCircle className="w-4 h-4 mr-2" />
-                                Charge Nurse Override
-                              </Button>
-                            </div>
+                                  <Button
+                                    className="w-full"
+                                    onClick={() => {
+                                      const notes = (document.getElementById("clearance_notes") as HTMLTextAreaElement)
+                                        ?.value
+                                      clearHold(hold.id, notes)
+                                    }}
+                                  >
+                                    <CheckCircle className="w-4 h-4 mr-2" />
+                                    Clear Hold
+                                  </Button>
+                                </div>
+                              </DialogContent>
+                            </Dialog>
                           </div>
-                        </CardContent>
-                      </Card>
-                    ),
-                  )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
               )}
             </TabsContent>
@@ -489,98 +824,150 @@ export default function TakeHomePage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Camera className="w-5 h-5" />
-                    Return Intake Station
+                    Bottle Return Intake Station
                   </CardTitle>
                   <CardDescription>Scan and inspect returned take-home bottles</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="bottle-scan">Bottle UID</Label>
-                    <Input
-                      id="bottle-scan"
-                      placeholder="Scan or enter bottle UID"
-                      value={returnBottleUid}
-                      onChange={(e) => setReturnBottleUid(e.target.value)}
-                    />
-                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="scan_bottle">Scan Bottle UID</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            id="scan_bottle"
+                            value={returnBottleUid}
+                            onChange={(e) => setReturnBottleUid(e.target.value)}
+                            placeholder="Scan barcode or enter UID"
+                          />
+                          <Button variant="outline">
+                            <Camera className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
 
-                  {returnBottleUid && (
-                    <Alert>
-                      <CheckCircle className="h-4 w-4" />
-                      <AlertDescription>Bottle scanned: {returnBottleUid}</AlertDescription>
-                    </Alert>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label>Seal Integrity</Label>
-                      <Select
-                        value={inspectionData.seal_intact ? "intact" : "compromised"}
-                        onValueChange={(value) =>
-                          setInspectionData((prev) => ({ ...prev, seal_intact: value === "intact" }))
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="intact">Intact</SelectItem>
-                          <SelectItem value="compromised">Compromised</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div>
-                      <Label htmlFor="residue">Residue Estimate (ml)</Label>
-                      <div className="flex items-center gap-2">
-                        <Scale className="w-4 h-4" />
-                        <Input
-                          id="residue"
-                          type="number"
-                          step="0.1"
-                          value={inspectionData.residue_ml_est}
-                          onChange={(e) =>
-                            setInspectionData((prev) => ({
-                              ...prev,
-                              residue_ml_est: Number.parseFloat(e.target.value) || 0,
-                            }))
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
+                          id="intake_seal_intact"
+                          checked={inspectionData.seal_intact}
+                          onCheckedChange={(checked) =>
+                            setInspectionData({ ...inspectionData, seal_intact: checked as boolean })
                           }
                         />
+                        <Label htmlFor="intake_seal_intact">Tamper-evident seal intact</Label>
                       </div>
+
+                      <div>
+                        <Label htmlFor="intake_residue">Estimated Residue (ml)</Label>
+                        <div className="flex items-center gap-2">
+                          <Scale className="w-4 h-4 text-muted-foreground" />
+                          <Input
+                            id="intake_residue"
+                            type="number"
+                            step="0.1"
+                            value={inspectionData.residue_ml_est}
+                            onChange={(e) =>
+                              setInspectionData({
+                                ...inspectionData,
+                                residue_ml_est: Number.parseFloat(e.target.value) || 0,
+                              })
+                            }
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="intake_outcome">Inspection Outcome</Label>
+                        <Select
+                          value={inspectionData.outcome}
+                          onValueChange={(value) => setInspectionData({ ...inspectionData, outcome: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="ok">
+                              <div className="flex items-center gap-2">
+                                <CheckCircle className="w-4 h-4 text-green-500" />
+                                OK - Normal Return
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="tampered">
+                              <div className="flex items-center gap-2">
+                                <XCircle className="w-4 h-4 text-red-500" />
+                                Tampered - Investigation Required
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="missing">
+                              <div className="flex items-center gap-2">
+                                <AlertTriangle className="w-4 h-4 text-amber-500" />
+                                Missing Doses
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="damaged">
+                              <div className="flex items-center gap-2">
+                                <XCircle className="w-4 h-4 text-orange-500" />
+                                Damaged Container
+                              </div>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div>
+                        <Label htmlFor="intake_notes">Notes</Label>
+                        <Textarea
+                          id="intake_notes"
+                          value={inspectionData.notes}
+                          onChange={(e) => setInspectionData({ ...inspectionData, notes: e.target.value })}
+                          placeholder="Additional observations..."
+                        />
+                      </div>
+
+                      <Button className="w-full" onClick={handleReturnIntake} disabled={!returnBottleUid}>
+                        <CheckCircle className="w-4 h-4 mr-2" />
+                        Complete Intake
+                      </Button>
+                    </div>
+
+                    <div className="space-y-4">
+                      <Alert>
+                        <AlertTriangle className="w-4 h-4" />
+                        <AlertDescription>
+                          Inspect each bottle carefully. Report any signs of tampering, unusual residue levels, or
+                          damage immediately.
+                        </AlertDescription>
+                      </Alert>
+
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-sm">Inspection Checklist</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4 text-green-500" />
+                            <span>Verify bottle UID matches patient record</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4 text-green-500" />
+                            <span>Check tamper-evident seal integrity</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4 text-green-500" />
+                            <span>Measure and record residue level</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4 text-green-500" />
+                            <span>Inspect for signs of tampering or damage</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <CheckCircle className="w-4 h-4 text-green-500" />
+                            <span>Document any abnormalities</span>
+                          </div>
+                        </CardContent>
+                      </Card>
                     </div>
                   </div>
-
-                  <div>
-                    <Label htmlFor="notes">Inspection Notes</Label>
-                    <Textarea
-                      id="notes"
-                      placeholder="Any concerns or observations..."
-                      value={inspectionData.notes}
-                      onChange={(e) => setInspectionData((prev) => ({ ...prev, notes: e.target.value }))}
-                    />
-                  </div>
-
-                  <div>
-                    <Label>Outcome</Label>
-                    <Select
-                      value={inspectionData.outcome}
-                      onValueChange={(value) => setInspectionData((prev) => ({ ...prev, outcome: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ok">OK - Normal Return</SelectItem>
-                        <SelectItem value="flag">Flag - Requires Review</SelectItem>
-                        <SelectItem value="diversion_concern">Diversion Concern</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <Button className="w-full" onClick={handleReturnIntake} disabled={!returnBottleUid}>
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    Complete Return Intake
-                  </Button>
                 </CardContent>
               </Card>
             </TabsContent>

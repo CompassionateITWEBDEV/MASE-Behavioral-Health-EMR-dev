@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog"
 import { DashboardSidebar } from "@/components/dashboard-sidebar"
 import { Skeleton } from "@/components/ui/skeleton"
+import { toast } from "sonner"
 import useSWR from "swr"
 import {
   Stethoscope,
@@ -72,6 +73,92 @@ const noteTemplates = [
   },
 ]
 
+const templateContent: Record<string, string> = {
+  soap: `SUBJECTIVE:
+[Patient's chief complaint, symptoms, history]
+
+OBJECTIVE:
+[Vital signs, physical exam findings, lab results]
+
+ASSESSMENT:
+[Diagnosis, clinical impression]
+
+PLAN:
+[Treatment plan, medications, follow-up]`,
+  progress: `SESSION DATE: ${new Date().toLocaleDateString()}
+SESSION DURATION: 
+
+PROGRESS OBSERVATIONS:
+
+
+INTERVENTIONS USED:
+
+
+PATIENT RESPONSE:
+
+
+GOALS ADDRESSED:
+
+
+NEXT STEPS:
+`,
+  intake: `CHIEF COMPLAINT:
+
+
+HISTORY OF PRESENT ILLNESS:
+
+
+PAST MEDICAL HISTORY:
+
+
+PAST PSYCHIATRIC HISTORY:
+
+
+SUBSTANCE USE HISTORY:
+
+
+SOCIAL HISTORY:
+
+
+FAMILY HISTORY:
+
+
+MENTAL STATUS EXAM:
+
+
+ASSESSMENT:
+
+
+DIAGNOSIS:
+
+
+PLAN:
+`,
+  discharge: `ADMISSION DATE:
+DISCHARGE DATE: ${new Date().toLocaleDateString()}
+
+REASON FOR ADMISSION:
+
+
+TREATMENT SUMMARY:
+
+
+MEDICATIONS AT DISCHARGE:
+
+
+DISCHARGE DIAGNOSIS:
+
+
+PROGNOSIS:
+
+
+FOLLOW-UP PLAN:
+
+
+PATIENT EDUCATION PROVIDED:
+`,
+}
+
 export default function ClinicalNotesPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [isRecording, setIsRecording] = useState(false)
@@ -82,6 +169,8 @@ export default function ClinicalNotesPage() {
   const [showAiDialog, setShowAiDialog] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
+  const [activeTab, setActiveTab] = useState("editor")
+  const [showNewNoteDialog, setShowNewNoteDialog] = useState(false)
 
   const { data, error, isLoading, mutate } = useSWR("/api/clinical-notes", fetcher)
   const { data: patientsData } = useSWR("/api/patients", fetcher)
@@ -89,33 +178,37 @@ export default function ClinicalNotesPage() {
   const handleAiAssist = useCallback(
     async (action: string) => {
       if (!currentNote.trim()) {
-        alert("Please enter some note content first")
+        toast.error("Please enter some note content first")
         return
       }
       setAiAction(action)
       setShowAiDialog(true)
-      const response = await fetch("/api/clinical-notes/ai-assist", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          noteContent: currentNote,
-          noteType: selectedNoteType,
-          action,
-        }),
-      })
-      const result = await response.json()
-      setCurrentNote(result.completion)
+      try {
+        const response = await fetch("/api/clinical-notes/ai-assist", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            noteContent: currentNote,
+            noteType: selectedNoteType,
+            action,
+          }),
+        })
+        const result = await response.json()
+        if (result.completion) {
+          setCurrentNote(result.completion)
+          toast.success("AI enhancement applied")
+        }
+      } catch (err) {
+        toast.error("AI assist failed")
+      }
+      setShowAiDialog(false)
     },
     [currentNote, selectedNoteType],
   )
 
-  const applyAiSuggestion = () => {
-    setShowAiDialog(false)
-  }
-
   const handleSaveNote = async () => {
     if (!selectedPatient || !currentNote.trim()) {
-      alert("Please select a patient and enter note content")
+      toast.error("Please select a patient and enter note content")
       return
     }
 
@@ -136,13 +229,17 @@ export default function ClinicalNotesPage() {
 
       if (response.ok) {
         setSaveSuccess(true)
+        toast.success("Note saved successfully")
         setCurrentNote("")
         setSelectedPatient("")
         mutate()
         setTimeout(() => setSaveSuccess(false), 3000)
+      } else {
+        toast.error("Failed to save note")
       }
     } catch (err) {
       console.error("Save error:", err)
+      toast.error("Failed to save note")
     } finally {
       setSaving(false)
     }
@@ -150,16 +247,23 @@ export default function ClinicalNotesPage() {
 
   const handleSelectTemplate = (templateId: string) => {
     setSelectedNoteType(templateId)
-    const templates: Record<string, string> = {
-      soap: "SUBJECTIVE:\n\nOBJECTIVE:\n\nASSESSMENT:\n\nPLAN:\n",
-      progress:
-        "Session Date:\nSession Duration:\n\nProgress Observations:\n\nInterventions Used:\n\nPatient Response:\n\nNext Steps:\n",
-      intake:
-        "Chief Complaint:\n\nHistory of Present Illness:\n\nPast Medical History:\n\nSocial History:\n\nMental Status Exam:\n\nAssessment:\n\nPlan:\n",
-      discharge:
-        "Admission Date:\nDischarge Date:\n\nReason for Admission:\n\nTreatment Summary:\n\nDischarge Diagnosis:\n\nFollow-up Plan:\n",
-    }
-    setCurrentNote(templates[templateId] || "")
+    const content = templateContent[templateId] || ""
+    setCurrentNote(content)
+    setActiveTab("editor")
+    toast.success(`${noteTemplates.find((t) => t.id === templateId)?.name} template loaded`)
+  }
+
+  const handleNewNote = () => {
+    setShowNewNoteDialog(true)
+  }
+
+  const startNewNote = (templateId: string) => {
+    setSelectedNoteType(templateId)
+    setCurrentNote(templateContent[templateId] || "")
+    setSelectedPatient("")
+    setShowNewNoteDialog(false)
+    setActiveTab("editor")
+    toast.success("New note started - select a patient and begin documenting")
   }
 
   const getStatusBadge = (status: string) => {
@@ -197,11 +301,7 @@ export default function ClinicalNotesPage() {
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Refresh
               </Button>
-              <Button variant="outline">
-                <Brain className="mr-2 h-4 w-4" />
-                AI Templates
-              </Button>
-              <Button className="bg-primary hover:bg-primary/90">
+              <Button className="bg-primary hover:bg-primary/90" onClick={handleNewNote}>
                 <Plus className="mr-2 h-4 w-4" />
                 New Note
               </Button>
@@ -222,8 +322,8 @@ export default function ClinicalNotesPage() {
                     return (
                       <Button
                         key={template.id}
-                        variant="outline"
-                        className="w-full justify-start h-auto p-4 bg-transparent"
+                        variant={selectedNoteType === template.id ? "default" : "outline"}
+                        className={`w-full justify-start h-auto p-4 ${selectedNoteType === template.id ? "" : "bg-transparent"}`}
                         onClick={() => handleSelectTemplate(template.id)}
                       >
                         <div className={`p-2 rounded-lg ${template.color} mr-3`}>
@@ -248,7 +348,14 @@ export default function ClinicalNotesPage() {
                   <Button
                     variant={isRecording ? "destructive" : "default"}
                     className="w-full"
-                    onClick={() => setIsRecording(!isRecording)}
+                    onClick={() => {
+                      setIsRecording(!isRecording)
+                      if (!isRecording) {
+                        toast.info("Voice recording started - speak clearly")
+                      } else {
+                        toast.success("Recording stopped - processing...")
+                      }
+                    }}
                   >
                     {isRecording ? (
                       <>
@@ -321,7 +428,7 @@ export default function ClinicalNotesPage() {
 
             {/* Main Note Editor and Recent Notes */}
             <div className="lg:col-span-2">
-              <Tabs defaultValue="editor" className="space-y-6">
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
                 <TabsList className="w-full md:w-auto">
                   <TabsTrigger value="editor">Note Editor</TabsTrigger>
                   <TabsTrigger value="recent">Recent Notes ({notes.length})</TabsTrigger>
@@ -395,15 +502,15 @@ export default function ClinicalNotesPage() {
                       <div>
                         <label className="text-sm font-medium">Clinical Note</label>
                         <Textarea
-                          placeholder="Start typing your clinical note... AI will provide suggestions as you write."
+                          placeholder="Start typing your clinical note or select a template from the left panel..."
                           value={currentNote}
                           onChange={(e) => setCurrentNote(e.target.value)}
-                          className="min-h-[300px] mt-2"
+                          className="min-h-[300px] mt-2 font-mono text-sm"
                         />
                       </div>
 
                       <div className="flex items-center justify-between text-sm text-muted-foreground">
-                        <span>Select a template or start typing for AI assistance</span>
+                        <span>{currentNote ? "Edit your note content" : "Select a template or start typing"}</span>
                         <span>{currentNote.length} characters</span>
                       </div>
                     </CardContent>
@@ -453,6 +560,10 @@ export default function ClinicalNotesPage() {
                               ? "No notes match your search"
                               : "Create your first clinical note to get started"}
                           </p>
+                          <Button className="mt-4" onClick={handleNewNote}>
+                            <Plus className="mr-2 h-4 w-4" />
+                            Create First Note
+                          </Button>
                         </div>
                       ) : (
                         <div className="space-y-4">
@@ -478,18 +589,21 @@ export default function ClinicalNotesPage() {
                                 </div>
                               </div>
                               <div className="flex items-center space-x-4">
-                                <div className="text-right">
-                                  <div className="flex items-center space-x-2 mb-1">{getStatusBadge(note.status)}</div>
-                                  <div className="flex items-center text-sm text-muted-foreground">
-                                    <Calendar className="mr-1 h-3 w-3" />
-                                    {new Date(note.created_at).toLocaleDateString()}{" "}
-                                    {new Date(note.created_at).toLocaleTimeString([], {
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    })}
-                                  </div>
+                                <div className="text-sm text-muted-foreground">
+                                  <Calendar className="inline h-3 w-3 mr-1" />
+                                  {new Date(note.created_at).toLocaleDateString()}
                                 </div>
-                                <Button variant="ghost" size="sm">
+                                {getStatusBadge(note.status)}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setCurrentNote(note.subjective || "")
+                                    setSelectedNoteType(note.note_type || "progress")
+                                    setActiveTab("editor")
+                                    toast.info("Note loaded for editing")
+                                  }}
+                                >
                                   <Edit3 className="h-4 w-4" />
                                 </Button>
                               </div>
@@ -505,31 +619,33 @@ export default function ClinicalNotesPage() {
                   <Card>
                     <CardHeader>
                       <CardTitle>My Templates</CardTitle>
-                      <CardDescription>Custom note templates and AI-generated formats</CardDescription>
+                      <CardDescription>Custom note templates for quick documentation</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      {data?.templates && data.templates.length > 0 ? (
-                        <div className="space-y-4">
-                          {data.templates.map((template: any) => (
-                            <div key={template.id} className="p-4 border rounded-lg">
-                              <h4 className="font-medium">{template.name}</h4>
-                              <p className="text-sm text-muted-foreground">{template.description}</p>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="text-center py-8">
-                          <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                          <h3 className="text-lg font-medium mb-2">No Custom Templates</h3>
-                          <p className="text-muted-foreground mb-4">
-                            Create custom templates to speed up your documentation
-                          </p>
-                          <Button>
-                            <Plus className="mr-2 h-4 w-4" />
-                            Create Template
-                          </Button>
-                        </div>
-                      )}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {noteTemplates.map((template) => {
+                          const IconComponent = template.icon
+                          return (
+                            <Card
+                              key={template.id}
+                              className="cursor-pointer hover:border-primary transition-colors"
+                              onClick={() => handleSelectTemplate(template.id)}
+                            >
+                              <CardContent className="p-4">
+                                <div className="flex items-center space-x-3">
+                                  <div className={`p-3 rounded-lg ${template.color}`}>
+                                    <IconComponent className="h-5 w-5 text-white" />
+                                  </div>
+                                  <div>
+                                    <h4 className="font-medium">{template.name}</h4>
+                                    <p className="text-sm text-muted-foreground">{template.description}</p>
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          )
+                        })}
+                      </div>
                     </CardContent>
                   </Card>
                 </TabsContent>
@@ -539,36 +655,56 @@ export default function ClinicalNotesPage() {
         </div>
       </main>
 
-      {/* AI Assist Dialog */}
-      <Dialog open={showAiDialog} onOpenChange={setShowAiDialog}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <Dialog open={showNewNoteDialog} onOpenChange={setShowNewNoteDialog}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Brain className="h-5 w-5" />
-              AI{" "}
-              {aiAction === "enhance"
-                ? "Enhanced Note"
-                : aiAction === "soap"
-                  ? "SOAP Conversion"
-                  : aiAction === "suggestions"
-                    ? "Suggestions"
-                    : "Summary"}
-            </DialogTitle>
-            <DialogDescription>Review the AI-generated content below</DialogDescription>
+            <DialogTitle>Create New Note</DialogTitle>
+            <DialogDescription>Select a template to start your clinical note</DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <div className="bg-muted p-4 rounded-lg whitespace-pre-wrap text-sm">
-              {currentNote || "No response generated"}
-            </div>
+          <div className="grid gap-3 py-4">
+            {noteTemplates.map((template) => {
+              const IconComponent = template.icon
+              return (
+                <Button
+                  key={template.id}
+                  variant="outline"
+                  className="w-full justify-start h-auto p-4 bg-transparent"
+                  onClick={() => startNewNote(template.id)}
+                >
+                  <div className={`p-2 rounded-lg ${template.color} mr-3`}>
+                    <IconComponent className="h-4 w-4 text-white" />
+                  </div>
+                  <div className="text-left">
+                    <div className="font-medium">{template.name}</div>
+                    <div className="text-xs text-muted-foreground">{template.description}</div>
+                  </div>
+                </Button>
+              )
+            })}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAiDialog(false)}>
+            <Button variant="outline" onClick={() => setShowNewNoteDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={applyAiSuggestion} disabled={!currentNote}>
-              Apply to Note
-            </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI Processing Dialog */}
+      <Dialog open={showAiDialog} onOpenChange={setShowAiDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>AI Processing</DialogTitle>
+            <DialogDescription>
+              {aiAction === "enhance" && "Enhancing your clinical note with AI..."}
+              {aiAction === "soap" && "Converting to SOAP format..."}
+              {aiAction === "suggestions" && "Generating suggestions..."}
+              {aiAction === "summarize" && "Creating summary..."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
         </DialogContent>
       </Dialog>
     </div>

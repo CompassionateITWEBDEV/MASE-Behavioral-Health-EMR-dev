@@ -37,22 +37,11 @@ export async function GET(request: Request) {
 
     if (error) {
       console.error("Database error:", error)
-      // Return mock data as fallback
       return NextResponse.json({
-        encounters: [
-          {
-            id: "enc-001",
-            patient_id: "p-001",
-            patient_name: "Sarah Johnson",
-            provider_id: "prov-001",
-            provider_name: "Dr. Michael Smith",
-            encounter_date: new Date().toISOString(),
-            encounter_type: "established",
-            chief_complaint: "Follow-up for hypertension management",
-            status: "completed",
-            visit_reason: "Chronic Care",
-          },
-        ],
+        encounters: [],
+        patients: [],
+        providers: [],
+        stats: { todayCount: 0, inProgress: 0, completed: 0, pendingNotes: 0 },
       })
     }
 
@@ -74,10 +63,41 @@ export async function GET(request: Request) {
         created_at: apt.created_at,
       })) || []
 
-    return NextResponse.json({ encounters })
+    const { data: patients } = await supabase
+      .from("patients")
+      .select("id, first_name, last_name, date_of_birth")
+      .order("last_name")
+
+    const { data: providers } = await supabase.from("providers").select("id, first_name, last_name").order("last_name")
+
+    const today = new Date().toISOString().split("T")[0]
+    const todayEncounters = (data || []).filter((e: any) => e.appointment_date?.startsWith(today))
+    const inProgress = (data || []).filter((e: any) => e.status === "in_progress").length
+    const completed = (data || []).filter((e: any) => e.status === "completed").length
+
+    return NextResponse.json({
+      encounters,
+      patients: patients || [],
+      providers: providers || [],
+      stats: {
+        todayCount: todayEncounters.length,
+        inProgress,
+        completed,
+        pendingNotes: inProgress,
+      },
+    })
   } catch (error) {
     console.error("API error:", error)
-    return NextResponse.json({ encounters: [], error: "Failed to fetch encounters" }, { status: 500 })
+    return NextResponse.json(
+      {
+        encounters: [],
+        patients: [],
+        providers: [],
+        stats: { todayCount: 0, inProgress: 0, completed: 0, pendingNotes: 0 },
+        error: "Failed to fetch encounters",
+      },
+      { status: 500 },
+    )
   }
 }
 

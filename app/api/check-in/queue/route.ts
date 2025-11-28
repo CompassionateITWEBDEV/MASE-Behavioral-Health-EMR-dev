@@ -16,7 +16,6 @@ export async function GET() {
           id,
           first_name,
           last_name,
-          patient_number,
           phone
         )
       `)
@@ -46,7 +45,6 @@ export async function GET() {
     const formattedQueue = queue?.map((item, index) => ({
       id: item.id,
       patientId: item.patient_id,
-      patientNumber: item.patients?.patient_number || item.patient_number,
       firstName: item.patients?.first_name || "Patient",
       lastName: item.patients?.last_name?.charAt(0) + "." || "",
       checkInTime: item.check_in_time,
