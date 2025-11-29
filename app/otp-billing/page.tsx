@@ -9,7 +9,20 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
-import { DollarSign, FileText, Calculator, AlertTriangle, CheckCircle, Users, RefreshCw } from "lucide-react"
+import {
+  DollarSign,
+  FileText,
+  Calculator,
+  AlertTriangle,
+  CheckCircle,
+  Users,
+  RefreshCw,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Activity,
+  Stethoscope,
+} from "lucide-react"
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
@@ -59,6 +72,35 @@ interface OTPBillingData {
     rate: number
   }>
   pendingClaimsCount: number
+  icd10Summary: Array<{
+    code: string
+    count: number
+    description: string
+    patientCount: number
+  }>
+  vitalsTrending: Array<{
+    patientName: string
+    current: {
+      systolic_bp: number | string
+      diastolic_bp: number | string
+      heart_rate: number | string
+      temperature: number | string
+      weight: number | string
+      date: string
+    }
+    previous?: {
+      systolic_bp: number | string
+      diastolic_bp: number | string
+      heart_rate: number | string
+      temperature: number | string
+      weight: number | string
+    }
+    trends: {
+      bpTrend: "up" | "down" | "stable"
+      hrTrend: "up" | "down" | "stable"
+      weightTrend: "up" | "down" | "stable"
+    }
+  }>
 }
 
 export default function OTPBillingPage() {
@@ -211,6 +253,8 @@ export default function OTPBillingPage() {
               <TabsTrigger value="dual-eligible">Dual Eligible</TabsTrigger>
               <TabsTrigger value="special-cases">Special Cases</TabsTrigger>
               <TabsTrigger value="rate-codes">Rate Codes</TabsTrigger>
+              <TabsTrigger value="icd10">ICD-10 Codes</TabsTrigger>
+              <TabsTrigger value="vitals">Vitals Trending</TabsTrigger>
             </TabsList>
 
             <TabsContent value="bundle">
@@ -526,6 +570,196 @@ export default function OTPBillingPage() {
                       </table>
                     </div>
                   )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="icd10">
+              <Card>
+                <CardHeader>
+                  <CardTitle>ICD-10 Diagnosis Codes for OTP/MAT</CardTitle>
+                  <CardDescription>
+                    Most frequently used diagnosis codes for Opioid Treatment Program billing and documentation
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {billingLoading ? (
+                    <div className="space-y-3">
+                      {[1, 2, 3, 4, 5].map((i) => (
+                        <Skeleton key={i} className="h-16 w-full" />
+                      ))}
+                    </div>
+                  ) : !billingData?.icd10Summary || billingData.icd10Summary.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Stethoscope className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                      <p>No ICD-10 codes recorded yet</p>
+                      <p className="text-sm">Codes will appear as assessments are documented</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {billingData.icd10Summary.map((item: any, index: number) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors"
+                        >
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge variant="outline" className="font-mono">
+                                {item.code}
+                              </Badge>
+                              <Badge variant="secondary">{item.count} uses</Badge>
+                            </div>
+                            <p className="text-sm font-medium">{item.description}</p>
+                            <p className="text-xs text-muted-foreground">{item.patientCount} patients</p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-2xl font-bold text-primary">{item.count}</div>
+                            <p className="text-xs text-muted-foreground">Total uses</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <h4 className="font-medium text-blue-900 mb-2">Common OTP/MAT ICD-10 Codes</h4>
+                    <div className="grid md:grid-cols-2 gap-2 text-sm text-blue-800">
+                      <div>
+                        <strong>F11.20</strong> - Opioid dependence, uncomplicated
+                      </div>
+                      <div>
+                        <strong>F11.21</strong> - Opioid dependence, in remission
+                      </div>
+                      <div>
+                        <strong>F11.23</strong> - Opioid dependence with withdrawal
+                      </div>
+                      <div>
+                        <strong>F11.10</strong> - Opioid abuse, uncomplicated
+                      </div>
+                      <div>
+                        <strong>Z79.891</strong> - Long term use of opiate analgesic
+                      </div>
+                      <div>
+                        <strong>F41.1</strong> - Generalized anxiety disorder
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="vitals">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Patient Vitals Trending for OTP</CardTitle>
+                  <CardDescription>
+                    Monitor vital signs trends to support clinical decision-making and patient safety
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {billingLoading ? (
+                    <div className="space-y-3">
+                      {[1, 2, 3].map((i) => (
+                        <Skeleton key={i} className="h-24 w-full" />
+                      ))}
+                    </div>
+                  ) : !billingData?.vitalsTrending || billingData.vitalsTrending.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Activity className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                      <p>No vitals data available</p>
+                      <p className="text-sm">Vitals will appear as they are recorded during patient encounters</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {billingData.vitalsTrending.map((patient: any, index: number) => (
+                        <div key={index} className="p-4 border rounded-lg">
+                          <div className="flex items-center justify-between mb-3">
+                            <div>
+                              <h4 className="font-medium">{patient.patientName}</h4>
+                              <p className="text-xs text-muted-foreground">
+                                Last measured: {new Date(patient.current.date).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            {/* Blood Pressure */}
+                            <div className="p-3 bg-accent/50 rounded-lg">
+                              <div className="flex items-center justify-between mb-1">
+                                <p className="text-xs font-medium text-muted-foreground">Blood Pressure</p>
+                                {patient.trends.bpTrend === "up" && <TrendingUp className="h-4 w-4 text-red-500" />}
+                                {patient.trends.bpTrend === "down" && (
+                                  <TrendingDown className="h-4 w-4 text-green-500" />
+                                )}
+                                {patient.trends.bpTrend === "stable" && <Minus className="h-4 w-4 text-gray-400" />}
+                              </div>
+                              <div className="text-lg font-bold">
+                                {patient.current.systolic_bp || "—"}/{patient.current.diastolic_bp || "—"}
+                              </div>
+                              {patient.previous && (
+                                <p className="text-xs text-muted-foreground">
+                                  Was: {patient.previous.systolic_bp || "—"}/{patient.previous.diastolic_bp || "—"}
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Heart Rate */}
+                            <div className="p-3 bg-accent/50 rounded-lg">
+                              <div className="flex items-center justify-between mb-1">
+                                <p className="text-xs font-medium text-muted-foreground">Heart Rate</p>
+                                {patient.trends.hrTrend === "up" && <TrendingUp className="h-4 w-4 text-orange-500" />}
+                                {patient.trends.hrTrend === "down" && (
+                                  <TrendingDown className="h-4 w-4 text-blue-500" />
+                                )}
+                                {patient.trends.hrTrend === "stable" && <Minus className="h-4 w-4 text-gray-400" />}
+                              </div>
+                              <div className="text-lg font-bold">{patient.current.heart_rate || "—"} bpm</div>
+                              {patient.previous && (
+                                <p className="text-xs text-muted-foreground">Was: {patient.previous.heart_rate} bpm</p>
+                              )}
+                            </div>
+
+                            {/* Temperature */}
+                            <div className="p-3 bg-accent/50 rounded-lg">
+                              <p className="text-xs font-medium text-muted-foreground mb-1">Temperature</p>
+                              <div className="text-lg font-bold">{patient.current.temperature || "—"}°F</div>
+                              {patient.previous && (
+                                <p className="text-xs text-muted-foreground">Was: {patient.previous.temperature}°F</p>
+                              )}
+                            </div>
+
+                            {/* Weight */}
+                            <div className="p-3 bg-accent/50 rounded-lg">
+                              <div className="flex items-center justify-between mb-1">
+                                <p className="text-xs font-medium text-muted-foreground">Weight</p>
+                                {patient.trends.weightTrend === "up" && (
+                                  <TrendingUp className="h-4 w-4 text-orange-500" />
+                                )}
+                                {patient.trends.weightTrend === "down" && (
+                                  <TrendingDown className="h-4 w-4 text-blue-500" />
+                                )}
+                                {patient.trends.weightTrend === "stable" && <Minus className="h-4 w-4 text-gray-400" />}
+                              </div>
+                              <div className="text-lg font-bold">{patient.current.weight || "—"} lbs</div>
+                              {patient.previous && (
+                                <p className="text-xs text-muted-foreground">Was: {patient.previous.weight} lbs</p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <h4 className="font-medium text-yellow-900 mb-2">Clinical Monitoring for OTP</h4>
+                    <ul className="text-sm text-yellow-800 space-y-1">
+                      <li>• Monitor for signs of methadone toxicity (low BP, slow HR, respiratory depression)</li>
+                      <li>• Watch for cardiac QT prolongation (EKG recommended for doses {">"}100mg)</li>
+                      <li>• Track weight changes that may affect dosing requirements</li>
+                      <li>• Regular vital signs required per SAMHSA OTP guidelines</li>
+                    </ul>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>

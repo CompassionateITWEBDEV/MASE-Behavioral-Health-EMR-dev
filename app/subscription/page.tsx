@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardSidebar } from "@/components/dashboard-sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -41,6 +41,13 @@ import {
   Download,
   Sparkles,
   Menu,
+  Heart,
+  Baby,
+  Stethoscope,
+  Activity,
+  Eye,
+  QrCode,
+  Headphones,
 } from "lucide-react"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 
@@ -49,9 +56,9 @@ interface SubscriptionFeature {
   name: string
   description: string
   icon: any
-  category: "clinical" | "billing" | "integration" | "operations" | "advanced"
+  category: "clinical" | "billing" | "integration" | "operations" | "advanced" | "DEA Compliance" // Added "DEA Compliance"
   enabled: boolean
-  tier: "basic" | "professional" | "enterprise"
+  tier: "basic" | "professional" | "enterprise" | "Premium" // Added "Premium"
   monthlyPrice: number
   usageLimit?: number
   currentUsage?: number
@@ -64,6 +71,18 @@ interface SubscriptionPlan {
   billingCycle: "monthly" | "annual"
   features: string[]
   recommended?: boolean
+}
+
+// Define AddonFeature interface to match the new structure
+interface AddonFeature {
+  id: string
+  name: string
+  icon: any
+  description: string
+  tier: "basic" | "professional" | "enterprise" | "Premium"
+  monthlyPrice: number
+  category: "clinical" | "billing" | "integration" | "operations" | "advanced" | "DEA Compliance"
+  features: string[] // Specific features for the add-on
 }
 
 const subscriptionPlans: SubscriptionPlan[] = [
@@ -196,10 +215,10 @@ const allFeatures: SubscriptionFeature[] = [
     name: "Prior Authorization",
     description: "Automated prior authorization workflows",
     icon: Shield,
-    category: "billing",
     enabled: false,
     tier: "enterprise",
     monthlyPrice: 99,
+    category: "billing",
   },
   {
     id: "otp-bundle",
@@ -320,29 +339,344 @@ const allFeatures: SubscriptionFeature[] = [
   },
 ]
 
+// New section for advanced add-on features
+const advancedAddOnFeatures: AddonFeature[] = [
+  {
+    id: "takehome-diversion-control",
+    name: "Take-Home Diversion Control",
+    icon: QrCode,
+    description:
+      "QR code scanning with GPS verification, facial biometrics, and real-time compliance monitoring for take-home medications",
+    tier: "Premium",
+    monthlyPrice: 199,
+    category: "DEA Compliance",
+    features: [
+      "QR Code Generation on Medication Bottles",
+      "GPS Location Verification (Geofencing)",
+      "Facial Biometric Authentication",
+      "Real-Time Compliance Alerts (6am-11am Dosing Window)",
+      "Travel Exception Workflow with Counselor Approval",
+      "Automatic Callback Triggers for Non-Compliance",
+      "Chain of Custody Tracking from Dispensing to Consumption",
+      "Diversion Risk Scoring with AI Analysis",
+      "Family/Sponsor Notification System",
+      "Device Registration & Multi-Device Fraud Prevention",
+    ],
+  },
+  // Find the advancedAddons array and add this item:
+  {
+    id: "it-support-dashboard",
+    name: "IT Support Dashboard",
+    description: "Remote screen monitoring, ticket management, diagnostics, and real-time client support tools",
+    icon: Headphones, // Use the imported Headphones icon
+    tier: "enterprise", // Assuming IT Support is an enterprise-level feature
+    monthlyPrice: 199,
+    category: "advanced", // Categorized under 'advanced' features
+    features: [
+      "Remote screen viewing & control",
+      "Support ticket management",
+      "Real-time system diagnostics",
+      "Client organization monitoring",
+      "Session recording & playback",
+      "File transfer capabilities",
+      "Live chat with clients",
+      "System health monitoring",
+    ],
+  },
+]
+
+const medicalSpecialties = [
+  {
+    id: "behavioral-health",
+    name: "Behavioral Health / OTP/MAT",
+    icon: Pill,
+    description: "Substance use disorder treatment, addiction medicine, OTP programs",
+    features: [
+      "Methadone/Buprenorphine Dispensing",
+      "COWS/CIWA Assessments",
+      "OTP Bundle Billing",
+      "DEA Form 222 Management",
+      "Take-Home Medication Kits",
+      "SAMHSA/Joint Commission Compliance",
+      "Peer Recovery Support",
+      "42 CFR Part 2 Compliance",
+    ],
+  },
+  {
+    id: "primary-care",
+    name: "Primary Care / Family Medicine",
+    icon: Stethoscope,
+    description: "General medical practice, family medicine, internal medicine",
+    features: [
+      "ICD-10 Diagnosis Coding",
+      "Vitals Trending & History",
+      "Preventive Care Tracking",
+      "Chronic Disease Management",
+      "SOAP Note Templates",
+      "Physical Exam Documentation",
+      "Health Maintenance Reminders",
+      "Annual Wellness Visits",
+    ],
+  },
+  {
+    id: "psychiatry",
+    name: "Psychiatry / Mental Health",
+    icon: Brain,
+    description: "Psychiatric care, mental health treatment, therapy management",
+    features: [
+      "Mental Status Exams (MSE)",
+      "PHQ-9/GAD-7 Assessments",
+      "Medication Management",
+      "DSM-5 Diagnosis Support",
+      "Crisis Assessment Tools",
+      "Therapy Session Notes",
+      "Risk Assessment Protocols",
+      "Collaborative Care Notes",
+    ],
+  },
+  {
+    id: "obgyn",
+    name: "OB/GYN / Women's Health",
+    icon: Baby,
+    description: "Obstetrics, gynecology, women's health services",
+    features: [
+      "Prenatal Care Tracking",
+      "Labor & Delivery Documentation",
+      "Postpartum Follow-up",
+      "Well-Woman Exams",
+      "Contraception Management",
+      "Pregnancy Risk Assessment",
+      "Fetal Development Tracking",
+      "Gynecological Procedures",
+    ],
+  },
+  {
+    id: "cardiology",
+    name: "Cardiology",
+    icon: Heart,
+    description: "Cardiovascular care, heart health management",
+    features: [
+      "ECG/EKG Integration",
+      "Cardiac Risk Assessment",
+      "Stress Test Documentation",
+      "Heart Failure Management",
+      "Anticoagulation Tracking",
+      "Cardiac Event Monitoring",
+      "Intervention Procedures",
+      "Post-Cardiac Care Plans",
+    ],
+  },
+  {
+    id: "dermatology",
+    name: "Dermatology",
+    icon: Eye,
+    description: "Skin care, dermatological procedures, cosmetic treatments",
+    features: [
+      "Lesion Mapping & Tracking",
+      "Biopsy Documentation",
+      "Photo Documentation",
+      "Cosmetic Procedure Notes",
+      "Skin Cancer Screening",
+      "Dermatology Coding (CPT)",
+      "Treatment Progress Photos",
+      "Allergy Documentation",
+    ],
+  },
+  {
+    id: "urgent-care",
+    name: "Urgent Care / Walk-In Clinic",
+    icon: Activity,
+    description: "Urgent care, walk-in clinic, acute care services",
+    features: [
+      "Fast Check-In/Queue Management",
+      "Rapid Assessment Templates",
+      "Work/School Excuse Notes",
+      "Occupational Health Screenings",
+      "Minor Procedures Documentation",
+      "X-Ray/Lab Fast Track",
+      "Workers Comp Integration",
+      "Quick Discharge Instructions",
+    ],
+  },
+  {
+    id: "pediatrics",
+    name: "Pediatrics",
+    icon: Baby,
+    description: "Pediatric care, child health, adolescent medicine",
+    features: [
+      "Growth Chart Tracking",
+      "Immunization Schedules",
+      "Developmental Milestones",
+      "Well-Child Visit Templates",
+      "Pediatric Dosing Calculators",
+      "Parent/Guardian Communication",
+      "School Health Forms",
+      "Adolescent Screening (HEADSSS)",
+    ],
+  },
+  {
+    id: "podiatry",
+    name: "Podiatry / Foot & Ankle",
+    icon: Activity,
+    description: "Podiatric medicine, diabetic foot care, biomechanics, wound care",
+    features: [
+      "Comprehensive Foot Exams (Vascular, Neuro, Derm)",
+      "Diabetic Foot Care Management",
+      "Biomechanical Assessment & Gait Analysis",
+      "Wound Care Documentation (Ulcers, Pressure Injuries)",
+      "Nail Procedures (Ingrown, Fungal, Surgical)",
+      "Orthotic Management & DME",
+      "Vascular Testing (ABI, Doppler)",
+      "Neuropathy Screening (Monofilament, Vibration)",
+    ],
+  },
+  {
+    id: "physical-therapy",
+    name: "Physical Therapy (PT)",
+    icon: Activity,
+    description: "Musculoskeletal rehabilitation, orthopedic therapy, sports medicine",
+    features: [
+      "Initial Evaluations & Re-evals",
+      "ROM/Strength Testing",
+      "Functional Mobility Assessments",
+      "Gait Analysis",
+      "Therapeutic Exercise Documentation",
+      "Manual Therapy Techniques",
+      "Modality Documentation (Ultrasound, E-Stim)",
+      "Home Exercise Program Builder with RTM",
+      "Remote Therapeutic Monitoring (RTM) - CPT 98975-98981",
+      "Patient Compliance Tracking via App",
+      "Progress Tracking with Goals",
+      "PT-Specific CPT Codes (97110, 97140, 97530)",
+    ],
+  },
+  {
+    id: "occupational-therapy",
+    name: "Occupational Therapy (OT)",
+    icon: Heart,
+    description: "ADL training, hand therapy, cognitive rehabilitation, pediatric OT",
+    features: [
+      "ADL/IADL Assessments",
+      "Cognitive Function Testing",
+      "Hand Therapy & Fine Motor",
+      "Sensory Integration",
+      "Pediatric Development Assessments",
+      "Work Hardening Programs",
+      "Adaptive Equipment Recommendations",
+      "Home Safety Evaluations",
+      "Home Exercise Program Builder with RTM",
+      "Remote Therapeutic Monitoring (RTM)",
+      "OT-Specific CPT Codes (97165, 97166, 97167)",
+      "Functional Goal Tracking",
+    ],
+  },
+  {
+    id: "speech-therapy",
+    name: "Speech-Language Pathology (SLP)",
+    icon: MessageSquare,
+    description: "Communication disorders, swallowing therapy, voice disorders",
+    features: [
+      "Speech Intelligibility Assessments",
+      "Language Comprehension Testing",
+      "Articulation & Phonology Evals",
+      "Swallowing/Dysphagia Assessment (FEES, MBSS)",
+      "Voice Disorder Documentation",
+      "Fluency (Stuttering) Therapy",
+      "Augmentative Communication (AAC)",
+      "Pediatric Speech Development",
+      "Cognitive-Communication Disorders",
+      "SLP CPT Codes (92507, 92526, 92610)",
+    ],
+  },
+  {
+    id: "dme-orthotics",
+    name: "DME & Orthotics/Prosthetics",
+    icon: Package,
+    description: "Durable medical equipment, orthotic devices, prosthetic services",
+    features: [
+      "DME Order Management (Wheelchairs, Walkers, Hospital Beds)",
+      "Parachute Health Integration (ePrescribe to 3,000+ Suppliers)",
+      "Verse Medical AI Ordering (Auto Medical Record Extraction)",
+      "Prior Authorization Workflows",
+      "Orthotic Fabrication Documentation",
+      "Prosthetic Fitting & Follow-up",
+      "Custom Device Measurements",
+      "Insurance Eligibility Verification",
+      "Supplier Network Integration",
+      "Delivery Tracking & Coordination",
+      "HCPCS Coding (E-codes, L-codes)",
+      "Patient Training Documentation",
+    ],
+  },
+  {
+    id: "county-health",
+    name: "County Health Department / Public Health",
+    icon: Building2,
+    description: "Public health services for counties serving 100K+ residents",
+    features: [
+      "WIC Program Management (Women, Infants & Children)",
+      "Walk-In Immunization Clinics ($7 Admin Fee)",
+      "Sexual Health Services (HIV, PrEP, STI Testing)",
+      "Maternal & Child Health (Home Visiting, Prenatal Care)",
+      "Communicable Disease Surveillance & Reporting",
+      "TB Case Management & DOT (Directly Observed Therapy)",
+      "Environmental Health Inspections (Food, Water, Septic)",
+      "Family Planning Services",
+      "Community Health Education & Outreach",
+      "Emergency Preparedness & Response",
+      "Patient Portal for County Residents",
+      "State Registry Integration (Immunizations, Disease Reporting)",
+    ],
+  },
+]
+
 export default function SubscriptionPage() {
   const [features, setFeatures] = useState<SubscriptionFeature[]>(allFeatures)
   const [currentPlan] = useState("professional")
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false)
   const [isAddOnOpen, setIsAddOnOpen] = useState(false)
-  const [selectedAddOn, setSelectedAddOn] = useState<SubscriptionFeature | null>(null)
+  const [selectedAddOn, setSelectedAddOn] = useState<SubscriptionFeature | AddonFeature | null>(null) // Updated type
   const [activeTab, setActiveTab] = useState("overview")
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [emrType, setEmrType] = useState<"behavioral" | "primary">("behavioral")
+  const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>(["behavioral-health"])
+  const [isSavingSpecialties, setIsSavingSpecialties] = useState(false)
+
+  // Combine all available features for toggling logic
+  const allAvailableFeatures = [...allFeatures, ...advancedAddOnFeatures]
+
+  useEffect(() => {
+    const loadSpecialties = async () => {
+      try {
+        const response = await fetch("/api/specialty-config")
+        if (response.ok) {
+          const data = await response.json()
+          if (data.specialties && data.specialties.length > 0) {
+            const enabledIds = data.specialties.map((s: any) => s.specialty_id)
+            setSelectedSpecialties(enabledIds)
+          }
+        }
+      } catch (error) {
+        console.error("[v0] Error loading specialties:", error)
+      }
+    }
+    loadSpecialties()
+  }, [])
 
   const toggleFeature = (featureId: string) => {
     setFeatures((prev) =>
       prev.map((f) => {
         if (f.id === featureId) {
-          // Check if feature is available in current plan
           const tierOrder = { basic: 0, professional: 1, enterprise: 2 }
           const currentTierLevel = tierOrder[currentPlan as keyof typeof tierOrder]
           const featureTierLevel = tierOrder[f.tier]
 
           if (featureTierLevel > currentTierLevel && !f.enabled) {
-            // Would need to upgrade or add on
-            setSelectedAddOn(f)
+            // Find the feature in allAvailableFeatures to get its details
+            const featureDetails = allAvailableFeatures.find((feat) => feat.id === featureId)
+            setSelectedAddOn(featureDetails || f) // Use details if found, fallback to f
             setIsAddOnOpen(true)
-            return f
+            return f // Don't change enabled state here, it's handled by the dialog
           }
 
           return { ...f, enabled: !f.enabled }
@@ -352,8 +686,15 @@ export default function SubscriptionPage() {
     )
   }
 
+  // Function to handle enabling add-on features from the dialog
+  const enableAddOnFeature = (featureId: string) => {
+    setFeatures((prev) => prev.map((f) => (f.id === featureId ? { ...f, enabled: true } : f)))
+    // Also update the selectedAddOn state to reflect the enabled feature if it's an add-on
+    setSelectedAddOn((prev) => (prev && prev.id === featureId ? { ...prev, enabled: true } : prev))
+  }
+
   const enabledFeatures = features.filter((f) => f.enabled)
-  const disabledFeatures = features.filter((f) => !f.enabled)
+  const disabledFeatures = features.filter((f) => !f.enabled && f.monthlyPrice > 0) // Only show paid add-ons as disabled
   const monthlyAddOns = enabledFeatures.reduce((sum, f) => sum + f.monthlyPrice, 0)
   const basePlanPrice = subscriptionPlans.find((p) => p.id === currentPlan)?.price || 0
   const totalMonthly = basePlanPrice + monthlyAddOns
@@ -370,6 +711,8 @@ export default function SubscriptionPage() {
         return <Settings className="h-4 w-4" />
       case "advanced":
         return <Sparkles className="h-4 w-4" />
+      case "DEA Compliance": // Added case for DEA Compliance
+        return <QrCode className="h-4 w-4" />
       default:
         return <Package className="h-4 w-4" />
     }
@@ -383,8 +726,35 @@ export default function SubscriptionPage() {
         return <Badge style={{ backgroundColor: "#0891b2", color: "white" }}>Professional</Badge>
       case "enterprise":
         return <Badge style={{ backgroundColor: "#7c3aed", color: "white" }}>Enterprise</Badge>
+      case "Premium": // Added case for Premium tier
+        return <Badge style={{ backgroundColor: "#f59e0b", color: "white" }}>Premium</Badge>
       default:
         return <Badge variant="outline">{tier}</Badge>
+    }
+  }
+
+  const toggleSpecialty = async (specialtyId: string) => {
+    const newSelection = selectedSpecialties.includes(specialtyId)
+      ? selectedSpecialties.filter((id) => id !== specialtyId)
+      : [...selectedSpecialties, specialtyId]
+
+    // Don't allow removing the last specialty
+    if (newSelection.length === 0) return
+
+    setSelectedSpecialties(newSelection)
+
+    // Save to database
+    setIsSavingSpecialties(true)
+    try {
+      await fetch("/api/specialty-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.JSONstringify({ specialtyIds: newSelection }),
+      })
+    } catch (error) {
+      console.error("[v0] Error saving specialties:", error)
+    } finally {
+      setIsSavingSpecialties(false)
     }
   }
 
@@ -493,6 +863,145 @@ export default function SubscriptionPage() {
             </div>
           </div>
 
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                EMR Specialty Configuration
+              </CardTitle>
+              <CardDescription>
+                Select your medical specialties to customize available features, workflows, and templates
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Quick Toggle for Legacy Support */}
+              <div
+                className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-lg"
+                style={{ backgroundColor: "#f0f9ff" }}
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-lg">Quick Setup</h3>
+                    <Badge variant={emrType === "behavioral" ? "default" : "secondary"}>
+                      {emrType === "behavioral" ? "Behavioral Health" : "Primary Care"}
+                    </Badge>
+                  </div>
+                  <p className="text-sm" style={{ color: "#64748b" }}>
+                    Quick toggle between behavioral health and primary care, or customize with multiple specialties
+                    below
+                  </p>
+                </div>
+                <div className="flex items-center gap-4 flex-shrink-0">
+                  <div className="flex flex-col items-end">
+                    <span className="text-xs font-medium" style={{ color: "#64748b" }}>
+                      Behavioral Health
+                    </span>
+                  </div>
+                  <Switch
+                    checked={emrType === "primary"}
+                    onCheckedChange={(checked) => {
+                      setEmrType(checked ? "primary" : "behavioral")
+                      // Auto-select the corresponding specialty
+                      setSelectedSpecialties(checked ? ["primary-care"] : ["behavioral-health"])
+                    }}
+                    className="data-[state=checked]:bg-cyan-600"
+                  />
+                  <div className="flex flex-col items-start">
+                    <span className="text-xs font-medium" style={{ color: "#64748b" }}>
+                      Primary Care
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Multiple Specialty Selection */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold">Active Specialties</h4>
+                  <Badge variant="outline">{selectedSpecialties.length} selected</Badge>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {medicalSpecialties.map((specialty) => {
+                    const Icon = specialty.icon
+                    const isSelected = selectedSpecialties.includes(specialty.id)
+
+                    return (
+                      <Card
+                        key={specialty.id}
+                        className={`cursor-pointer transition-all hover:shadow-md ${
+                          isSelected ? "ring-2 ring-cyan-600 bg-cyan-50" : ""
+                        }`}
+                        onClick={() => toggleSpecialty(specialty.id)}
+                      >
+                        <CardHeader className="pb-3">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-2">
+                              <div
+                                className={`p-2 rounded-lg ${isSelected ? "bg-cyan-600" : "bg-gray-100"}`}
+                                style={isSelected ? { color: "white" } : { color: "#64748b" }}
+                              >
+                                <Icon className="h-5 w-5" />
+                              </div>
+                              <div>
+                                <CardTitle className="text-base">{specialty.name}</CardTitle>
+                              </div>
+                            </div>
+                            {isSelected && <Check className="h-5 w-5 text-cyan-600" />}
+                          </div>
+                          <CardDescription className="text-xs">{specialty.description}</CardDescription>
+                        </CardHeader>
+                        <CardContent className="pt-0">
+                          <div className="space-y-1">
+                            {specialty.features.slice(0, 4).map((feature, idx) => (
+                              <div key={idx} className="flex items-center gap-2 text-xs" style={{ color: "#64748b" }}>
+                                <div
+                                  className="w-1 h-1 rounded-full"
+                                  style={{ backgroundColor: isSelected ? "#06b6d4" : "#cbd5e1" }}
+                                />
+                                {feature}
+                              </div>
+                            ))}
+                            {specialty.features.length > 4 && (
+                              <div className="text-xs" style={{ color: "#94a3b8" }}>
+                                +{specialty.features.length - 4} more features
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Selected Specialties Summary */}
+              {selectedSpecialties.length > 0 && (
+                <div className="p-4 rounded-lg border-2 border-cyan-200 bg-cyan-50">
+                  <h4 className="font-semibold mb-3 flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-cyan-600" />
+                    Your EMR is configured for:
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                    {selectedSpecialties.map((specId) => {
+                      const specialty = medicalSpecialties.find((s) => s.id === specId)
+                      if (!specialty) return null
+                      const Icon = specialty.icon
+                      return (
+                        <div key={specId} className="flex items-center gap-2 p-2 rounded bg-white text-sm font-medium">
+                          <Icon className="h-4 w-4 text-cyan-600" />
+                          {specialty.name.split(" / ")[0]}
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <p className="mt-3 text-xs" style={{ color: "#64748b" }}>
+                    All specialty-specific templates, workflows, and features are now enabled in your EMR.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* Current Plan Summary */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
             <Card>
@@ -569,6 +1078,9 @@ export default function SubscriptionPage() {
                 </TabsTrigger>
                 <TabsTrigger value="advanced" className="text-xs md:text-sm">
                   Advanced
+                </TabsTrigger>
+                <TabsTrigger value="DEA Compliance" className="text-xs md:text-sm">
+                  DEA Compliance
                 </TabsTrigger>
                 <TabsTrigger value="usage" className="text-xs md:text-sm">
                   Usage
@@ -759,6 +1271,70 @@ export default function SubscriptionPage() {
               </TabsContent>
             ))}
 
+            {/* Add DEA Compliance Tab */}
+            <TabsContent value="DEA Compliance" className="space-y-4">
+              <Card>
+                <CardHeader className="pb-2 md:pb-4">
+                  <CardTitle className="flex items-center gap-2 capitalize text-base md:text-lg">
+                    <QrCode className="h-5 w-5" />
+                    DEA Compliance Features
+                  </CardTitle>
+                  <CardDescription className="text-xs md:text-sm">
+                    Manage DEA compliance features for your clinic
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3 md:space-y-4">
+                    {features
+                      .filter((f) => f.category === "DEA Compliance")
+                      .map((feature) => (
+                        <div
+                          key={feature.id}
+                          className="flex flex-col sm:flex-row sm:items-center justify-between p-3 md:p-4 rounded-lg border gap-3"
+                          style={{
+                            borderColor: feature.enabled ? "#86efac" : "#e2e8f0",
+                            backgroundColor: feature.enabled ? "#f0fdf4" : "#ffffff",
+                          }}
+                        >
+                          <div className="flex items-start sm:items-center gap-3 md:gap-4">
+                            <div
+                              className="p-2 rounded-lg flex-shrink-0"
+                              style={{ backgroundColor: feature.enabled ? "#dcfce7" : "#f1f5f9" }}
+                            >
+                              <feature.icon
+                                className="h-5 w-5 md:h-6 md:w-6"
+                                style={{ color: feature.enabled ? "#16a34a" : "#64748b" }}
+                              />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="font-semibold text-sm md:text-base">{feature.name}</p>
+                                {getTierBadge(feature.tier)}
+                              </div>
+                              <p className="text-xs md:text-sm" style={{ color: "#64748b" }}>
+                                {feature.description}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between sm:justify-end gap-4 pl-11 sm:pl-0">
+                            <div className="text-left sm:text-right">
+                              {feature.monthlyPrice > 0 ? (
+                                <p className="font-semibold text-sm md:text-base">${feature.monthlyPrice}/mo</p>
+                              ) : (
+                                <p className="text-xs md:text-sm" style={{ color: "#16a34a" }}>
+                                  Included
+                                </p>
+                              )}
+                            </div>
+                            <Switch checked={feature.enabled} onCheckedChange={() => toggleFeature(feature.id)} />
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
             <TabsContent value="usage" className="space-y-4">
               <Card>
                 <CardHeader className="pb-2 md:pb-4">
@@ -854,15 +1430,18 @@ export default function SubscriptionPage() {
                     </div>
                     {getTierBadge(selectedAddOn.tier)}
                   </div>
-                  <div className="flex items-center justify-between p-3 md:p-4 border rounded-lg">
-                    <div>
-                      <p className="font-medium text-sm md:text-base">Add-On Price</p>
-                      <p className="text-xs md:text-sm" style={{ color: "#64748b" }}>
-                        Monthly recurring charge
-                      </p>
+                  {/* Displaying Add-On Price */}
+                  {selectedAddOn.monthlyPrice > 0 && (
+                    <div className="flex items-center justify-between p-3 md:p-4 border rounded-lg">
+                      <div>
+                        <p className="font-medium text-sm md:text-base">Add-On Price</p>
+                        <p className="text-xs md:text-sm" style={{ color: "#64748b" }}>
+                          Monthly recurring charge
+                        </p>
+                      </div>
+                      <p className="text-lg md:text-xl font-bold">${selectedAddOn.monthlyPrice}/mo</p>
                     </div>
-                    <p className="text-lg md:text-xl font-bold">${selectedAddOn.monthlyPrice}/mo</p>
-                  </div>
+                  )}
                 </div>
               )}
               <DialogFooter className="flex-col sm:flex-row gap-2">
@@ -873,12 +1452,12 @@ export default function SubscriptionPage() {
                   className="w-full sm:w-auto"
                   onClick={() => {
                     if (selectedAddOn) {
-                      setFeatures((prev) => prev.map((f) => (f.id === selectedAddOn.id ? { ...f, enabled: true } : f)))
+                      enableAddOnFeature(selectedAddOn.id) // Use the new function
                     }
                     setIsAddOnOpen(false)
                   }}
                 >
-                  Enable (+${selectedAddOn?.monthlyPrice}/mo)
+                  Enable {selectedAddOn?.monthlyPrice ? `(+${selectedAddOn.monthlyPrice}/mo)` : ""}
                 </Button>
               </DialogFooter>
             </DialogContent>

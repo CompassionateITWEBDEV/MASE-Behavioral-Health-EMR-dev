@@ -52,6 +52,8 @@ import {
   Trophy,
   Zap,
   Puzzle,
+  Syringe,
+  QrCode,
 } from "lucide-react"
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
@@ -547,6 +549,11 @@ export default function PatientPortalPage() {
               <Heart className="mr-1 h-4 w-4" />
               Home
             </TabsTrigger>
+            {/* CHANGE: Added Take-Home Dose tab for patient QR verification */}
+            <TabsTrigger value="takehome">
+              <QrCode className="mr-1 h-4 w-4" />
+              Take-Home
+            </TabsTrigger>
             <TabsTrigger value="documents">
               <FileText className="mr-1 h-4 w-4" />
               Documents
@@ -696,6 +703,38 @@ export default function PatientPortalPage() {
                     </Button>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Take-Home Dose Tab */}
+          <TabsContent value="takehome" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <QrCode className="h-5 w-5" />
+                  Take-Home Dose Verification
+                </CardTitle>
+                <CardDescription>Scan your daily take-home dose QR code to confirm administration.</CardDescription>
+              </CardHeader>
+              <CardContent className="text-center">
+                <div
+                  className="mx-auto mb-6 flex items-center justify-center h-64 w-64 rounded-lg border-4 border-dashed p-5"
+                  style={{ backgroundColor: "#f8fafc", borderColor: "#a0aec0" }}
+                >
+                  <div className="text-center">
+                    <QrCode className="h-24 w-24 mx-auto mb-4 text-gray-400" />
+                    <p className="text-lg font-medium text-gray-700">Scan QR Code</p>
+                    <p className="text-sm text-gray-500 mt-2">
+                      Point your camera at the QR code provided by your clinic.
+                    </p>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-600">
+                  Once scanned, the system will confirm your daily take-home dose. Please ensure you are in a well-lit
+                  area.
+                </p>
+                {/* You would typically integrate a QR code scanning library here */}
               </CardContent>
             </Card>
           </TabsContent>
@@ -1360,7 +1399,7 @@ export default function PatientPortalPage() {
                   <TabsContent value="crisis">
                     <div className="space-y-4">
                       {resources?.crisisLines?.map((line: any, i: number) => (
-                        <Card key={i} className="border border-red-200" style={{ backgroundColor: "#fef2f2" }}>
+                        <Card key={i} className="border border-red-200" style={{ backgroundColor: "#fef3c7" }}>
                           <CardContent className="pt-4">
                             <div className="flex items-center justify-between">
                               <div>
@@ -1505,7 +1544,7 @@ export default function PatientPortalPage() {
                         <div>
                           <Badge style={{ backgroundColor: "#dcfce7", color: "#16a34a" }}>Upcoming</Badge>
                           <h4 className="font-semibold mt-2">{patientInfo?.nextAppointment}</h4>
-                          <p className="text-sm text-muted-foreground">with {patientInfo?.counselor}</p>
+                          <p className="text-sm text-muted-foreground">{patientInfo?.counselor}</p>
                         </div>
                         <div className="flex gap-2">
                           <Button variant="outline" size="sm">
@@ -1677,6 +1716,45 @@ export default function PatientPortalPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Health Records Tab - ADDED */}
+          <TabsContent value="health-records" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Medical History</CardTitle>
+                <CardDescription>Your complete health record</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {/* Immunization Records section */}
+                  <div>
+                    <h3 className="font-medium text-sm mb-2">Immunization Records</h3>
+                    <div className="space-y-2">
+                      {[
+                        { vaccine: "COVID-19 (Moderna)", date: "Mar 15, 2025", provider: "Dr. Smith" },
+                        { vaccine: "Influenza (Quadrivalent)", date: "Oct 12, 2024", provider: "Dr. Johnson" },
+                        { vaccine: "Tdap Booster", date: "Jan 8, 2024", provider: "Dr. Smith" },
+                      ].map((vax, i) => (
+                        <div key={i} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <Syringe className="h-4 w-4 text-blue-600" />
+                            <div>
+                              <p className="text-sm font-medium">{vax.vaccine}</p>
+                              <p className="text-xs text-muted-foreground">{vax.provider}</p>
+                            </div>
+                          </div>
+                          <span className="text-xs text-muted-foreground">{vax.date}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Example of existing medical history sections (if any) would go here */}
+                  {/* For this merge, we are only adding the Immunization Records section */}
                 </div>
               </CardContent>
             </Card>

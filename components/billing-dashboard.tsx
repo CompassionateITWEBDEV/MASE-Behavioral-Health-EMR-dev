@@ -59,6 +59,12 @@ interface PMPData {
   }>
 }
 
+interface SpecialtyData {
+  specialties: Array<{
+    specialty_id: string
+  }>
+}
+
 export function BillingDashboard() {
   const router = useRouter()
   const {
@@ -67,6 +73,8 @@ export function BillingDashboard() {
     mutate: mutateBilling,
   } = useSWR<BillingData>("/api/otp-billing", fetcher)
   const { data: pmpData, isLoading: pmpLoading, mutate: mutatePMP } = useSWR<PMPData>("/api/pmp", fetcher)
+  const { data: specialtyData } = useSWR<SpecialtyData>("/api/specialty-config", fetcher)
+  const activeSpecialties = specialtyData?.specialties?.map((s) => s.specialty_id) || []
   const [isProcessing, setIsProcessing] = useState(false)
 
   const handleProcessWeeklyClaims = async () => {
@@ -411,6 +419,200 @@ export function BillingDashboard() {
                 )}
               </CardContent>
             </Card>
+
+            {activeSpecialties.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Specialty-Specific Billing Codes</CardTitle>
+                  <CardDescription>Common CPT codes for your active specialties</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {activeSpecialties.includes("podiatry") && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-sm">Podiatry CPT Codes</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>11055 - Paring/Cutting Corn</span>
+                            <span className="font-medium">$42</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>11056 - 2-4 Lesions</span>
+                            <span className="font-medium">$55</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>11720 - Debridement Nail</span>
+                            <span className="font-medium">$38</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>29540 - Strapping Ankle</span>
+                            <span className="font-medium">$48</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {activeSpecialties.includes("obgyn") && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-sm">OB/GYN CPT Codes</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>99213 - Office Visit Est</span>
+                            <span className="font-medium">$112</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>76805 - Ultrasound OB</span>
+                            <span className="font-medium">$245</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>88141 - Pap Smear</span>
+                            <span className="font-medium">$48</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>59400 - OB Care Total</span>
+                            <span className="font-medium">$4,200</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {activeSpecialties.includes("psychiatry") && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-sm">Psychiatry CPT Codes</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>90791 - Psych Diagnostic</span>
+                            <span className="font-medium">$180</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>90832 - Therapy 30 min</span>
+                            <span className="font-medium">$85</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>90834 - Therapy 45 min</span>
+                            <span className="font-medium">$125</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>90863 - Pharmacologic</span>
+                            <span className="font-medium">$95</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {activeSpecialties.includes("cardiology") && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-sm">Cardiology CPT Codes</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>93000 - ECG Complete</span>
+                            <span className="font-medium">$48</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>93306 - Echo Complete</span>
+                            <span className="font-medium">$420</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>93015 - Stress Test</span>
+                            <span className="font-medium">$285</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>93224 - Holter Monitor</span>
+                            <span className="font-medium">$195</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {activeSpecialties.includes("dermatology") && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-sm">Dermatology CPT Codes</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>11100 - Skin Biopsy</span>
+                            <span className="font-medium">$125</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>17000 - Destruction Lesion</span>
+                            <span className="font-medium">$145</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>11400 - Excision Lesion</span>
+                            <span className="font-medium">$165</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>96910 - Phototherapy</span>
+                            <span className="font-medium">$75</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {activeSpecialties.includes("pediatrics") && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-sm">Pediatrics CPT Codes</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>99381 - Well Child New</span>
+                            <span className="font-medium">$165</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>99391 - Well Child Est</span>
+                            <span className="font-medium">$145</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>90460 - Immunization</span>
+                            <span className="font-medium">$28</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>96110 - Dev Screen</span>
+                            <span className="font-medium">$32</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {activeSpecialties.includes("urgent-care") && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="text-sm">Urgent Care CPT Codes</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                          <div className="flex justify-between text-sm">
+                            <span>99281 - ED Visit Level 1</span>
+                            <span className="font-medium">$85</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>99282 - ED Visit Level 2</span>
+                            <span className="font-medium">$135</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>99283 - ED Visit Level 3</span>
+                            <span className="font-medium">$195</span>
+                          </div>
+                          <div className="flex justify-between text-sm">
+                            <span>99284 - ED Visit Level 4</span>
+                            <span className="font-medium">$310</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </TabsContent>
 

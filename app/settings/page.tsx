@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
-import { Save, Shield, Menu } from "lucide-react"
+import { Save, Shield, Menu, Check } from "lucide-react"
 import Link from "next/link"
 
 export default function SettingsPage() {
@@ -74,6 +74,9 @@ export default function SettingsPage() {
                 </TabsTrigger>
                 <TabsTrigger value="appearance" className="text-xs md:text-sm">
                   Appearance
+                </TabsTrigger>
+                <TabsTrigger value="integrations" className="text-xs md:text-sm">
+                  Integrations
                 </TabsTrigger>
               </TabsList>
             </div>
@@ -424,37 +427,88 @@ export default function SettingsPage() {
                   <div className="space-y-4">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="space-y-0.5">
-                        <Label className="text-sm">Default Billing Method</Label>
-                        <p className="text-xs md:text-sm text-muted-foreground">Preferred billing approach</p>
+                        <Label htmlFor="defaultBillingMethod" className="text-sm">
+                          Default Billing Method
+                        </Label>
+                        <Select defaultValue="bundle">
+                          <SelectTrigger className="w-full sm:w-40">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="bundle">OTP Bundle</SelectItem>
+                            <SelectItem value="apg">APG Method</SelectItem>
+                            <SelectItem value="auto">Auto-Select</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
-                      <Select defaultValue="bundle">
-                        <SelectTrigger className="w-full sm:w-40">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="bundle">OTP Bundle</SelectItem>
-                          <SelectItem value="apg">APG Method</SelectItem>
-                          <SelectItem value="auto">Auto-Select</SelectItem>
-                        </SelectContent>
-                      </Select>
                     </div>
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="space-y-0.5">
-                        <Label className="text-sm">Auto-Submit Claims</Label>
+                        <Label htmlFor="autoSubmitClaims" className="text-sm">
+                          Auto-Submit Claims
+                        </Label>
+                        <Switch defaultChecked />
+                      </div>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="space-y-0.5">
+                        <Label htmlFor="pmpIntegration" className="text-sm">
+                          PMP Integration
+                        </Label>
+                        <Switch defaultChecked />
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2 md:pb-4">
+                  <CardTitle className="text-base md:text-lg">DME Integrations</CardTitle>
+                  <CardDescription className="text-xs md:text-sm">
+                    Configure Parachute Health and Verse Medical API connections
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="parachute-api">Parachute Health API Key</Label>
+                      <Input
+                        id="parachute-api"
+                        type="password"
+                        placeholder="Enter Parachute Health API key"
+                        className="font-mono text-xs md:text-sm"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Connect to ePrescribe DME orders to 3,000+ suppliers
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="verse-api">Verse Medical API Key</Label>
+                      <Input
+                        id="verse-api"
+                        type="password"
+                        placeholder="Enter Verse Medical API key"
+                        className="font-mono text-xs md:text-sm"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Enable AI-powered DME ordering with automatic medical record extraction
+                      </p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2">
+                      <div className="space-y-0.5">
+                        <Label className="text-sm">Enable DME ePrescribing</Label>
                         <p className="text-xs md:text-sm text-muted-foreground">
-                          Automatically submit completed claims
+                          Activate third-party DME integrations
                         </p>
                       </div>
                       <Switch defaultChecked />
                     </div>
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div className="space-y-0.5">
-                        <Label className="text-sm">PMP Integration</Label>
-                        <p className="text-xs md:text-sm text-muted-foreground">Enable Michigan PMP monitoring</p>
-                      </div>
-                      <Switch defaultChecked />
-                    </div>
                   </div>
+                  <Button className="w-full sm:w-auto">
+                    <Check className="mr-2 h-4 w-4" />
+                    Save Integration Settings
+                  </Button>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -472,43 +526,251 @@ export default function SettingsPage() {
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="space-y-0.5">
                         <Label className="text-sm">Theme</Label>
-                        <p className="text-xs md:text-sm text-muted-foreground">Choose your preferred theme</p>
+                        <Select defaultValue="light">
+                          <SelectTrigger className="w-full sm:w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="light">Light</SelectItem>
+                            <SelectItem value="dark">Dark</SelectItem>
+                            <SelectItem value="system">System</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
-                      <Select defaultValue="light">
-                        <SelectTrigger className="w-full sm:w-32">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="light">Light</SelectItem>
-                          <SelectItem value="dark">Dark</SelectItem>
-                          <SelectItem value="system">System</SelectItem>
-                        </SelectContent>
-                      </Select>
                     </div>
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="space-y-0.5">
                         <Label className="text-sm">Compact Mode</Label>
-                        <p className="text-xs md:text-sm text-muted-foreground">Reduce spacing for more content</p>
+                        <Switch />
                       </div>
-                      <Switch />
                     </div>
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="space-y-0.5">
                         <Label className="text-sm">Font Size</Label>
-                        <p className="text-xs md:text-sm text-muted-foreground">Adjust text size for readability</p>
+                        <Select defaultValue="medium">
+                          <SelectTrigger className="w-full sm:w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="small">Small</SelectItem>
+                            <SelectItem value="medium">Medium</SelectItem>
+                            <SelectItem value="large">Large</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
-                      <Select defaultValue="medium">
-                        <SelectTrigger className="w-full sm:w-32">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="small">Small</SelectItem>
-                          <SelectItem value="medium">Medium</SelectItem>
-                          <SelectItem value="large">Large</SelectItem>
-                        </SelectContent>
-                      </Select>
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="integrations" className="space-y-4 md:space-y-6">
+              <Card>
+                <CardHeader className="pb-2 md:pb-4">
+                  <CardTitle className="text-base md:text-lg">Vonage Fax Integration</CardTitle>
+                  <CardDescription className="text-xs md:text-sm">
+                    Send and receive faxes with AI-powered document processing
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="vonage-api-key">Vonage API Key</Label>
+                      <Input
+                        id="vonage-api-key"
+                        type="password"
+                        placeholder="Enter Vonage API key"
+                        className="font-mono text-xs md:text-sm"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="vonage-secret">Vonage API Secret</Label>
+                      <Input
+                        id="vonage-secret"
+                        type="password"
+                        placeholder="Enter Vonage API secret"
+                        className="font-mono text-xs md:text-sm"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="vonage-fax-number">Vonage Fax Number</Label>
+                      <Input
+                        id="vonage-fax-number"
+                        type="tel"
+                        placeholder="+1 (555) 123-4567"
+                        className="text-xs md:text-sm"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Automatically process incoming medical records via AI OCR
+                      </p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2">
+                      <div className="space-y-0.5">
+                        <Label className="text-sm">Enable AI Document Processing</Label>
+                        <p className="text-xs md:text-sm text-muted-foreground">
+                          Auto-extract data from faxed medical records
+                        </p>
+                      </div>
+                      <Switch defaultChecked />
+                    </div>
+                  </div>
+                  <Button className="w-full sm:w-auto">Save Fax Settings</Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2 md:pb-4">
+                  <CardTitle className="text-base md:text-lg">Twilio SMS/Voice Integration</CardTitle>
+                  <CardDescription className="text-xs md:text-sm">
+                    Send appointment reminders and enable 2-way patient messaging
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="twilio-sid">Twilio Account SID</Label>
+                      <Input
+                        id="twilio-sid"
+                        type="text"
+                        placeholder="Enter Twilio Account SID"
+                        className="font-mono text-xs md:text-sm"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="twilio-token">Twilio Auth Token</Label>
+                      <Input
+                        id="twilio-token"
+                        type="password"
+                        placeholder="Enter Twilio Auth Token"
+                        className="font-mono text-xs md:text-sm"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="twilio-phone">Twilio Phone Number</Label>
+                      <Input
+                        id="twilio-phone"
+                        type="tel"
+                        placeholder="+1 (555) 123-4567"
+                        className="text-xs md:text-sm"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        HIPAA-compliant SMS reminders and two-way patient communication
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm">Enable SMS</Label>
+                        <Switch defaultChecked />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-sm">Enable Voice Calls</Label>
+                        <Switch defaultChecked />
+                      </div>
+                    </div>
+                  </div>
+                  <Button className="w-full sm:w-auto">Save Twilio Settings</Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2 md:pb-4">
+                  <CardTitle className="text-base md:text-lg">State PDMP Integration</CardTitle>
+                  <CardDescription className="text-xs md:text-sm">
+                    Automatic controlled substance prescription monitoring
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="pdmp-state">State</Label>
+                      <select
+                        id="pdmp-state"
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      >
+                        <option value="">Select state</option>
+                        <option value="MI">Michigan (MAPS)</option>
+                        <option value="CA">California (CURES)</option>
+                        <option value="NY">New York (I-STOP)</option>
+                        <option value="TX">Texas (PMP)</option>
+                        <option value="FL">Florida (E-FORCSE)</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="pdmp-username">PDMP Username</Label>
+                      <Input
+                        id="pdmp-username"
+                        type="text"
+                        placeholder="Enter PDMP username"
+                        className="text-xs md:text-sm"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="pdmp-password">PDMP Password</Label>
+                      <Input
+                        id="pdmp-password"
+                        type="password"
+                        placeholder="Enter PDMP password"
+                        className="text-xs md:text-sm"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Required for prescribing controlled substances (DEA Schedule II-V)
+                      </p>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2">
+                      <div className="space-y-0.5">
+                        <Label className="text-sm">Auto-Check Before Prescribing</Label>
+                        <p className="text-xs md:text-sm text-muted-foreground">
+                          Automatically query PDMP for controlled substances
+                        </p>
+                      </div>
+                      <Switch defaultChecked />
+                    </div>
+                  </div>
+                  <Button className="w-full sm:w-auto">Save PDMP Settings</Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2 md:pb-4">
+                  <CardTitle className="text-base md:text-lg">Surescripts E-Prescribing Network</CardTitle>
+                  <CardDescription className="text-xs md:text-sm">
+                    National e-prescribing network for electronic prescriptions
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="surescripts-account">Surescripts Account ID</Label>
+                      <Input
+                        id="surescripts-account"
+                        type="text"
+                        placeholder="Enter Surescripts Account ID"
+                        className="font-mono text-xs md:text-sm"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="surescripts-site">Surescripts Site ID</Label>
+                      <Input
+                        id="surescripts-site"
+                        type="text"
+                        placeholder="Enter Surescripts Site ID"
+                        className="font-mono text-xs md:text-sm"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="surescripts-status">Certification Status</Label>
+                      <select
+                        id="surescripts-status"
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      >
+                        <option value="test">Testing</option>
+                        <option value="certified">Certified</option>
+                        <option value="production">Production</option>
+                      </select>
+                      <p className="text-xs text-muted-foreground">Connect to 70,000+ pharmacies nationwide</p>
+                    </div>
+                  </div>
+                  <Button className="w-full sm:w-auto">Save Surescripts Settings</Button>
                 </CardContent>
               </Card>
             </TabsContent>

@@ -43,6 +43,14 @@ import {
   ChevronRight,
   Handshake,
   HeartHandshake,
+  Target,
+  Network,
+  Truck,
+  Flag as Flask,
+  Dumbbell,
+  QrCode,
+  Headphones,
+  FileBarChart,
   type LucideIcon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -118,6 +126,8 @@ const navigationCategories: NavCategory[] = [
       { icon: Send, label: "E-Prescribing", href: "/e-prescribing", count: 3 },
       { icon: Syringe, label: "Methadone Dispensing", href: "/dispensing", count: 12 },
       { icon: PackageCheck, label: "Take-Home Mgmt", href: "/takehome", count: 8 },
+      { icon: Package, label: "Take-Home Bottles", href: "/dispensing/takehome-bottles", count: 12 },
+      { icon: QrCode, label: "Diversion Control", href: "/takehome-diversion", count: 3, highlight: "alert" },
       { icon: Archive, label: "Inventory", href: "/inventory" },
       { icon: FileSignature, label: "DEA Form 222", href: "/form-222", count: 2 },
       { icon: Pill, label: "PMP Monitoring", href: "/pmp" },
@@ -126,7 +136,20 @@ const navigationCategories: NavCategory[] = [
   {
     label: "Lab & Diagnostics",
     icon: Beaker,
-    items: [{ icon: Beaker, label: "Lab Integration", href: "/lab-integration", count: 7 }],
+    items: [
+      { icon: Beaker, label: "Lab Integration", href: "/lab-integration", count: 7 },
+      { icon: Flask, label: "Toxicology Lab", href: "/toxicology", count: 3 },
+      { icon: Syringe, label: "Vaccinations", href: "/vaccinations", count: 23 },
+    ],
+  },
+  {
+    label: "Ancillary Services",
+    icon: Heart,
+    items: [
+      { icon: Truck, label: "DME Management", href: "/dme-management", count: 5 },
+      { icon: Dumbbell, label: "Rehabilitation", href: "/rehabilitation", count: 8 },
+      { icon: Building2, label: "County Health System", href: "/county-health", count: 12 },
+    ],
   },
   {
     label: "Billing & Insurance",
@@ -148,6 +171,7 @@ const navigationCategories: NavCategory[] = [
       { icon: MessageSquare, label: "Messages", href: "/communications", count: 4 },
       { icon: Bell, label: "Patient Reminders", href: "/patient-reminders", count: 5 },
       { icon: Handshake, label: "Provider Collaboration", href: "/provider-collaboration", count: 3 },
+      { icon: Network, label: "HIE Network", href: "/hie-network", count: 2 },
     ],
   },
   {
@@ -156,6 +180,7 @@ const navigationCategories: NavCategory[] = [
     items: [
       { icon: TrendingUp, label: "Advanced Reports", href: "/reports" },
       { icon: BarChart3, label: "Analytics", href: "/analytics" },
+      { icon: Target, label: "MIPS Quality", href: "/quality-dashboard" }, // Added MIPS Quality Dashboard link
     ],
   },
   {
@@ -174,6 +199,8 @@ const navigationCategories: NavCategory[] = [
       { icon: Activity, label: "Staff Workflows", href: "/workflows", count: 3 },
       { icon: Building2, label: "Facility Mgmt", href: "/facility", count: 4 },
       { icon: Crown, label: "Subscription", href: "/subscription", highlight: "premium" },
+      { icon: Headphones, label: "IT Support", href: "/it-support", highlight: "premium" }, // Added IT Support Dashboard link
+      { icon: FileBarChart, label: "System Report", href: "/system-report", highlight: "premium" }, // Added System Report link
       { icon: Settings, label: "Settings", href: "/settings" },
     ],
   },
