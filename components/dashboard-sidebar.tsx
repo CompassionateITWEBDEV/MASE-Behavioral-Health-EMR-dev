@@ -74,13 +74,13 @@ interface NavCategory {
   defaultOpen?: boolean
 }
 
-const navigationCategories: NavCategory[] = [
+const getNavigationCategories = (isSuperAdmin: boolean): NavCategory[] => [
   {
     label: "Overview",
     icon: Home,
     defaultOpen: true,
     items: [
-      { icon: Home, label: "Dashboard", href: "/" },
+      { icon: Home, label: "Dashboard", href: isSuperAdmin ? "/super-admin/dashboard" : "/landing" },
       { icon: Clock, label: "Check-In Queue", href: "/check-in", count: 5 },
       { icon: ClipboardCheck, label: "My Work", href: "/my-work", count: 6 },
       { icon: MessageSquare, label: "Notifications", href: "/notifications", count: 7 },
@@ -208,6 +208,10 @@ const navigationCategories: NavCategory[] = [
 
 export function DashboardSidebar() {
   const pathname = usePathname()
+
+  const isSuperAdmin = pathname.startsWith("/super-admin")
+
+  const navigationCategories = getNavigationCategories(isSuperAdmin)
 
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {}

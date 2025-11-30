@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { usePathname } from "next/navigation"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardSidebar } from "@/components/dashboard-sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -642,12 +643,25 @@ export default function SubscriptionPage() {
   const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>(["behavioral-health"])
   const [isSavingSpecialties, setIsSavingSpecialties] = useState(false)
 
+  const pathname = usePathname()
+  const isSuperAdmin =
+    pathname.startsWith("/super-admin") ||
+    (typeof window !== "undefined" && window.location.pathname.includes("super-admin"))
+
   // Combine all available features for toggling logic
   const allAvailableFeatures = [...allFeatures, ...advancedAddOnFeatures]
 
   useEffect(() => {
     const loadSpecialties = async () => {
       try {
+        if (isSuperAdmin) {
+          const allSpecialtyIds = medicalSpecialties.map((s) => s.id)
+          setSelectedSpecialties(allSpecialtyIds)
+          // Also enable all features for super admin testing
+          setFeatures((prev) => prev.map((f) => ({ ...f, enabled: true })))
+          return
+        }
+
         const response = await fetch("/api/specialty-config")
         if (response.ok) {
           const data = await response.json()
@@ -661,7 +675,7 @@ export default function SubscriptionPage() {
       }
     }
     loadSpecialties()
-  }, [])
+  }, [isSuperAdmin])
 
   const toggleFeature = (featureId: string) => {
     setFeatures((prev) =>

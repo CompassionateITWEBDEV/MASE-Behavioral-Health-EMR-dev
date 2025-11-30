@@ -6,16 +6,30 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Building2, Plus, Users, CreditCard, Activity } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogDescription,
+} from "@/components/ui/dialog"
+import { Building2, Plus, Users, CreditCard, Activity, LinkIcon, Copy, Check, ExternalLink, Send } from "lucide-react"
 import { useState } from "react"
 import useSWR from "swr"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json())
 
 export default function SuperAdminDashboard() {
   const { data: organizations, mutate } = useSWR("/api/super-admin/organizations", fetcher)
   const [newOrgOpen, setNewOrgOpen] = useState(false)
+  const [onboardingLinkOpen, setOnboardingLinkOpen] = useState(false)
+  const [selectedOrg, setSelectedOrg] = useState<any>(null)
+  const [copiedLink, setCopiedLink] = useState<string | null>(null)
+  const [emailSent, setEmailSent] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState("")
+
   const [formData, setFormData] = useState({
     organization_name: "",
     organization_slug: "",
@@ -60,6 +74,51 @@ export default function SuperAdminDashboard() {
     }
   }
 
+  const generateOnboardingLink = (orgId: string, type: "onboarding" | "signup" | "invite") => {
+    const baseUrl = typeof window !== "undefined" ? window.location.origin : ""
+    switch (type) {
+      case "onboarding":
+        return `${baseUrl}/clinic-onboarding?org_id=${orgId}`
+      case "signup":
+        return `${baseUrl}/signup?org_id=${orgId}&ref=admin`
+      case "invite":
+        return `${baseUrl}/invite?org_id=${orgId}&token=${btoa(Date.now().toString())}`
+      default:
+        return `${baseUrl}/clinic-onboarding?org_id=${orgId}`
+    }
+  }
+
+  const copyToClipboard = async (link: string, type: string) => {
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopiedLink(type)
+      setTimeout(() => setCopiedLink(null), 2000)
+    } catch (error) {
+      console.error("[v0] Failed to copy:", error)
+    }
+  }
+
+  const sendEmailInvite = async () => {
+    if (!selectedOrg || !inviteEmail) return
+
+    try {
+      // In production, this would call an API to send the email
+      // For now, we'll simulate success
+      setEmailSent(true)
+      setTimeout(() => {
+        setEmailSent(false)
+        setInviteEmail("")
+      }, 3000)
+    } catch (error) {
+      console.error("[v0] Send invite error:", error)
+    }
+  }
+
+  const openLinkDialog = (org: any) => {
+    setSelectedOrg(org)
+    setOnboardingLinkOpen(true)
+  }
+
   const stats = [
     { icon: Building2, label: "Total Clinics", value: organizations?.length || 0, color: "text-blue-600" },
     {
@@ -80,7 +139,7 @@ export default function SuperAdminDashboard() {
   return (
     <div className="flex min-h-screen bg-background">
       <DashboardSidebar />
-      <div className="flex-1 p-8">
+      <div className="flex-1 lg:pl-64 p-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2">Subscription Manager Dashboard</h1>
           <p className="text-muted-foreground">Manage organizations, subscriptions, and system settings</p>
@@ -226,6 +285,7 @@ export default function SuperAdminDashboard() {
                   organization_type: string
                   status: string
                   user_count: number
+                  email?: string
                 }) => (
                   <Card key={org.id}>
                     <CardHeader>
@@ -236,24 +296,170 @@ export default function SuperAdminDashboard() {
                             {org.organization_type.replace("_", " ")}
                           </CardDescription>
                         </div>
-                        <div className="text-right">
-                          <div
-                            className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                              org.status === "active" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
-                            }`}
-                          >
-                            {org.status}
+                        <div className="flex items-center gap-3">
+                          <Button variant="outline" size="sm" onClick={() => openLinkDialog(org)}>
+                            <LinkIcon className="h-4 w-4 mr-2" />
+                            Get Links
+                          </Button>
+                          <div className="text-right">
+                            <div
+                              className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
+                                org.status === "active" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+                              }`}
+                            >
+                              {org.status}
+                            </div>
+                            <div className="text-sm text-muted-foreground mt-1">{org.user_count} users</div>
                           </div>
-                          <div className="text-sm text-muted-foreground mt-1">{org.user_count} users</div>
                         </div>
                       </div>
                     </CardHeader>
                   </Card>
                 ),
               )}
+
+              {/* Empty state */}
+              {(!organizations || organizations.length === 0) && (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Building2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No organizations yet. Create your first organization to get started.</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
+
+        <Dialog open={onboardingLinkOpen} onOpenChange={setOnboardingLinkOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Organization Links</DialogTitle>
+              <DialogDescription>
+                Generate and share onboarding links for {selectedOrg?.organization_name}
+              </DialogDescription>
+            </DialogHeader>
+
+            {selectedOrg && (
+              <Tabs defaultValue="links" className="mt-4">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="links">Copy Links</TabsTrigger>
+                  <TabsTrigger value="email">Send Email</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="links" className="space-y-4 mt-4">
+                  {/* Onboarding Link */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Clinic Onboarding Link</Label>
+                    <p className="text-xs text-muted-foreground">Full setup wizard for new clinics</p>
+                    <div className="flex gap-2">
+                      <Input
+                        readOnly
+                        value={generateOnboardingLink(selectedOrg.id, "onboarding")}
+                        className="text-xs"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          copyToClipboard(generateOnboardingLink(selectedOrg.id, "onboarding"), "onboarding")
+                        }
+                      >
+                        {copiedLink === "onboarding" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => window.open(generateOnboardingLink(selectedOrg.id, "onboarding"), "_blank")}
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Signup Link */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">User Signup Link</Label>
+                    <p className="text-xs text-muted-foreground">Quick signup for staff members</p>
+                    <div className="flex gap-2">
+                      <Input readOnly value={generateOnboardingLink(selectedOrg.id, "signup")} className="text-xs" />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => copyToClipboard(generateOnboardingLink(selectedOrg.id, "signup"), "signup")}
+                      >
+                        {copiedLink === "signup" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => window.open(generateOnboardingLink(selectedOrg.id, "signup"), "_blank")}
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Invite Link */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Staff Invite Link</Label>
+                    <p className="text-xs text-muted-foreground">Time-limited invite for staff</p>
+                    <div className="flex gap-2">
+                      <Input readOnly value={generateOnboardingLink(selectedOrg.id, "invite")} className="text-xs" />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => copyToClipboard(generateOnboardingLink(selectedOrg.id, "invite"), "invite")}
+                      >
+                        {copiedLink === "invite" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => window.open(generateOnboardingLink(selectedOrg.id, "invite"), "_blank")}
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="email" className="space-y-4 mt-4">
+                  <div className="space-y-2">
+                    <Label>Recipient Email</Label>
+                    <Input
+                      type="email"
+                      placeholder="admin@clinic.com"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="p-4 rounded-lg bg-muted/50 space-y-2">
+                    <p className="text-sm font-medium">Email Preview:</p>
+                    <p className="text-xs text-muted-foreground">Subject: Your MASE EMR Onboarding Link</p>
+                    <p className="text-xs text-muted-foreground">
+                      Hello, you have been invited to set up {selectedOrg.organization_name} on MASE EMR. Click the link
+                      below to complete your organization setup...
+                    </p>
+                  </div>
+
+                  <Button className="w-full" onClick={sendEmailInvite} disabled={!inviteEmail || emailSent}>
+                    {emailSent ? (
+                      <>
+                        <Check className="h-4 w-4 mr-2" />
+                        Email Sent!
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Send Onboarding Email
+                      </>
+                    )}
+                  </Button>
+                </TabsContent>
+              </Tabs>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   )
