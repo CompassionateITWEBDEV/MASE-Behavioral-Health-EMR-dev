@@ -4,8 +4,13 @@ import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { toast } from "sonner"
 import {
   UserCheck,
   Search,
@@ -17,6 +22,8 @@ import {
   Calendar,
   FileCheck,
   Shield,
+  Plus,
+  Loader2,
 } from "lucide-react"
 
 interface ProviderCredentialManagementProps {
@@ -35,6 +42,22 @@ export function ProviderCredentialManagement({
   onRefresh,
 }: ProviderCredentialManagementProps) {
   const [searchTerm, setSearchTerm] = useState("")
+  const [showAddCredential, setShowAddCredential] = useState(false)
+  const [credentialType, setCredentialType] = useState<"license" | "certification" | "board">("license")
+  const [isSaving, setIsSaving] = useState(false)
+  const [viewDetails, setViewDetails] = useState<any | null>(null)
+  const [newCredential, setNewCredential] = useState({
+    providerId: "",
+    licenseNumber: "",
+    licenseType: "",
+    issuingState: "",
+    issueDate: "",
+    expirationDate: "",
+    renewalRequiredBy: "",
+    cmeRequirements: "",
+    autoVerifyEnabled: false,
+    notes: "",
+  })
 
   // Combine licenses and NPI records into credentials list
   const allCredentials = [
@@ -45,9 +68,13 @@ export function ProviderCredentialManagement({
       credentialNumber: l.license_number,
       credentialType: l.license_type,
       issuingOrganization: `${l.issuing_state} State Board`,
+      issuingState: l.issuing_state,
+      issueDate: l.issue_date,
       expirationDate: l.expiration_date,
       verificationStatus: l.verification_status,
       verificationDate: l.verification_date,
+      renewalRequiredBy: l.renewal_required_by,
+      cmeRequirements: l.cme_requirements,
       notes: l.notes,
     })),
     ...npiRecords.map((n) => ({
@@ -110,6 +137,56 @@ export function ProviderCredentialManagement({
     return daysUntilExpiration <= 90 && daysUntilExpiration > 0
   }
 
+  const handleAddCredential = async () => {
+    if (!newCredential.providerId || !newCredential.licenseNumber || !newCredential.licenseType) {
+      toast.error("Please fill in all required fields")
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const response = await fetch("/api/provider-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "license",
+          providerId: newCredential.providerId,
+          licenseNumber: newCredential.licenseNumber,
+          licenseType: newCredential.licenseType,
+          issuingState: newCredential.issuingState,
+          issueDate: newCredential.issueDate || null,
+          expirationDate: newCredential.expirationDate,
+          renewalRequiredBy: newCredential.renewalRequiredBy || null,
+          cmeRequirements: newCredential.cmeRequirements || null,
+          autoVerifyEnabled: newCredential.autoVerifyEnabled,
+          notes: newCredential.notes || null,
+        }),
+      })
+
+      if (!response.ok) throw new Error("Failed to add credential")
+
+      toast.success("Credential added successfully")
+      setNewCredential({
+        providerId: "",
+        licenseNumber: "",
+        licenseType: "",
+        issuingState: "",
+        issueDate: "",
+        expirationDate: "",
+        renewalRequiredBy: "",
+        cmeRequirements: "",
+        autoVerifyEnabled: false,
+        notes: "",
+      })
+      setShowAddCredential(false)
+      onRefresh()
+    } catch (error) {
+      toast.error("Failed to add credential")
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -129,7 +206,158 @@ export function ProviderCredentialManagement({
             Manage provider certifications, board credentials, and professional licenses
           </p>
         </div>
+        <Button onClick={() => setShowAddCredential(true)} className="bg-primary hover:bg-primary/90">
+          <Plus className="mr-2 h-4 w-4" />
+          Add Credential
+        </Button>
       </div>
+
+      <Dialog open={showAddCredential} onOpenChange={setShowAddCredential}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add New Credential</DialogTitle>
+            <DialogDescription>Add a license, certification, or board credential for a provider</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <Label>Provider *</Label>
+                <Select
+                  value={newCredential.providerId}
+                  onValueChange={(value) => setNewCredential({ ...newCredential, providerId: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select provider" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {providers.map((provider) => (
+                      <SelectItem key={provider.id} value={provider.id}>
+                        {provider.first_name} {provider.last_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Credential Type *</Label>
+                <Select
+                  value={newCredential.licenseType}
+                  onValueChange={(value) => setNewCredential({ ...newCredential, licenseType: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MD">MD - Medical Doctor</SelectItem>
+                    <SelectItem value="DO">DO - Doctor of Osteopathy</SelectItem>
+                    <SelectItem value="NP">NP - Nurse Practitioner</SelectItem>
+                    <SelectItem value="PA">PA - Physician Assistant</SelectItem>
+                    <SelectItem value="LCSW">LCSW - Licensed Clinical Social Worker</SelectItem>
+                    <SelectItem value="LPC">LPC - Licensed Professional Counselor</SelectItem>
+                    <SelectItem value="PhD">PhD - Psychology</SelectItem>
+                    <SelectItem value="PsyD">PsyD - Doctor of Psychology</SelectItem>
+                    <SelectItem value="RN">RN - Registered Nurse</SelectItem>
+                    <SelectItem value="LPN">LPN - Licensed Practical Nurse</SelectItem>
+                    <SelectItem value="CADC">CADC - Certified Alcohol & Drug Counselor</SelectItem>
+                    <SelectItem value="DEA">DEA Registration</SelectItem>
+                    <SelectItem value="Board Certification">Board Certification</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <Label>License/Credential Number *</Label>
+                <Input
+                  value={newCredential.licenseNumber}
+                  onChange={(e) => setNewCredential({ ...newCredential, licenseNumber: e.target.value })}
+                  placeholder="Enter license number"
+                />
+              </div>
+              <div>
+                <Label>Issuing State/Authority</Label>
+                <Select
+                  value={newCredential.issuingState}
+                  onValueChange={(value) => setNewCredential({ ...newCredential, issuingState: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select state" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="MI">Michigan</SelectItem>
+                    <SelectItem value="OH">Ohio</SelectItem>
+                    <SelectItem value="IN">Indiana</SelectItem>
+                    <SelectItem value="IL">Illinois</SelectItem>
+                    <SelectItem value="WI">Wisconsin</SelectItem>
+                    <SelectItem value="Federal">Federal (DEA)</SelectItem>
+                    <SelectItem value="National">National Board</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <Label>Issue Date</Label>
+                <Input
+                  type="date"
+                  value={newCredential.issueDate}
+                  onChange={(e) => setNewCredential({ ...newCredential, issueDate: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>Expiration Date</Label>
+                <Input
+                  type="date"
+                  value={newCredential.expirationDate}
+                  onChange={(e) => setNewCredential({ ...newCredential, expirationDate: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <Label>Renewal Required By</Label>
+                <Input
+                  type="date"
+                  value={newCredential.renewalRequiredBy}
+                  onChange={(e) => setNewCredential({ ...newCredential, renewalRequiredBy: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>CME Requirements</Label>
+                <Input
+                  value={newCredential.cmeRequirements}
+                  onChange={(e) => setNewCredential({ ...newCredential, cmeRequirements: e.target.value })}
+                  placeholder="e.g., 50 hours/2 years"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label>Notes</Label>
+              <Textarea
+                value={newCredential.notes}
+                onChange={(e) => setNewCredential({ ...newCredential, notes: e.target.value })}
+                placeholder="Additional notes about this credential..."
+                rows={3}
+              />
+            </div>
+
+            <div className="flex gap-2 pt-4">
+              <Button onClick={handleAddCredential} disabled={isSaving}>
+                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Add Credential
+              </Button>
+              <Button variant="outline" onClick={() => setShowAddCredential(false)}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Search */}
       <Card>
@@ -257,6 +485,11 @@ export function ProviderCredentialManagement({
                           <span className="font-medium">Verified:</span> {credential.verificationDate}
                         </div>
                       )}
+                      {credential.renewalRequiredBy && (
+                        <div>
+                          <span className="font-medium">Renew By:</span> {credential.renewalRequiredBy}
+                        </div>
+                      )}
                     </div>
 
                     {credential.notes && (
@@ -267,7 +500,7 @@ export function ProviderCredentialManagement({
                   </div>
 
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={() => setViewDetails(credential)}>
                       <Eye className="mr-2 h-4 w-4" />
                       Details
                     </Button>
@@ -278,6 +511,83 @@ export function ProviderCredentialManagement({
           ))}
         </div>
       )}
+
+      {/* View Details Dialog */}
+      <Dialog open={!!viewDetails} onOpenChange={() => setViewDetails(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Credential Details</DialogTitle>
+          </DialogHeader>
+          {viewDetails && (
+            <div className="space-y-4">
+              <div className="grid gap-2">
+                <div className="flex justify-between">
+                  <span className="font-medium">Provider:</span>
+                  <span>{viewDetails.providerName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Type:</span>
+                  <span>{viewDetails.type}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Credential Type:</span>
+                  <span>{viewDetails.credentialType}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Number:</span>
+                  <span>{viewDetails.credentialNumber}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Issuing Organization:</span>
+                  <span>{viewDetails.issuingOrganization}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Status:</span>
+                  <Badge variant={getStatusColor(viewDetails.verificationStatus)}>
+                    {viewDetails.verificationStatus?.toUpperCase()}
+                  </Badge>
+                </div>
+                {viewDetails.issueDate && (
+                  <div className="flex justify-between">
+                    <span className="font-medium">Issue Date:</span>
+                    <span>{viewDetails.issueDate}</span>
+                  </div>
+                )}
+                {viewDetails.expirationDate && (
+                  <div className="flex justify-between">
+                    <span className="font-medium">Expiration Date:</span>
+                    <span>{viewDetails.expirationDate}</span>
+                  </div>
+                )}
+                {viewDetails.verificationDate && (
+                  <div className="flex justify-between">
+                    <span className="font-medium">Verification Date:</span>
+                    <span>{viewDetails.verificationDate}</span>
+                  </div>
+                )}
+                {viewDetails.renewalRequiredBy && (
+                  <div className="flex justify-between">
+                    <span className="font-medium">Renewal Required By:</span>
+                    <span>{viewDetails.renewalRequiredBy}</span>
+                  </div>
+                )}
+                {viewDetails.cmeRequirements && (
+                  <div className="flex justify-between">
+                    <span className="font-medium">CME Requirements:</span>
+                    <span>{viewDetails.cmeRequirements}</span>
+                  </div>
+                )}
+                {viewDetails.notes && (
+                  <div>
+                    <span className="font-medium">Notes:</span>
+                    <p className="text-sm text-muted-foreground">{viewDetails.notes}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

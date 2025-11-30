@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service-role"
 import { NextResponse } from "next/server"
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -7,15 +7,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const body = await request.json()
     const { reason } = body
 
-    const supabase = await createClient()
+    const supabase = createServiceClient()
 
-    // Update prescription status to cancelled
     const { data, error } = await supabase
       .from("prescriptions")
       .update({
         status: "cancelled",
-        cancellation_reason: reason || "Cancelled by provider",
-        cancelled_at: new Date().toISOString(),
+        notes: reason ? `Cancelled: ${reason}` : "Cancelled by provider",
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)

@@ -1,23 +1,28 @@
 "use client"
 
+import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
-import { FileSignature, AlertTriangle, Eye, Edit, Users, TrendingUp } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { FileSignature, AlertTriangle, Eye, Edit, Users, TrendingUp, Check, X } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Switch } from "@/components/ui/switch"
+
+interface FormItem {
+  id: number
+  name: string
+  required: boolean
+  completion: number
+}
 
 interface ConsentFormsOverviewProps {
   data: {
-    categorizedForms: Record<
-      string,
-      Array<{
-        id: number
-        name: string
-        required: boolean
-        completion: number
-      }>
-    >
+    categorizedForms: Record<string, FormItem[]>
     metrics: {
       totalForms: number
       totalPatients: number
@@ -29,6 +34,27 @@ interface ConsentFormsOverviewProps {
 }
 
 export function ConsentFormsOverview({ data, isLoading, error }: ConsentFormsOverviewProps) {
+  const [selectedForm, setSelectedForm] = useState<FormItem | null>(null)
+  const [viewDialogOpen, setViewDialogOpen] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [editForm, setEditForm] = useState({ name: "", required: false })
+
+  const handleView = (form: FormItem) => {
+    setSelectedForm(form)
+    setViewDialogOpen(true)
+  }
+
+  const handleEdit = (form: FormItem) => {
+    setSelectedForm(form)
+    setEditForm({ name: form.name, required: form.required })
+    setEditDialogOpen(true)
+  }
+
+  const handleSaveEdit = async () => {
+    // Save edit logic here
+    setEditDialogOpen(false)
+  }
+
   if (error) {
     return (
       <Card>
@@ -84,7 +110,6 @@ export function ConsentFormsOverview({ data, isLoading, error }: ConsentFormsOve
     0,
   )
 
-  // Handle empty state
   if (totalForms === 0) {
     return (
       <Card>
@@ -172,11 +197,11 @@ export function ConsentFormsOverview({ data, isLoading, error }: ConsentFormsOve
                     </div>
                     <div className="flex items-center space-x-2">
                       <Progress value={form.completion} className="w-24" />
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => handleView(form)}>
                         <Eye className="h-4 w-4 mr-1" />
                         View
                       </Button>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => handleEdit(form)}>
                         <Edit className="h-4 w-4 mr-1" />
                         Edit
                       </Button>
@@ -188,6 +213,93 @@ export function ConsentFormsOverview({ data, isLoading, error }: ConsentFormsOve
           </Card>
         ))}
       </div>
+
+      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{selectedForm?.name}</DialogTitle>
+            <DialogDescription>Consent form details and completion status</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Form Name</Label>
+                <p className="text-sm font-medium">{selectedForm?.name}</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <div>
+                  {selectedForm?.required ? (
+                    <Badge variant="destructive">Required</Badge>
+                  ) : (
+                    <Badge variant="secondary">Optional</Badge>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Completion Rate</Label>
+              <div className="flex items-center space-x-4">
+                <Progress value={selectedForm?.completion || 0} className="flex-1" />
+                <span className="text-lg font-bold">{selectedForm?.completion}%</span>
+              </div>
+            </div>
+            <div className="border rounded-lg p-4 bg-muted/50">
+              <h4 className="font-medium mb-2">Form Content Preview</h4>
+              <p className="text-sm text-muted-foreground">
+                This consent form collects patient authorization for treatment and information disclosure in accordance
+                with HIPAA and applicable state regulations. The patient acknowledges understanding of their rights and
+                responsibilities.
+              </p>
+            </div>
+            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+              <Check className="h-4 w-4 text-green-500" />
+              <span>Compliant with regulatory requirements</span>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Consent Form</DialogTitle>
+            <DialogDescription>Modify the consent form settings</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Form Name</Label>
+              <Input
+                id="edit-name"
+                value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="edit-required"
+                checked={editForm.required}
+                onCheckedChange={(checked) => setEditForm({ ...editForm, required: checked })}
+              />
+              <Label htmlFor="edit-required">Required for all patients</Label>
+            </div>
+            <div className="space-y-2">
+              <Label>Form Content</Label>
+              <Textarea placeholder="Enter form content or instructions..." className="min-h-[150px]" />
+            </div>
+          </div>
+          <div className="flex justify-end space-x-2 mt-4">
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              <X className="h-4 w-4 mr-1" />
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit}>
+              <Check className="h-4 w-4 mr-1" />
+              Save Changes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

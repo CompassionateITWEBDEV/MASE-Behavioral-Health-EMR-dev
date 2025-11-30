@@ -45,9 +45,15 @@ export async function GET(request: NextRequest) {
     // Get patients for dropdown
     const { data: patients } = await supabase.from("patients").select("id, first_name, last_name").order("last_name")
 
+    const { data: allProviders } = await supabase
+      .from("providers")
+      .select("id, first_name, last_name, specialization")
+      .order("last_name")
+
     return NextResponse.json({
       prescriptions: formattedPrescriptions,
       patients: patients || [],
+      providers: allProviders || [],
     })
   } catch (error) {
     console.error("Error in prescriptions API:", error)
@@ -102,12 +108,13 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Prescription ID is required" }, { status: 400 })
     }
 
-    // Handle status updates
     if (updates.status === "sent") {
       updates.sent_date = new Date().toISOString()
     } else if (updates.status === "filled") {
       updates.filled_date = new Date().toISOString()
     }
+
+    updates.updated_at = new Date().toISOString()
 
     const { data, error } = await supabase.from("prescriptions").update(updates).eq("id", id).select().single()
 
@@ -120,5 +127,29 @@ export async function PUT(request: NextRequest) {
   } catch (error) {
     console.error("Error in prescriptions PUT:", error)
     return NextResponse.json({ error: "Failed to update prescription" }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const supabase = createServiceClient()
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get("id")
+
+    if (!id) {
+      return NextResponse.json({ error: "Prescription ID is required" }, { status: 400 })
+    }
+
+    const { error } = await supabase.from("prescriptions").delete().eq("id", id)
+
+    if (error) {
+      console.error("Error deleting prescription:", error)
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    console.error("Error in prescriptions DELETE:", error)
+    return NextResponse.json({ error: "Failed to delete prescription" }, { status: 500 })
   }
 }

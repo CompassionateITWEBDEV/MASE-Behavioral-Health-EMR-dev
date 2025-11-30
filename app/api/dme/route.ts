@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
         .from("dme_orders")
         .select(`
           *,
-          patients(id, first_name, last_name),
+          patients(id, first_name, last_name, date_of_birth),
           providers(id, first_name, last_name),
           dme_suppliers(supplier_name, phone)
         `)
@@ -46,22 +46,41 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ orders: orders || [] })
     }
 
-    // Get Dashboard Stats
-    const { data: stats } = await supabase.rpc("get_dme_stats")
+    const { data: pendingOrders } = await supabase
+      .from("dme_orders")
+      .select("id", { count: "exact" })
+      .eq("status", "pending")
+
+    const { data: processingOrders } = await supabase
+      .from("dme_orders")
+      .select("id", { count: "exact" })
+      .eq("status", "processing")
+
+    const { data: deliveredOrders } = await supabase
+      .from("dme_orders")
+      .select("id", { count: "exact" })
+      .eq("delivery_status", "delivered")
+
+    const { data: allOrders } = await supabase.from("dme_orders").select("id", { count: "exact" })
 
     const { data: patients } = await supabase
       .from("patients")
-      .select("id, first_name, last_name, patient_number")
+      .select("id, first_name, last_name, date_of_birth")
       .order("last_name")
-      .limit(100)
+      .limit(200)
 
     const { data: providers } = await supabase
       .from("providers")
-      .select("id, first_name, last_name, credentials")
+      .select("id, first_name, last_name, specialization, license_type")
       .order("last_name")
 
     return NextResponse.json({
-      stats: stats || { pending: 0, in_process: 0, delivered: 0, total: 0 },
+      stats: {
+        pending: pendingOrders?.length || 0,
+        in_process: processingOrders?.length || 0,
+        delivered: deliveredOrders?.length || 0,
+        total: allOrders?.length || 0,
+      },
       patients: patients || [],
       providers: providers || [],
     })
@@ -101,7 +120,8 @@ export async function POST(request: NextRequest) {
       // Log to audit trail
       await supabase.from("audit_trail").insert({
         action: "dme_supplier_created",
-        details: { supplier_id: data.id, name: body.supplierName },
+        table_name: "dme_suppliers",
+        new_values: { supplier_id: data.id, name: body.supplierName },
       })
 
       return NextResponse.json({ success: true, supplier: data })
@@ -116,7 +136,7 @@ export async function POST(request: NextRequest) {
         .insert({
           patient_id: body.patientId,
           provider_id: body.providerId,
-          supplier_id: body.supplierId,
+          supplier_id: body.supplierId || null,
           order_date: body.orderDate || new Date().toISOString().split("T")[0],
           order_number: orderNumber,
           urgency: body.urgency || "Routine",
@@ -139,7 +159,9 @@ export async function POST(request: NextRequest) {
       // Log to audit trail
       await supabase.from("audit_trail").insert({
         action: "dme_order_created",
-        details: { order_id: data.id, patient_id: body.patientId, equipment: body.equipmentName },
+        table_name: "dme_orders",
+        patient_id: body.patientId,
+        new_values: { order_id: data.id, equipment: body.equipmentName },
       })
 
       return NextResponse.json({ success: true, order: data })
@@ -150,6 +172,7 @@ export async function POST(request: NextRequest) {
       const { data, error } = await supabase
         .from("dme_orders")
         .update({
+          status: body.status,
           delivery_status: body.deliveryStatus,
           delivery_date: body.deliveryDate,
           tracking_number: body.trackingNumber,
@@ -162,6 +185,14 @@ export async function POST(request: NextRequest) {
       if (error) throw error
 
       return NextResponse.json({ success: true, order: data })
+    }
+
+    if (action === "delete-order") {
+      const { error } = await supabase.from("dme_orders").delete().eq("id", body.orderId)
+
+      if (error) throw error
+
+      return NextResponse.json({ success: true })
     }
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 })

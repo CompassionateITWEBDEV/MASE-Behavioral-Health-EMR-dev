@@ -1,17 +1,16 @@
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/service-role"
 import { NextResponse } from "next/server"
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
-    const supabase = await createClient()
+    const supabase = createServiceClient()
 
-    // Update prescription status to sent
     const { data, error } = await supabase
       .from("prescriptions")
       .update({
         status: "sent",
-        sent_at: new Date().toISOString(),
+        sent_date: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq("id", id)
@@ -22,14 +21,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       console.error("Error sending prescription:", error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
-
-    // Create e-prescribing transmission record
-    await supabase.from("eprescribing_transmissions").insert({
-      prescription_id: id,
-      transmission_type: "new_prescription",
-      status: "pending",
-      sent_at: new Date().toISOString(),
-    })
 
     return NextResponse.json(data)
   } catch (error) {

@@ -9,30 +9,36 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Progress } from "@/components/ui/progress"
-import { Users, Search, Clock, Eye, Send, AlertTriangle } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Users, Search, Clock, Eye, Send, AlertTriangle, Check, FileSignature, Mail, Phone } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+
+interface PatientConsent {
+  id: string
+  patientId: string
+  patientName: string
+  totalForms: number
+  completedForms: number
+  pendingForms: number
+  expiringSoon: number
+  lastActivity: string
+  status: string
+}
+
+interface PendingForm {
+  id: string
+  patientName: string
+  formName: string
+  category: string
+  dueDate: string
+  priority: string
+  daysOverdue: number
+}
 
 interface PatientConsentTrackerProps {
   data: {
-    patientConsentData: Array<{
-      id: string
-      patientId: string
-      patientName: string
-      totalForms: number
-      completedForms: number
-      pendingForms: number
-      expiringSoon: number
-      lastActivity: string
-      status: string
-    }>
-    pendingForms: Array<{
-      id: string
-      patientName: string
-      formName: string
-      category: string
-      dueDate: string
-      priority: string
-      daysOverdue: number
-    }>
+    patientConsentData: PatientConsent[]
+    pendingForms: PendingForm[]
   } | null
   isLoading: boolean
   error: Error | null
@@ -41,6 +47,12 @@ interface PatientConsentTrackerProps {
 export function PatientConsentTracker({ data, isLoading, error }: PatientConsentTrackerProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [selectedPatient, setSelectedPatient] = useState<PatientConsent | null>(null)
+  const [viewDialogOpen, setViewDialogOpen] = useState(false)
+  const [reminderDialogOpen, setReminderDialogOpen] = useState(false)
+  const [selectedForm, setSelectedForm] = useState<PendingForm | null>(null)
+  const [sendingReminder, setSendingReminder] = useState(false)
+  const { toast } = useToast()
 
   const patientConsents = data?.patientConsentData || []
   const pendingConsentForms = data?.pendingForms || []
@@ -82,6 +94,28 @@ export function PatientConsentTracker({ data, isLoading, error }: PatientConsent
       default:
         return <Badge variant="secondary">{priority}</Badge>
     }
+  }
+
+  const handleViewPatient = (patient: PatientConsent) => {
+    setSelectedPatient(patient)
+    setViewDialogOpen(true)
+  }
+
+  const handleSendReminder = (form: PendingForm) => {
+    setSelectedForm(form)
+    setReminderDialogOpen(true)
+  }
+
+  const sendReminder = async (method: "email" | "sms") => {
+    setSendingReminder(true)
+    // Simulate sending reminder
+    await new Promise((resolve) => setTimeout(resolve, 1500))
+    setSendingReminder(false)
+    setReminderDialogOpen(false)
+    toast({
+      title: "Reminder Sent",
+      description: `${method === "email" ? "Email" : "SMS"} reminder sent to ${selectedForm?.patientName}`,
+    })
   }
 
   if (error) {
@@ -180,7 +214,7 @@ export function PatientConsentTracker({ data, isLoading, error }: PatientConsent
                         <Progress value={getCompletionPercentage(patient)} className="w-24 mt-1" />
                       </div>
                       {getStatusBadge(patient.status)}
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => handleViewPatient(patient)}>
                         <Eye className="h-4 w-4 mr-1" />
                         View
                       </Button>
@@ -218,7 +252,7 @@ export function PatientConsentTracker({ data, isLoading, error }: PatientConsent
                     </div>
                     <div className="flex items-center space-x-2">
                       {getPriorityBadge(form.priority)}
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => handleSendReminder(form)}>
                         <Send className="h-4 w-4 mr-1" />
                         Send Reminder
                       </Button>
@@ -289,10 +323,17 @@ export function PatientConsentTracker({ data, isLoading, error }: PatientConsent
                     <TableCell>{getStatusBadge(patient.status)}</TableCell>
                     <TableCell>
                       <div className="flex items-center space-x-2">
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" onClick={() => handleViewPatient(patient)}>
                           <Eye className="h-4 w-4" />
                         </Button>
-                        <Button variant="outline" size="sm">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const form = pendingConsentForms.find((f) => f.patientName === patient.patientName)
+                            if (form) handleSendReminder(form)
+                          }}
+                        >
                           <Send className="h-4 w-4" />
                         </Button>
                       </div>
@@ -304,6 +345,122 @@ export function PatientConsentTracker({ data, isLoading, error }: PatientConsent
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Patient Consent Details</DialogTitle>
+            <DialogDescription>View consent form status for {selectedPatient?.patientName}</DialogDescription>
+          </DialogHeader>
+          {selectedPatient && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Patient Name</p>
+                  <p className="font-medium">{selectedPatient.patientName}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Patient ID</p>
+                  <p className="font-medium">{selectedPatient.patientId}</p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">Overall Completion</p>
+                <div className="flex items-center space-x-4">
+                  <Progress value={getCompletionPercentage(selectedPatient)} className="flex-1" />
+                  <span className="text-lg font-bold">{getCompletionPercentage(selectedPatient)}%</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-4 gap-4">
+                <Card>
+                  <CardContent className="pt-4 text-center">
+                    <div className="text-2xl font-bold text-green-600">{selectedPatient.completedForms}</div>
+                    <p className="text-xs text-muted-foreground">Completed</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4 text-center">
+                    <div className="text-2xl font-bold text-yellow-600">{selectedPatient.pendingForms}</div>
+                    <p className="text-xs text-muted-foreground">Pending</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4 text-center">
+                    <div className="text-2xl font-bold text-red-600">{selectedPatient.expiringSoon}</div>
+                    <p className="text-xs text-muted-foreground">Expiring Soon</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4 text-center">
+                    <div className="text-2xl font-bold">{selectedPatient.totalForms}</div>
+                    <p className="text-xs text-muted-foreground">Total Forms</p>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="border rounded-lg p-4">
+                <h4 className="font-medium mb-3 flex items-center">
+                  <FileSignature className="h-4 w-4 mr-2" />
+                  Required Forms Status
+                </h4>
+                <div className="space-y-2">
+                  {["HIPAA Privacy Notice", "Treatment Consent", "42 CFR Part 2 Consent", "Medication Consent"].map(
+                    (form, i) => (
+                      <div key={form} className="flex items-center justify-between py-2 border-b last:border-b-0">
+                        <span className="text-sm">{form}</span>
+                        {i < selectedPatient.completedForms ? (
+                          <Badge className="bg-green-100 text-green-800">
+                            <Check className="h-3 w-3 mr-1" />
+                            Signed
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline">Pending</Badge>
+                        )}
+                      </div>
+                    ),
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={reminderDialogOpen} onOpenChange={setReminderDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send Consent Form Reminder</DialogTitle>
+            <DialogDescription>
+              Send a reminder to {selectedForm?.patientName} to complete {selectedForm?.formName}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <Button
+                variant="outline"
+                className="h-24 flex flex-col items-center justify-center bg-transparent"
+                onClick={() => sendReminder("email")}
+                disabled={sendingReminder}
+              >
+                <Mail className="h-8 w-8 mb-2" />
+                <span>Send Email</span>
+              </Button>
+              <Button
+                variant="outline"
+                className="h-24 flex flex-col items-center justify-center bg-transparent"
+                onClick={() => sendReminder("sms")}
+                disabled={sendingReminder}
+              >
+                <Phone className="h-8 w-8 mb-2" />
+                <span>Send SMS</span>
+              </Button>
+            </div>
+            {sendingReminder && <div className="text-center text-sm text-muted-foreground">Sending reminder...</div>}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

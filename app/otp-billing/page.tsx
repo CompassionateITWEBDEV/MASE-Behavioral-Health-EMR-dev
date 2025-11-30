@@ -10,6 +10,19 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useToast } from "@/hooks/use-toast"
+import {
   DollarSign,
   FileText,
   Calculator,
@@ -22,6 +35,10 @@ import {
   Minus,
   Activity,
   Stethoscope,
+  Download,
+  Send,
+  Plus,
+  FileSpreadsheet,
 } from "lucide-react"
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
@@ -104,6 +121,8 @@ interface OTPBillingData {
 }
 
 export default function OTPBillingPage() {
+  const { toast } = useToast()
+
   const {
     data: dualData,
     error: dualError,
@@ -119,6 +138,26 @@ export default function OTPBillingPage() {
   } = useSWR<OTPBillingData>("/api/otp-billing", fetcher)
 
   const [processingCrossover, setProcessingCrossover] = useState<string | null>(null)
+  const [processingAll, setProcessingAll] = useState(false)
+
+  const [showReportsDialog, setShowReportsDialog] = useState(false)
+  const [showCreateClaimDialog, setShowCreateClaimDialog] = useState(false)
+  const [showBundleDetailsDialog, setShowBundleDetailsDialog] = useState(false)
+  const [selectedBundle, setSelectedBundle] = useState<string | null>(null)
+  const [generatingReport, setGeneratingReport] = useState(false)
+  const [reportType, setReportType] = useState("weekly-summary")
+  const [reportDateRange, setReportDateRange] = useState({ start: "", end: "" })
+
+  const [newClaim, setNewClaim] = useState({
+    patientId: "",
+    serviceDate: new Date().toISOString().split("T")[0],
+    bundleType: "methadone-full",
+    rateCode: "7969",
+    hcpcs: "G2067",
+    primaryPayer: "",
+    secondaryPayer: "",
+    notes: "",
+  })
 
   const handleProcessCrossover = async (claimId: string) => {
     setProcessingCrossover(claimId)
@@ -129,18 +168,185 @@ export default function OTPBillingPage() {
         body: JSON.stringify({ action: "process_crossover", claimId }),
       })
       if (response.ok) {
+        toast({ title: "Success", description: "Crossover claim processed successfully" })
         mutateDual()
+      } else {
+        toast({ title: "Error", description: "Failed to process crossover", variant: "destructive" })
       }
     } catch (err) {
       console.error("Error processing crossover:", err)
+      toast({ title: "Error", description: "Failed to process crossover", variant: "destructive" })
     } finally {
       setProcessingCrossover(null)
     }
   }
 
+  const handleProcessAllCrossovers = async () => {
+    if (!dualData?.pendingClaims || dualData.pendingClaims.length === 0) {
+      toast({ title: "No Claims", description: "No pending crossover claims to process" })
+      return
+    }
+
+    setProcessingAll(true)
+    let successCount = 0
+    let failCount = 0
+
+    for (const claim of dualData.pendingClaims) {
+      try {
+        const response = await fetch("/api/dual-eligible", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "process_crossover", claimId: claim.id }),
+        })
+        if (response.ok) {
+          successCount++
+        } else {
+          failCount++
+        }
+      } catch {
+        failCount++
+      }
+    }
+
+    toast({
+      title: "Batch Processing Complete",
+      description: `${successCount} claims processed successfully, ${failCount} failed`,
+    })
+    mutateDual()
+    setProcessingAll(false)
+  }
+
+  const handleGenerateReport = async () => {
+    setGeneratingReport(true)
+
+    // Simulate report generation
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+
+    const reportData = {
+      type: reportType,
+      dateRange: reportDateRange,
+      generatedAt: new Date().toISOString(),
+      data: billingData,
+    }
+
+    // Create downloadable report
+    const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: "application/json" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `dual-eligible-report-${reportType}-${new Date().toISOString().split("T")[0]}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+
+    toast({ title: "Report Generated", description: "Your report has been downloaded" })
+    setGeneratingReport(false)
+    setShowReportsDialog(false)
+  }
+
+  const handleCreateBundleClaim = async () => {
+    try {
+      const response = await fetch("/api/insurance-claims", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patient_id: newClaim.patientId,
+          service_date: newClaim.serviceDate,
+          claim_type: "bundle",
+          payer_name: newClaim.primaryPayer,
+          notes: `${newClaim.bundleType} - Rate Code: ${newClaim.rateCode}, HCPCS: ${newClaim.hcpcs}. ${newClaim.notes}`,
+          total_charges: billingData?.rateCodes?.find((r) => r.code === newClaim.rateCode)?.rate || 247.5,
+          status: "pending",
+        }),
+      })
+
+      if (response.ok) {
+        toast({ title: "Claim Created", description: "Bundle claim has been created successfully" })
+        setShowCreateClaimDialog(false)
+        setNewClaim({
+          patientId: "",
+          serviceDate: new Date().toISOString().split("T")[0],
+          bundleType: "methadone-full",
+          rateCode: "7969",
+          hcpcs: "G2067",
+          primaryPayer: "",
+          secondaryPayer: "",
+          notes: "",
+        })
+        mutateBilling()
+      } else {
+        toast({ title: "Error", description: "Failed to create claim", variant: "destructive" })
+      }
+    } catch (err) {
+      toast({ title: "Error", description: "Failed to create claim", variant: "destructive" })
+    }
+  }
+
+  const handleViewBundleDetails = (bundleType: string) => {
+    setSelectedBundle(bundleType)
+    setShowBundleDetailsDialog(true)
+  }
+
   const handleRefreshAll = () => {
     mutateDual()
     mutateBilling()
+  }
+
+  // Get bundle details for dialog
+  const getBundleDetails = () => {
+    if (!selectedBundle || !billingData) return null
+
+    switch (selectedBundle) {
+      case "methadone":
+        return {
+          title: "Methadone Full Bundle Details",
+          rateCode: billingData.bundleStats?.methadoneFullBundles?.rateCode,
+          hcpcs: billingData.bundleStats?.methadoneFullBundles?.hcpcs,
+          count: billingData.bundleStats?.methadoneFullBundles?.count,
+          revenue: billingData.bundleStats?.methadoneFullBundles?.revenue,
+          rate: 247.5,
+          services: [
+            "Daily observed dosing",
+            "Individual counseling (minimum 1x/month)",
+            "Group counseling (minimum 2x/month)",
+            "Toxicology testing (minimum 8x/year)",
+            "Medical evaluation and monitoring",
+          ],
+        }
+      case "buprenorphine":
+        return {
+          title: "Buprenorphine Full Bundle Details",
+          rateCode: billingData.bundleStats?.buprenorphineFullBundles?.rateCode,
+          hcpcs: billingData.bundleStats?.buprenorphineFullBundles?.hcpcs,
+          count: billingData.bundleStats?.buprenorphineFullBundles?.count,
+          revenue: billingData.bundleStats?.buprenorphineFullBundles?.revenue,
+          rate: 235.75,
+          services: [
+            "Daily or supervised dosing",
+            "Individual counseling (minimum 1x/month)",
+            "Group counseling (minimum 2x/month)",
+            "Toxicology testing (minimum 8x/year)",
+            "Medical evaluation and monitoring",
+          ],
+        }
+      case "takehome":
+        return {
+          title: "Take-Home Bundle Details",
+          rateCode: billingData.bundleStats?.takehomeBundles?.rateCodes,
+          hcpcs: "G2078/G2079",
+          count: billingData.bundleStats?.takehomeBundles?.count,
+          revenue: billingData.bundleStats?.takehomeBundles?.revenue,
+          rate: 87.38,
+          services: [
+            "Weekly take-home medication dispensing",
+            "Monthly counseling requirement",
+            "Periodic toxicology testing",
+            "Callback compliance monitoring",
+            "Take-home eligibility assessment",
+          ],
+        }
+      default:
+        return null
+    }
   }
 
   return (
@@ -156,14 +362,23 @@ export default function OTPBillingPage() {
                 OASAS Bundle billing, rate codes, and APG management for Opioid Treatment Programs
               </p>
             </div>
-            <Button variant="outline" size="sm" onClick={handleRefreshAll} disabled={billingLoading || dualLoading}>
-              <RefreshCw className={`mr-2 h-4 w-4 ${billingLoading || dualLoading ? "animate-spin" : ""}`} />
-              Refresh
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowCreateClaimDialog(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Create Claim
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleRefreshAll} disabled={billingLoading || dualLoading}>
+                <RefreshCw className={`mr-2 h-4 w-4 ${billingLoading || dualLoading ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+            </div>
           </div>
 
           <div className="grid gap-4 md:grid-cols-4">
-            <Card>
+            <Card
+              className="cursor-pointer hover:border-primary transition-colors"
+              onClick={() => handleViewBundleDetails("methadone")}
+            >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Weekly Bundle Revenue</CardTitle>
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
@@ -273,7 +488,10 @@ export default function OTPBillingPage() {
                       </div>
                     ) : (
                       <div className="space-y-3">
-                        <div className="flex items-center justify-between p-3 border rounded-lg">
+                        <div
+                          className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-accent/50 transition-colors"
+                          onClick={() => handleViewBundleDetails("methadone")}
+                        >
                           <div>
                             <p className="font-medium">Full Bundles (Methadone)</p>
                             <p className="text-sm text-muted-foreground">
@@ -294,7 +512,10 @@ export default function OTPBillingPage() {
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between p-3 border rounded-lg">
+                        <div
+                          className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-accent/50 transition-colors"
+                          onClick={() => handleViewBundleDetails("buprenorphine")}
+                        >
                           <div>
                             <p className="font-medium">Full Bundles (Buprenorphine)</p>
                             <p className="text-sm text-muted-foreground">
@@ -316,7 +537,10 @@ export default function OTPBillingPage() {
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between p-3 border rounded-lg">
+                        <div
+                          className="flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:bg-accent/50 transition-colors"
+                          onClick={() => handleViewBundleDetails("takehome")}
+                        >
                           <div>
                             <p className="font-medium">Take-Home Bundles</p>
                             <p className="text-sm text-muted-foreground">
@@ -452,8 +676,27 @@ export default function OTPBillingPage() {
                   </div>
 
                   <div className="flex gap-2">
-                    <Button className="bg-primary hover:bg-primary/90">Process All Medicare Crossovers</Button>
-                    <Button variant="outline">View Dual Eligible Reports</Button>
+                    <Button
+                      className="bg-primary hover:bg-primary/90"
+                      onClick={handleProcessAllCrossovers}
+                      disabled={processingAll || !dualData?.pendingClaims?.length}
+                    >
+                      {processingAll ? (
+                        <>
+                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                          Processing...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="mr-2 h-4 w-4" />
+                          Process All Medicare Crossovers
+                        </>
+                      )}
+                    </Button>
+                    <Button variant="outline" onClick={() => setShowReportsDialog(true)}>
+                      <FileSpreadsheet className="mr-2 h-4 w-4" />
+                      View Dual Eligible Reports
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
@@ -766,6 +1009,203 @@ export default function OTPBillingPage() {
           </Tabs>
         </main>
       </div>
+
+      <Dialog open={showReportsDialog} onOpenChange={setShowReportsDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Generate Dual Eligible Report</DialogTitle>
+            <DialogDescription>Generate reports for dual eligible patients and crossover claims</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Report Type</Label>
+              <Select value={reportType} onValueChange={setReportType}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="weekly-summary">Weekly Summary</SelectItem>
+                  <SelectItem value="monthly-summary">Monthly Summary</SelectItem>
+                  <SelectItem value="pending-crossovers">Pending Crossovers</SelectItem>
+                  <SelectItem value="processed-claims">Processed Claims</SelectItem>
+                  <SelectItem value="patient-list">Dual Eligible Patient List</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Start Date</Label>
+                <Input
+                  type="date"
+                  value={reportDateRange.start}
+                  onChange={(e) => setReportDateRange((prev) => ({ ...prev, start: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>End Date</Label>
+                <Input
+                  type="date"
+                  value={reportDateRange.end}
+                  onChange={(e) => setReportDateRange((prev) => ({ ...prev, end: e.target.value }))}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowReportsDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleGenerateReport} disabled={generatingReport}>
+              {generatingReport ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Download className="mr-2 h-4 w-4" />
+                  Generate Report
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showCreateClaimDialog} onOpenChange={setShowCreateClaimDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create Bundle Claim</DialogTitle>
+            <DialogDescription>Create a new OTP bundle claim for billing</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Patient ID</Label>
+              <Input
+                placeholder="Enter patient ID"
+                value={newClaim.patientId}
+                onChange={(e) => setNewClaim((prev) => ({ ...prev, patientId: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Service Date</Label>
+              <Input
+                type="date"
+                value={newClaim.serviceDate}
+                onChange={(e) => setNewClaim((prev) => ({ ...prev, serviceDate: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Bundle Type</Label>
+              <Select
+                value={newClaim.bundleType}
+                onValueChange={(value) => {
+                  const rateMapping: Record<string, { rateCode: string; hcpcs: string }> = {
+                    "methadone-full": { rateCode: "7969", hcpcs: "G2067" },
+                    "methadone-takehome": { rateCode: "7970", hcpcs: "G2078" },
+                    "buprenorphine-full": { rateCode: "7971", hcpcs: "G2068" },
+                    "buprenorphine-takehome": { rateCode: "7972", hcpcs: "G2079" },
+                  }
+                  setNewClaim((prev) => ({
+                    ...prev,
+                    bundleType: value,
+                    rateCode: rateMapping[value]?.rateCode || "7969",
+                    hcpcs: rateMapping[value]?.hcpcs || "G2067",
+                  }))
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="methadone-full">Methadone Full Bundle (7969/G2067)</SelectItem>
+                  <SelectItem value="methadone-takehome">Methadone Take-Home (7970/G2078)</SelectItem>
+                  <SelectItem value="buprenorphine-full">Buprenorphine Full Bundle (7971/G2068)</SelectItem>
+                  <SelectItem value="buprenorphine-takehome">Buprenorphine Take-Home (7972/G2079)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Primary Payer</Label>
+              <Input
+                placeholder="Enter primary payer"
+                value={newClaim.primaryPayer}
+                onChange={(e) => setNewClaim((prev) => ({ ...prev, primaryPayer: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea
+                placeholder="Additional notes..."
+                value={newClaim.notes}
+                onChange={(e) => setNewClaim((prev) => ({ ...prev, notes: e.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateClaimDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateBundleClaim}>Create Claim</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showBundleDetailsDialog} onOpenChange={setShowBundleDetailsDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{getBundleDetails()?.title || "Bundle Details"}</DialogTitle>
+            <DialogDescription>Detailed information about this bundle type</DialogDescription>
+          </DialogHeader>
+          {getBundleDetails() && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 bg-accent/50 rounded-lg">
+                  <p className="text-xs text-muted-foreground">Rate Code</p>
+                  <p className="font-mono font-bold">{getBundleDetails()?.rateCode}</p>
+                </div>
+                <div className="p-3 bg-accent/50 rounded-lg">
+                  <p className="text-xs text-muted-foreground">HCPCS Code</p>
+                  <p className="font-mono font-bold">{getBundleDetails()?.hcpcs}</p>
+                </div>
+                <div className="p-3 bg-accent/50 rounded-lg">
+                  <p className="text-xs text-muted-foreground">This Week</p>
+                  <p className="font-bold text-lg">{getBundleDetails()?.count || 0} bundles</p>
+                </div>
+                <div className="p-3 bg-green-50 rounded-lg">
+                  <p className="text-xs text-muted-foreground">Revenue</p>
+                  <p className="font-bold text-lg text-green-600">
+                    ${(getBundleDetails()?.revenue || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="font-medium mb-2">Included Services</h4>
+                <ul className="text-sm space-y-1">
+                  {getBundleDetails()?.services.map((service, i) => (
+                    <li key={i} className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      {service}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  <strong>Rate:</strong> ${getBundleDetails()?.rate?.toFixed(2)} per bundle (Freestanding facility)
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBundleDetailsDialog(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

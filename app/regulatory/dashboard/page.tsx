@@ -2,17 +2,19 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardSidebar } from "@/components/dashboard-sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   Shield,
   FileCheck,
-  Clock,
   AlertTriangle,
   CheckCircle,
   XCircle,
@@ -23,99 +25,84 @@ import {
   Download,
   Eye,
   Lock,
+  Plus,
+  RefreshCw,
+  Loader2,
 } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 interface RegulatoryAccess {
   id: string
+  inspector_id: string
   inspector_name: string
-  agency: string
-  access_type: string
-  status: string
-  granted_at: string
-  expires_at: string
-  purpose: string
+  organization: string
+  role: string
+  is_active: boolean
+  access_granted_at: string
+  access_expires_at: string
+  notes: string
 }
 
 interface ComplianceAlert {
   id: string
-  type: string
+  alert_type: string
   severity: string
-  message: string
+  alert_message: string
   created_at: string
-  resolved: boolean
+  status: string
 }
 
 interface ComplianceReport {
   id: string
-  type: string
+  report_type: string
   status: string
   created_at: string
+  report_data: any
 }
-
-interface ProviderData {
-  id: string
-  first_name: string
-  last_name: string
-  role: string
-}
-
-const DEFAULT_ROLE = "administrator"
 
 export default function RegulatoryDashboardPage() {
-  const [userRole, setUserRole] = useState<string>(DEFAULT_ROLE)
+  const { toast } = useToast()
+  const supabase = createClient()
+
   const [activeAccess, setActiveAccess] = useState<RegulatoryAccess[]>([])
   const [complianceAlerts, setComplianceAlerts] = useState<ComplianceAlert[]>([])
   const [complianceReports, setComplianceReports] = useState<ComplianceReport[]>([])
-  const [complianceScore, setComplianceScore] = useState<number>(85)
+  const [complianceScore, setComplianceScore] = useState<number>(0)
   const [isLoading, setIsLoading] = useState(true)
-  const [currentProvider, setCurrentProvider] = useState<ProviderData | null>(null)
+  const [isGrantAccessOpen, setIsGrantAccessOpen] = useState(false)
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("")
 
-  const supabase = createClient()
+  const [newAccess, setNewAccess] = useState({
+    inspector_name: "",
+    inspector_id: "",
+    organization: "DEA",
+    role: "dea_inspector",
+    notes: "",
+    expires_days: 7,
+  })
 
   const fetchRegulatoryData = useCallback(async () => {
+    setIsLoading(true)
     try {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-        if (user) {
-          const { data: providerData } = await supabase
-            .from("providers")
-            .select("id, first_name, last_name, role")
-            .eq("auth_user_id", user.id)
-            .single()
-
-          if (providerData) {
-            setCurrentProvider(providerData)
-            setUserRole(providerData.role)
-          }
-        }
-      } catch {
-        // User not logged in
-      }
-
-      // Fetch active regulatory access (for administrators)
+      // Fetch active regulatory access
       const { data: accessData } = await supabase
         .from("regulatory_access")
         .select("*")
-        .eq("status", "active")
-        .order("granted_at", { ascending: false })
+        .eq("is_active", true)
+        .order("access_granted_at", { ascending: false })
 
-      if (accessData) {
-        setActiveAccess(accessData)
-      }
+      if (accessData) setActiveAccess(accessData)
 
       // Fetch compliance alerts
       const { data: alertsData } = await supabase
-        .from("compliance_alerts")
+        .from("clinical_alerts")
         .select("*")
-        .eq("resolved", false)
+        .in("alert_type", ["compliance", "regulatory", "audit"])
         .order("created_at", { ascending: false })
-        .limit(10)
+        .limit(20)
 
-      if (alertsData) {
-        setComplianceAlerts(alertsData)
-      }
+      if (alertsData) setComplianceAlerts(alertsData)
 
       // Fetch compliance reports
       const { data: reportsData } = await supabase
@@ -124,38 +111,160 @@ export default function RegulatoryDashboardPage() {
         .order("created_at", { ascending: false })
         .limit(10)
 
-      if (reportsData) {
-        setComplianceReports(reportsData)
-      }
+      if (reportsData) setComplianceReports(reportsData)
 
-      // Calculate compliance score
-      const totalReports = reportsData?.length || 0
-      const passedReports = reportsData?.filter((r) => r.status === "passed").length || 0
-      setComplianceScore(totalReports > 0 ? Math.round((passedReports / totalReports) * 100) : 85)
+      // Calculate compliance score from real data
+      const { count: totalAlerts } = await supabase
+        .from("clinical_alerts")
+        .select("*", { count: "exact", head: true })
+        .in("alert_type", ["compliance", "regulatory"])
+
+      const { count: resolvedAlerts } = await supabase
+        .from("clinical_alerts")
+        .select("*", { count: "exact", head: true })
+        .in("alert_type", ["compliance", "regulatory"])
+        .eq("status", "resolved")
+
+      const score = totalAlerts && totalAlerts > 0 ? Math.round(((resolvedAlerts || 0) / totalAlerts) * 100) : 85 // Default if no alerts
+
+      setComplianceScore(score)
     } catch (error) {
       console.error("Error fetching regulatory data:", error)
+      toast({ title: "Error", description: "Failed to load regulatory data", variant: "destructive" })
     } finally {
       setIsLoading(false)
     }
-  }, [supabase])
+  }, [supabase, toast])
 
   useEffect(() => {
     fetchRegulatoryData()
   }, [fetchRegulatoryData])
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "active":
-        return <Badge className="bg-green-100 text-green-800">Active</Badge>
-      case "pending":
-        return <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>
-      case "expired":
-        return <Badge className="bg-red-100 text-red-800">Expired</Badge>
-      case "revoked":
-        return <Badge className="bg-gray-100 text-gray-800">Revoked</Badge>
-      default:
-        return <Badge variant="outline">{status}</Badge>
+  const handleGrantAccess = async () => {
+    if (!newAccess.inspector_name || !newAccess.inspector_id) {
+      toast({ title: "Error", description: "Please fill in all required fields", variant: "destructive" })
+      return
     }
+
+    try {
+      const expiresAt = new Date()
+      expiresAt.setDate(expiresAt.getDate() + newAccess.expires_days)
+
+      const { error } = await supabase.from("regulatory_access").insert({
+        inspector_name: newAccess.inspector_name,
+        inspector_id: newAccess.inspector_id,
+        organization: newAccess.organization,
+        role: newAccess.role,
+        notes: newAccess.notes,
+        is_active: true,
+        access_granted_at: new Date().toISOString(),
+        access_expires_at: expiresAt.toISOString(),
+      })
+
+      if (error) throw error
+
+      toast({ title: "Success", description: "Inspector access granted successfully" })
+      setIsGrantAccessOpen(false)
+      setNewAccess({
+        inspector_name: "",
+        inspector_id: "",
+        organization: "DEA",
+        role: "dea_inspector",
+        notes: "",
+        expires_days: 7,
+      })
+      fetchRegulatoryData()
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to grant access", variant: "destructive" })
+    }
+  }
+
+  const handleRevokeAccess = async (accessId: string) => {
+    if (!confirm("Are you sure you want to revoke this access?")) return
+
+    try {
+      const { error } = await supabase.from("regulatory_access").update({ is_active: false }).eq("id", accessId)
+
+      if (error) throw error
+
+      toast({ title: "Success", description: "Access revoked successfully" })
+      fetchRegulatoryData()
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to revoke access", variant: "destructive" })
+    }
+  }
+
+  const handleResolveAlert = async (alertId: string) => {
+    try {
+      const { error } = await supabase
+        .from("clinical_alerts")
+        .update({ status: "resolved", acknowledged_at: new Date().toISOString() })
+        .eq("id", alertId)
+
+      if (error) throw error
+
+      toast({ title: "Success", description: "Alert resolved" })
+      fetchRegulatoryData()
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to resolve alert", variant: "destructive" })
+    }
+  }
+
+  const handleGenerateReport = async (reportType: string) => {
+    setIsGeneratingReport(true)
+    try {
+      // Generate report data based on type
+      let reportData: any = {}
+
+      if (reportType === "DEA") {
+        const { data: inventory } = await supabase.from("medication_inventory").select("*").eq("dea_schedule", "II")
+        const { data: transactions } = await supabase.from("inventory_transactions").select("*").limit(100)
+        reportData = { inventory, transactions, generated_at: new Date().toISOString() }
+      } else if (reportType === "HIPAA") {
+        const { data: logins } = await supabase.from("login_activity").select("*").limit(100)
+        const { data: audit } = await supabase.from("audit_trail").select("*").limit(100)
+        reportData = { logins, audit, generated_at: new Date().toISOString() }
+      } else if (reportType === "Joint Commission") {
+        const { data: notes } = await supabase.from("progress_notes").select("*").limit(50)
+        const { data: assessments } = await supabase.from("patient_assessments").select("*").limit(50)
+        reportData = { notes, assessments, generated_at: new Date().toISOString() }
+      } else {
+        const { data: patients } = await supabase.from("patients").select("id, created_at").limit(100)
+        reportData = { patients, generated_at: new Date().toISOString() }
+      }
+
+      // Save the report
+      const { error } = await supabase.from("compliance_reports").insert({
+        report_type: reportType,
+        status: "completed",
+        report_data: reportData,
+      })
+
+      if (error) throw error
+
+      // Download as JSON
+      const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: "application/json" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `${reportType.toLowerCase().replace(/ /g, "_")}_compliance_report_${new Date().toISOString().split("T")[0]}.json`
+      a.click()
+
+      toast({ title: "Success", description: `${reportType} compliance report generated` })
+      fetchRegulatoryData()
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to generate report", variant: "destructive" })
+    } finally {
+      setIsGeneratingReport(false)
+    }
+  }
+
+  const getStatusBadge = (isActive: boolean) => {
+    return isActive ? (
+      <Badge className="bg-green-100 text-green-800">Active</Badge>
+    ) : (
+      <Badge className="bg-red-100 text-red-800">Expired</Badge>
+    )
   }
 
   const getSeverityIcon = (severity: string) => {
@@ -166,25 +275,21 @@ export default function RegulatoryDashboardPage() {
         return <AlertTriangle className="h-4 w-4 text-orange-600" />
       case "medium":
         return <AlertTriangle className="h-4 w-4 text-yellow-600" />
-      case "low":
-        return <CheckCircle className="h-4 w-4 text-blue-600" />
       default:
-        return <Clock className="h-4 w-4 text-gray-600" />
+        return <CheckCircle className="h-4 w-4 text-blue-600" />
     }
   }
 
-  const isRegulatory = ["dea_inspector", "joint_commission_surveyor", "state_inspector", "read_only_auditor"].includes(
-    userRole,
+  const filteredAccess = activeAccess.filter(
+    (a) =>
+      a.inspector_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      a.organization?.toLowerCase().includes(searchTerm.toLowerCase()),
   )
-  const isAdmin = ["administrator", "compliance_officer"].includes(userRole)
 
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading regulatory dashboard...</p>
-        </div>
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     )
   }
@@ -192,40 +297,33 @@ export default function RegulatoryDashboardPage() {
   return (
     <div className="min-h-screen bg-background">
       <DashboardSidebar />
-      <div className="pl-64">
-        <DashboardHeader />
+      <div className="lg:pl-64">
         <main className="p-6 space-y-6">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-3xl font-bold text-foreground font-[family-name:var(--font-work-sans)]">
-                Regulatory Compliance Dashboard
-              </h1>
-              <p className="text-muted-foreground">
-                {isRegulatory ? "Authorized Inspector Access" : "Compliance Management & Oversight"}
-              </p>
+              <h1 className="text-3xl font-bold">Regulatory Compliance Dashboard</h1>
+              <p className="text-muted-foreground">Compliance Management & Oversight</p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm">
-                <Download className="mr-2 h-4 w-4" />
-                Export Reports
+              <Button variant="outline" size="sm" onClick={() => fetchRegulatoryData()}>
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Refresh
               </Button>
-              {isAdmin && (
-                <Button size="sm">
-                  <Shield className="mr-2 h-4 w-4" />
-                  Grant Access
-                </Button>
-              )}
+              <Button size="sm" onClick={() => setIsGrantAccessOpen(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Grant Access
+              </Button>
             </div>
           </div>
 
-          {/* Quick Stats */}
+          {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Active Inspections</p>
-                    <p className="text-2xl font-bold text-card-foreground">{activeAccess.length}</p>
+                    <p className="text-2xl font-bold">{activeAccess.length}</p>
                     <p className="text-xs text-blue-600">Currently authorized</p>
                   </div>
                   <Shield className="h-8 w-8 text-primary" />
@@ -237,10 +335,16 @@ export default function RegulatoryDashboardPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Compliance Score</p>
-                    <p className="text-2xl font-bold text-green-600">{complianceScore}%</p>
-                    <p className="text-xs text-green-600">Above threshold</p>
+                    <p
+                      className={`text-2xl font-bold ${complianceScore >= 80 ? "text-green-600" : complianceScore >= 60 ? "text-yellow-600" : "text-red-600"}`}
+                    >
+                      {complianceScore}%
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {complianceScore >= 80 ? "Above threshold" : "Needs attention"}
+                    </p>
                   </div>
-                  <FileCheck className="h-8 w-8 text-green-600" />
+                  <FileCheck className={`h-8 w-8 ${complianceScore >= 80 ? "text-green-600" : "text-yellow-600"}`} />
                 </div>
               </CardContent>
             </Card>
@@ -249,7 +353,9 @@ export default function RegulatoryDashboardPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Open Alerts</p>
-                    <p className="text-2xl font-bold text-orange-600">{complianceAlerts.length}</p>
+                    <p className="text-2xl font-bold text-orange-600">
+                      {complianceAlerts.filter((a) => a.status !== "resolved").length}
+                    </p>
                     <p className="text-xs text-orange-600">Require attention</p>
                   </div>
                   <AlertTriangle className="h-8 w-8 text-orange-600" />
@@ -260,9 +366,9 @@ export default function RegulatoryDashboardPage() {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-muted-foreground">Last Audit</p>
-                    <p className="text-2xl font-bold text-card-foreground">15 days</p>
-                    <p className="text-xs text-muted-foreground">Since last inspection</p>
+                    <p className="text-sm font-medium text-muted-foreground">Reports Generated</p>
+                    <p className="text-2xl font-bold">{complianceReports.length}</p>
+                    <p className="text-xs text-muted-foreground">This month</p>
                   </div>
                   <Calendar className="h-8 w-8 text-muted-foreground" />
                 </div>
@@ -294,10 +400,10 @@ export default function RegulatoryDashboardPage() {
                               <User className="h-5 w-5 text-muted-foreground" />
                               <div>
                                 <p className="font-medium">{access.inspector_name}</p>
-                                <p className="text-sm text-muted-foreground">{access.agency}</p>
+                                <p className="text-sm text-muted-foreground">{access.organization}</p>
                               </div>
                             </div>
-                            {getStatusBadge(access.status)}
+                            {getStatusBadge(access.is_active)}
                           </div>
                         ))}
                       </div>
@@ -313,17 +419,20 @@ export default function RegulatoryDashboardPage() {
                     <CardDescription>Items requiring attention</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    {complianceAlerts.length > 0 ? (
+                    {complianceAlerts.filter((a) => a.status !== "resolved").length > 0 ? (
                       <div className="space-y-4">
-                        {complianceAlerts.slice(0, 5).map((alert) => (
-                          <div key={alert.id} className="flex items-start gap-3 p-3 border rounded-lg">
-                            {getSeverityIcon(alert.severity)}
-                            <div className="flex-1">
-                              <p className="font-medium text-sm">{alert.type}</p>
-                              <p className="text-sm text-muted-foreground">{alert.message}</p>
+                        {complianceAlerts
+                          .filter((a) => a.status !== "resolved")
+                          .slice(0, 5)
+                          .map((alert) => (
+                            <div key={alert.id} className="flex items-start gap-3 p-3 border rounded-lg">
+                              {getSeverityIcon(alert.severity)}
+                              <div className="flex-1">
+                                <p className="font-medium text-sm">{alert.alert_type}</p>
+                                <p className="text-sm text-muted-foreground">{alert.alert_message}</p>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
                       </div>
                     ) : (
                       <p className="text-sm text-muted-foreground text-center py-8">No open alerts</p>
@@ -341,15 +450,18 @@ export default function RegulatoryDashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="flex gap-4 mb-6">
-                    <div className="flex-1">
-                      <Input placeholder="Search by inspector name or agency..." />
+                    <div className="flex-1 relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search by inspector name or agency..."
+                        className="pl-10"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                      />
                     </div>
-                    <Button variant="outline">
-                      <Search className="h-4 w-4" />
-                    </Button>
                   </div>
                   <div className="space-y-4">
-                    {activeAccess.map((access) => (
+                    {filteredAccess.map((access) => (
                       <div key={access.id} className="flex items-center justify-between p-4 border rounded-lg">
                         <div className="flex items-center gap-4">
                           <div className="p-2 bg-primary/10 rounded-lg">
@@ -359,23 +471,29 @@ export default function RegulatoryDashboardPage() {
                             <p className="font-medium">{access.inspector_name}</p>
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                               <Building className="h-3 w-3" />
-                              {access.agency}
+                              {access.organization}
                             </div>
+                            <p className="text-xs text-muted-foreground">
+                              Expires: {new Date(access.access_expires_at).toLocaleDateString()}
+                            </p>
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
-                          {getStatusBadge(access.status)}
+                          {getStatusBadge(access.is_active)}
                           <div className="flex gap-2">
                             <Button variant="outline" size="sm">
                               <Eye className="h-4 w-4" />
                             </Button>
-                            <Button variant="outline" size="sm">
+                            <Button variant="outline" size="sm" onClick={() => handleRevokeAccess(access.id)}>
                               <Lock className="h-4 w-4" />
                             </Button>
                           </div>
                         </div>
                       </div>
                     ))}
+                    {filteredAccess.length === 0 && (
+                      <p className="text-center text-muted-foreground py-8">No active regulatory access found</p>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -395,16 +513,20 @@ export default function RegulatoryDashboardPage() {
                           <div className="flex items-start gap-3">
                             {getSeverityIcon(alert.severity)}
                             <div>
-                              <p className="font-medium">{alert.type}</p>
-                              <p className="text-sm text-muted-foreground">{alert.message}</p>
+                              <p className="font-medium">{alert.alert_type}</p>
+                              <p className="text-sm text-muted-foreground">{alert.alert_message}</p>
                               <p className="text-xs text-muted-foreground mt-1">
                                 {new Date(alert.created_at).toLocaleDateString()}
                               </p>
                             </div>
                           </div>
-                          <Button variant="outline" size="sm">
-                            Resolve
-                          </Button>
+                          {alert.status !== "resolved" ? (
+                            <Button variant="outline" size="sm" onClick={() => handleResolveAlert(alert.id)}>
+                              Resolve
+                            </Button>
+                          ) : (
+                            <Badge className="bg-green-100 text-green-800">Resolved</Badge>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -423,28 +545,136 @@ export default function RegulatoryDashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {complianceReports.map((report) => (
-                      <div key={report.id} className="p-4 border rounded-lg">
-                        <h4 className="font-medium mb-2">{report.type}</h4>
+                    {["DEA", "OASAS", "HIPAA", "Joint Commission"].map((type) => (
+                      <div key={type} className="p-4 border rounded-lg">
+                        <h4 className="font-medium mb-2">{type} Compliance Report</h4>
                         <p className="text-sm text-muted-foreground mb-4">
-                          {report.type === "DEA" ? "Controlled substance handling and documentation" : ""}
-                          {report.type === "OASAS" ? "State regulatory compliance documentation" : ""}
-                          {report.type === "HIPAA" ? "Privacy and security compliance audit" : ""}
-                          {report.type === "Joint Commission" ? "Accreditation compliance documentation" : ""}
+                          {type === "DEA" && "Controlled substance handling and documentation"}
+                          {type === "OASAS" && "State regulatory compliance documentation"}
+                          {type === "HIPAA" && "Privacy and security compliance audit"}
+                          {type === "Joint Commission" && "Accreditation compliance documentation"}
                         </p>
-                        <Button variant="outline" size="sm">
-                          <Download className="mr-2 h-4 w-4" />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleGenerateReport(type)}
+                          disabled={isGeneratingReport}
+                        >
+                          {isGeneratingReport ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : (
+                            <Download className="mr-2 h-4 w-4" />
+                          )}
                           Generate
                         </Button>
                       </div>
                     ))}
                   </div>
+
+                  {complianceReports.length > 0 && (
+                    <div className="mt-6">
+                      <h4 className="font-medium mb-4">Recent Reports</h4>
+                      <div className="space-y-2">
+                        {complianceReports.slice(0, 5).map((report) => (
+                          <div key={report.id} className="flex items-center justify-between p-3 border rounded-lg">
+                            <div>
+                              <p className="font-medium">{report.report_type}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {new Date(report.created_at).toLocaleString()}
+                              </p>
+                            </div>
+                            <Badge className={report.status === "completed" ? "bg-green-100 text-green-800" : ""}>
+                              {report.status}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
           </Tabs>
         </main>
       </div>
+
+      {/* Grant Access Dialog */}
+      <Dialog open={isGrantAccessOpen} onOpenChange={setIsGrantAccessOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Grant Inspector Access</DialogTitle>
+            <DialogDescription>Provide temporary access to regulatory inspectors</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Inspector Name *</Label>
+              <Input
+                placeholder="Full name"
+                value={newAccess.inspector_name}
+                onChange={(e) => setNewAccess({ ...newAccess, inspector_name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Inspector ID *</Label>
+              <Input
+                placeholder="Badge/ID number"
+                value={newAccess.inspector_id}
+                onChange={(e) => setNewAccess({ ...newAccess, inspector_id: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Organization</Label>
+              <Select
+                value={newAccess.organization}
+                onValueChange={(v) => setNewAccess({ ...newAccess, organization: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="DEA">DEA</SelectItem>
+                  <SelectItem value="Joint Commission">Joint Commission</SelectItem>
+                  <SelectItem value="State Health Department">State Health Department</SelectItem>
+                  <SelectItem value="OASAS">OASAS</SelectItem>
+                  <SelectItem value="CMS">CMS</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Access Duration</Label>
+              <Select
+                value={String(newAccess.expires_days)}
+                onValueChange={(v) => setNewAccess({ ...newAccess, expires_days: Number.parseInt(v) })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">1 Day</SelectItem>
+                  <SelectItem value="3">3 Days</SelectItem>
+                  <SelectItem value="7">7 Days</SelectItem>
+                  <SelectItem value="14">14 Days</SelectItem>
+                  <SelectItem value="30">30 Days</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea
+                placeholder="Purpose of inspection..."
+                value={newAccess.notes}
+                onChange={(e) => setNewAccess({ ...newAccess, notes: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setIsGrantAccessOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleGrantAccess}>Grant Access</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -1,129 +1,32 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback } from "react"
+import useSWR from "swr"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { toast } from "sonner"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Search, Clock, Users, TrendingUp, CheckCircle, FileText, Star } from "lucide-react"
+  Search,
+  Clock,
+  Users,
+  TrendingUp,
+  CheckCircle,
+  FileText,
+  Star,
+  AlertTriangle,
+  RefreshCw,
+  Play,
+} from "lucide-react"
 
-// Mock data for assessment forms
-const assessmentForms = [
-  {
-    id: 1,
-    code: "ANSA",
-    name: "Adult Needs and Strengths Assessment",
-    category: "Comprehensive Assessment",
-    description: "Comprehensive assessment tool for adults in behavioral health services",
-    estimatedTime: 45,
-    frequency: "At Admission, Every 90 Days",
-    scoringGuidelines: "Scores range from 0-3 for each domain",
-    clinicalGuidelines: "Use for treatment planning and outcome measurement",
-    isPopular: true,
-    completions: 1250,
-  },
-  {
-    id: 2,
-    code: "C-SSRS",
-    name: "Columbia Suicide Severity Rating Scale",
-    category: "Suicide Risk",
-    description: "Gold standard for suicide risk assessment",
-    estimatedTime: 15,
-    frequency: "At Every Encounter",
-    scoringGuidelines: "Binary and severity scoring for suicidal ideation and behavior",
-    clinicalGuidelines: "Critical for safety planning and risk management",
-    isPopular: true,
-    completions: 2100,
-  },
-  {
-    id: 3,
-    code: "PHQ-9",
-    name: "Patient Health Questionnaire-9",
-    category: "Depression",
-    description: "Nine-item depression screening and severity measure",
-    estimatedTime: 5,
-    frequency: "Weekly",
-    scoringGuidelines: "0-27 scale with severity categories and diagnostic algorithm",
-    clinicalGuidelines: "Depression screening and monitoring",
-    isPopular: true,
-    completions: 3200,
-  },
-  {
-    id: 4,
-    code: "GAD-7",
-    name: "Generalized Anxiety Disorder",
-    category: "Anxiety",
-    description: "Seven-item anxiety screening and severity measure",
-    estimatedTime: 5,
-    frequency: "Weekly",
-    scoringGuidelines: "0-21 scale with severity categories",
-    clinicalGuidelines: "Primary care and specialty anxiety assessment",
-    isPopular: true,
-    completions: 2800,
-  },
-  {
-    id: 5,
-    code: "PCL-5",
-    name: "PTSD Checklist for DSM-5",
-    category: "PTSD/Trauma",
-    description: "Gold standard PTSD assessment for DSM-5",
-    estimatedTime: 10,
-    frequency: "Monthly",
-    scoringGuidelines: "Total severity score with diagnostic cutoff",
-    clinicalGuidelines: "PTSD screening, diagnosis, and monitoring",
-    isPopular: false,
-    completions: 890,
-  },
-  {
-    id: 6,
-    code: "BAM",
-    name: "Brief Addiction Monitor",
-    category: "Substance Use",
-    description: "Brief assessment with scoring and clinical guidelines for addiction monitoring",
-    estimatedTime: 10,
-    frequency: "Weekly",
-    scoringGuidelines: "Total score interpretation provided with clinical guidelines",
-    clinicalGuidelines: "Monitor treatment progress and identify areas of concern",
-    isPopular: false,
-    completions: 650,
-  },
-  {
-    id: 7,
-    code: "DASS-21",
-    name: "Depression, Anxiety and Stress Scale",
-    category: "Depression/Anxiety",
-    description: "21-item assessment of depression, anxiety, and stress",
-    estimatedTime: 10,
-    frequency: "Monthly",
-    scoringGuidelines: "Separate scores for each subscale with severity ranges",
-    clinicalGuidelines: "Useful for screening and monitoring treatment progress",
-    isPopular: false,
-    completions: 420,
-  },
-  {
-    id: 8,
-    code: "URICA",
-    name: "Change Assessment Scale",
-    category: "Motivation",
-    description: "Assessment of readiness to change behavior",
-    estimatedTime: 15,
-    frequency: "At Admission, Every 30 Days",
-    scoringGuidelines: "Stage of change scoring",
-    clinicalGuidelines: "Treatment planning and motivational enhancement",
-    isPopular: false,
-    completions: 380,
-  },
-]
+const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
 const categories = [
   "All",
@@ -133,25 +36,109 @@ const categories = [
   "Suicide Risk",
   "PTSD/Trauma",
   "Substance Use",
+  "Mental Health",
+  "Risk Assessment",
   "Motivation",
 ]
 
 export function AssessmentLibraryDashboard() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("All")
-  const [selectedForm, setSelectedForm] = useState<(typeof assessmentForms)[0] | null>(null)
+  const [selectedForm, setSelectedForm] = useState<any | null>(null)
+  const [viewDetailsOpen, setViewDetailsOpen] = useState(false)
+  const [administerOpen, setAdministerOpen] = useState(false)
+  const [selectedPatient, setSelectedPatient] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [assessmentNotes, setAssessmentNotes] = useState("")
 
-  const filteredForms = assessmentForms.filter((form) => {
+  const { data, error, isLoading, mutate } = useSWR("/api/assessments", fetcher, {
+    refreshInterval: 30000,
+  })
+
+  // Get assessment forms from API or use empty array
+  const assessmentForms = data?.assessmentCatalog || []
+  const patients = data?.patients || []
+  const statistics = data?.statistics || {}
+
+  const filteredForms = assessmentForms.filter((form: any) => {
     const matchesSearch =
-      form.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      form.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      form.description.toLowerCase().includes(searchTerm.toLowerCase())
+      form.form_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      form.form_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      form.description?.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesCategory = selectedCategory === "All" || form.category === selectedCategory
     return matchesSearch && matchesCategory
   })
 
-  const popularForms = assessmentForms.filter((form) => form.isPopular)
-  const totalCompletions = assessmentForms.reduce((sum, form) => sum + form.completions, 0)
+  const popularForms = assessmentForms.filter((form: any) => form.is_active)
+  const totalCompletions = statistics.totalAssessments || 0
+
+  const handleAdministerAssessment = useCallback(async () => {
+    if (!selectedPatient) {
+      toast.error("Please select a patient")
+      return
+    }
+    if (!selectedForm) {
+      toast.error("No assessment form selected")
+      return
+    }
+
+    setIsSubmitting(true)
+    try {
+      const response = await fetch("/api/assessments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create_assessment",
+          patient_id: selectedPatient,
+          form_id: selectedForm.id,
+          provider_id: null,
+          notes: assessmentNotes,
+        }),
+      })
+
+      const result = await response.json()
+      if (result.success) {
+        toast.success(`Assessment "${selectedForm.form_name}" started for patient`)
+        setAdministerOpen(false)
+        setSelectedPatient("")
+        setAssessmentNotes("")
+        setSelectedForm(null)
+        mutate()
+      } else {
+        toast.error(result.error || "Failed to start assessment")
+      }
+    } catch (err) {
+      toast.error("Failed to start assessment")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }, [selectedPatient, selectedForm, assessmentNotes, mutate])
+
+  const handleViewDetails = (form: any) => {
+    setSelectedForm(form)
+    setViewDetailsOpen(true)
+  }
+
+  const handleAdministerClick = (form: any) => {
+    setSelectedForm(form)
+    setAdministerOpen(true)
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Card className="p-8 text-center">
+          <AlertTriangle className="h-12 w-12 text-destructive mx-auto mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Failed to load assessment library</h2>
+          <p className="text-muted-foreground mb-4">Please try refreshing the page</p>
+          <Button onClick={() => mutate()}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Retry
+          </Button>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -163,8 +150,14 @@ export function AssessmentLibraryDashboard() {
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{assessmentForms.length}</div>
-            <p className="text-xs text-muted-foreground">Standardized clinical assessments</p>
+            {isLoading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{assessmentForms.length}</div>
+                <p className="text-xs text-muted-foreground">Standardized clinical assessments</p>
+              </>
+            )}
           </CardContent>
         </Card>
         <Card>
@@ -173,28 +166,46 @@ export function AssessmentLibraryDashboard() {
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalCompletions.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Across all assessment forms</p>
+            {isLoading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{totalCompletions.toLocaleString()}</div>
+                <p className="text-xs text-muted-foreground">Across all assessment forms</p>
+              </>
+            )}
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Popular Forms</CardTitle>
+            <CardTitle className="text-sm font-medium">Active Forms</CardTitle>
             <Star className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{popularForms.length}</div>
-            <p className="text-xs text-muted-foreground">Most frequently used</p>
+            {isLoading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{popularForms.length}</div>
+                <p className="text-xs text-muted-foreground">Available for use</p>
+              </>
+            )}
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Categories</CardTitle>
+            <CardTitle className="text-sm font-medium">Completion Rate</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{categories.length - 1}</div>
-            <p className="text-xs text-muted-foreground">Clinical assessment categories</p>
+            {isLoading ? (
+              <Skeleton className="h-8 w-16" />
+            ) : (
+              <>
+                <div className="text-2xl font-bold">{statistics.completionRate || 0}%</div>
+                <p className="text-xs text-muted-foreground">Assessment completion rate</p>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -222,194 +233,354 @@ export function AssessmentLibraryDashboard() {
             ))}
           </SelectContent>
         </Select>
+        <Button variant="outline" onClick={() => mutate()}>
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Refresh
+        </Button>
       </div>
 
       <Tabs defaultValue="all-forms" className="space-y-4">
         <TabsList>
           <TabsTrigger value="all-forms">All Forms</TabsTrigger>
-          <TabsTrigger value="popular">Popular</TabsTrigger>
+          <TabsTrigger value="popular">Active</TabsTrigger>
           <TabsTrigger value="by-category">By Category</TabsTrigger>
         </TabsList>
 
         <TabsContent value="all-forms" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredForms.map((form) => (
-              <Card key={form.id} className="cursor-pointer hover:shadow-md transition-shadow">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        {form.code}
-                        {form.isPopular && <Star className="h-4 w-4 text-yellow-500 fill-current" />}
-                      </CardTitle>
-                      <CardDescription className="text-sm font-medium">{form.name}</CardDescription>
+          {isLoading ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <Card key={i}>
+                  <CardHeader>
+                    <Skeleton className="h-6 w-24 mb-2" />
+                    <Skeleton className="h-4 w-48" />
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-4 w-full mb-4" />
+                    <div className="flex gap-2">
+                      <Skeleton className="h-8 w-24" />
+                      <Skeleton className="h-8 w-24" />
                     </div>
-                    <Badge variant="secondary">{form.category}</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground mb-4">{form.description}</p>
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-1">
-                      <Clock className="h-4 w-4" />
-                      <span>{form.estimatedTime} min</span>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : filteredForms.length === 0 ? (
+            <div className="text-center py-12">
+              <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+              <h3 className="text-lg font-medium mb-2">No assessment forms found</h3>
+              <p className="text-muted-foreground">Try adjusting your search or filter criteria</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {filteredForms.map((form: any) => (
+                <Card key={form.id} className="hover:shadow-md transition-shadow">
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div className="space-y-1">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          {form.form_code || form.form_name?.substring(0, 10)}
+                          {form.is_active && <Star className="h-4 w-4 text-yellow-500 fill-current" />}
+                        </CardTitle>
+                        <CardDescription className="text-sm font-medium">{form.form_name}</CardDescription>
+                      </div>
+                      <Badge variant="secondary">{form.category}</Badge>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Users className="h-4 w-4" />
-                      <span>{form.completions}</span>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {form.description?.substring(0, 100) || "Clinical assessment tool"}
+                      {form.description?.length > 100 ? "..." : ""}
+                    </p>
+                    <div className="flex items-center justify-between text-sm mb-4">
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-4 w-4" />
+                        <span>{form.estimated_completion_minutes || 15} min</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Users className="h-4 w-4" />
+                        <span>{form.version || "v1.0"}</span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="mt-4 flex gap-2">
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm" onClick={() => setSelectedForm(form)}>
-                          View Details
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-2xl">
-                        <DialogHeader>
-                          <DialogTitle className="flex items-center gap-2">
-                            {form.code} - {form.name}
-                            {form.isPopular && <Star className="h-4 w-4 text-yellow-500 fill-current" />}
-                          </DialogTitle>
-                          <DialogDescription>{form.description}</DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-4">
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <h4 className="font-semibold mb-2">Assessment Details</h4>
-                              <div className="space-y-2 text-sm">
-                                <div>
-                                  <strong>Category:</strong> {form.category}
-                                </div>
-                                <div>
-                                  <strong>Estimated Time:</strong> {form.estimatedTime} minutes
-                                </div>
-                                <div>
-                                  <strong>Frequency:</strong> {form.frequency}
-                                </div>
-                                <div>
-                                  <strong>Completions:</strong> {form.completions}
-                                </div>
-                              </div>
-                            </div>
-                            <div>
-                              <h4 className="font-semibold mb-2">Clinical Information</h4>
-                              <div className="space-y-2 text-sm">
-                                <div>
-                                  <strong>Scoring:</strong> {form.scoringGuidelines}
-                                </div>
-                                <div>
-                                  <strong>Guidelines:</strong> {form.clinicalGuidelines}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button>Administer Assessment</Button>
-                            <Button variant="outline">View Sample</Button>
-                            <Button variant="outline">Download PDF</Button>
-                          </div>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                    <Button size="sm">Administer</Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => handleViewDetails(form)}>
+                        View Details
+                      </Button>
+                      <Button size="sm" onClick={() => handleAdministerClick(form)}>
+                        <Play className="mr-1 h-3 w-3" />
+                        Administer
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="popular" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {popularForms.map((form) => (
-              <Card key={form.id} className="cursor-pointer hover:shadow-md transition-shadow border-yellow-200">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        {form.code}
-                        <Star className="h-4 w-4 text-yellow-500 fill-current" />
-                      </CardTitle>
-                      <CardDescription className="text-sm font-medium">{form.name}</CardDescription>
+          {isLoading ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {[1, 2, 3].map((i) => (
+                <Card key={i}>
+                  <CardHeader>
+                    <Skeleton className="h-6 w-24 mb-2" />
+                    <Skeleton className="h-4 w-48" />
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-4 w-full mb-4" />
+                    <div className="flex gap-2">
+                      <Skeleton className="h-8 w-24" />
+                      <Skeleton className="h-8 w-24" />
                     </div>
-                    <Badge variant="secondary">{form.category}</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground mb-4">{form.description}</p>
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-1">
-                      <Clock className="h-4 w-4" />
-                      <span>{form.estimatedTime} min</span>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {popularForms.map((form: any) => (
+                <Card key={form.id} className="hover:shadow-md transition-shadow border-yellow-200">
+                  <CardHeader>
+                    <div className="flex items-start justify-between">
+                      <div className="space-y-1">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          {form.form_code || form.form_name?.substring(0, 10)}
+                          <Star className="h-4 w-4 text-yellow-500 fill-current" />
+                        </CardTitle>
+                        <CardDescription className="text-sm font-medium">{form.form_name}</CardDescription>
+                      </div>
+                      <Badge variant="secondary">{form.category}</Badge>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Users className="h-4 w-4" />
-                      <span>{form.completions}</span>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      {form.description?.substring(0, 100) || "Clinical assessment tool"}
+                    </p>
+                    <div className="flex items-center justify-between text-sm mb-4">
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-4 w-4" />
+                        <span>{form.estimated_completion_minutes || 15} min</span>
+                      </div>
                     </div>
-                  </div>
-                  <div className="mt-4 flex gap-2">
-                    <Button variant="outline" size="sm">
-                      View Details
-                    </Button>
-                    <Button size="sm">Administer</Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => handleViewDetails(form)}>
+                        View Details
+                      </Button>
+                      <Button size="sm" onClick={() => handleAdministerClick(form)}>
+                        <Play className="mr-1 h-3 w-3" />
+                        Administer
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="by-category" className="space-y-4">
-          {categories.slice(1).map((category) => {
-            const categoryForms = assessmentForms.filter((form) => form.category === category)
-            if (categoryForms.length === 0) return null
-
-            return (
-              <div key={category}>
-                <h3 className="text-lg font-semibold mb-3">{category}</h3>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
-                  {categoryForms.map((form) => (
-                    <Card key={form.id} className="cursor-pointer hover:shadow-md transition-shadow">
+          {isLoading ? (
+            <div className="space-y-6">
+              {[1, 2, 3].map((i) => (
+                <div key={i}>
+                  <Skeleton className="h-6 w-32 mb-3" />
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    <Card>
                       <CardHeader>
-                        <div className="flex items-start justify-between">
-                          <div className="space-y-1">
-                            <CardTitle className="text-lg flex items-center gap-2">
-                              {form.code}
-                              {form.isPopular && <Star className="h-4 w-4 text-yellow-500 fill-current" />}
-                            </CardTitle>
-                            <CardDescription className="text-sm font-medium">{form.name}</CardDescription>
-                          </div>
-                        </div>
+                        <Skeleton className="h-6 w-24" />
                       </CardHeader>
                       <CardContent>
-                        <p className="text-sm text-muted-foreground mb-4">{form.description}</p>
-                        <div className="flex items-center justify-between text-sm">
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-4 w-4" />
-                            <span>{form.estimatedTime} min</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Users className="h-4 w-4" />
-                            <span>{form.completions}</span>
-                          </div>
-                        </div>
-                        <div className="mt-4 flex gap-2">
-                          <Button variant="outline" size="sm">
-                            View Details
-                          </Button>
-                          <Button size="sm">Administer</Button>
-                        </div>
+                        <Skeleton className="h-4 w-full" />
                       </CardContent>
                     </Card>
-                  ))}
+                  </div>
                 </div>
-              </div>
-            )
-          })}
+              ))}
+            </div>
+          ) : (
+            categories.slice(1).map((category) => {
+              const categoryForms = assessmentForms.filter((form: any) => form.category === category)
+              if (categoryForms.length === 0) return null
+
+              return (
+                <div key={category}>
+                  <h3 className="text-lg font-semibold mb-3">{category}</h3>
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
+                    {categoryForms.map((form: any) => (
+                      <Card key={form.id} className="hover:shadow-md transition-shadow">
+                        <CardHeader>
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-1">
+                              <CardTitle className="text-lg flex items-center gap-2">
+                                {form.form_code || form.form_name?.substring(0, 10)}
+                                {form.is_active && <Star className="h-4 w-4 text-yellow-500 fill-current" />}
+                              </CardTitle>
+                              <CardDescription className="text-sm font-medium">{form.form_name}</CardDescription>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-sm text-muted-foreground mb-4">
+                            {form.description?.substring(0, 100) || "Clinical assessment tool"}
+                          </p>
+                          <div className="flex items-center justify-between text-sm mb-4">
+                            <div className="flex items-center gap-1">
+                              <Clock className="h-4 w-4" />
+                              <span>{form.estimated_completion_minutes || 15} min</span>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button variant="outline" size="sm" onClick={() => handleViewDetails(form)}>
+                              View Details
+                            </Button>
+                            <Button size="sm" onClick={() => handleAdministerClick(form)}>
+                              <Play className="mr-1 h-3 w-3" />
+                              Administer
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )
+            })
+          )}
         </TabsContent>
       </Tabs>
+
+      {/* View Details Dialog */}
+      <Dialog open={viewDetailsOpen} onOpenChange={setViewDetailsOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {selectedForm?.form_code || selectedForm?.form_name?.substring(0, 10)} - {selectedForm?.form_name}
+              {selectedForm?.is_active && <Star className="h-4 w-4 text-yellow-500 fill-current" />}
+            </DialogTitle>
+            <DialogDescription>{selectedForm?.description}</DialogDescription>
+          </DialogHeader>
+          {selectedForm && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h4 className="font-semibold mb-2">Assessment Details</h4>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <strong>Category:</strong> {selectedForm.category}
+                    </div>
+                    <div>
+                      <strong>Estimated Time:</strong> {selectedForm.estimated_completion_minutes || 15} minutes
+                    </div>
+                    <div>
+                      <strong>Version:</strong> {selectedForm.version || "1.0"}
+                    </div>
+                    <div>
+                      <strong>Status:</strong>{" "}
+                      <Badge variant={selectedForm.is_active ? "default" : "secondary"}>
+                        {selectedForm.is_active ? "Active" : "Inactive"}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <h4 className="font-semibold mb-2">Clinical Information</h4>
+                  <div className="space-y-2 text-sm">
+                    <div>
+                      <strong>Scoring:</strong>{" "}
+                      {selectedForm.scoring_instructions || "Standard scoring guidelines apply"}
+                    </div>
+                    <div>
+                      <strong>Created:</strong>{" "}
+                      {selectedForm.created_at ? new Date(selectedForm.created_at).toLocaleDateString() : "N/A"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2 pt-4 border-t">
+                <Button
+                  onClick={() => {
+                    setViewDetailsOpen(false)
+                    handleAdministerClick(selectedForm)
+                  }}
+                >
+                  <Play className="mr-2 h-4 w-4" />
+                  Administer Assessment
+                </Button>
+                <Button variant="outline" onClick={() => setViewDetailsOpen(false)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Administer Assessment Dialog */}
+      <Dialog open={administerOpen} onOpenChange={setAdministerOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Administer Assessment</DialogTitle>
+            <DialogDescription>Start "{selectedForm?.form_name}" for a patient</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="patient">Select Patient *</Label>
+              <Select value={selectedPatient} onValueChange={setSelectedPatient}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a patient" />
+                </SelectTrigger>
+                <SelectContent>
+                  {patients.length === 0 ? (
+                    <SelectItem value="none" disabled>
+                      No patients available
+                    </SelectItem>
+                  ) : (
+                    patients.map((patient: any) => (
+                      <SelectItem key={patient.id} value={patient.id}>
+                        {patient.first_name} {patient.last_name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="notes">Notes (Optional)</Label>
+              <Textarea
+                id="notes"
+                value={assessmentNotes}
+                onChange={(e) => setAssessmentNotes(e.target.value)}
+                placeholder="Add any notes about this assessment..."
+                rows={3}
+              />
+            </div>
+            <div className="bg-muted p-3 rounded-lg">
+              <p className="text-sm">
+                <strong>Assessment:</strong> {selectedForm?.form_name}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Estimated time: {selectedForm?.estimated_completion_minutes || 15} minutes
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setAdministerOpen(false)
+                setSelectedPatient("")
+                setAssessmentNotes("")
+              }}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleAdministerAssessment} disabled={isSubmitting || !selectedPatient}>
+              {isSubmitting ? "Starting..." : "Start Assessment"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

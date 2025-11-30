@@ -8,9 +8,18 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Save, Send, ArrowLeft, Plus, X } from "lucide-react"
-import { createClient } from "@/utils/supabase-client"
-import { toast } from "react-toastify"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Save, ArrowLeft, Plus, X, PenTool, AlertTriangle, CheckCircle } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
+import { toast } from "sonner"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 
@@ -35,10 +44,20 @@ interface DischargeSummaryFormProps {
 export function DischargeSummaryForm({ existingSummary, isEditing = false }: DischargeSummaryFormProps) {
   const router = useRouter()
   const [patients, setPatients] = useState<any[]>([])
-  const [providerId, setProviderId] = useState<string>("")
+  const [providers, setProviders] = useState<any[]>([])
+  const [currentProvider, setCurrentProvider] = useState<any>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [medications, setMedications] = useState<Medication[]>(existingSummary?.medications_at_discharge || [])
-  const [followUps, setFollowUps] = useState<FollowUpAppointment[]>(existingSummary?.follow_up_appointments || [])
+  const [medications, setMedications] = useState<Medication[]>(
+    existingSummary?.medications_at_discharge?.medications || [],
+  )
+  const [followUps, setFollowUps] = useState<FollowUpAppointment[]>(
+    existingSummary?.follow_up_appointments?.appointments || [],
+  )
+
+  const [showSignatureDialog, setShowSignatureDialog] = useState(false)
+  const [signaturePin, setSignaturePin] = useState("")
+  const [signatureConfirmed, setSignatureConfirmed] = useState(false)
+  const [signatureError, setSignatureError] = useState("")
 
   const [formData, setFormData] = useState({
     patient_id: existingSummary?.patient_id || "",
@@ -73,32 +92,90 @@ export function DischargeSummaryForm({ existingSummary, isEditing = false }: Dis
   })
 
   useEffect(() => {
-    // Fetch patients data if needed
+    const loadData = async () => {
+      try {
+        const supabase = createClient()
+
+        // Fetch patients
+        const { data: patientsData } = await supabase
+          .from("patients")
+          .select("id, first_name, last_name, date_of_birth")
+          .order("last_name")
+
+        if (patientsData) setPatients(patientsData)
+
+        // Fetch providers
+        const { data: providersData } = await supabase
+          .from("providers")
+          .select("id, first_name, last_name, specialty, credentials")
+          .eq("is_active", true)
+          .order("last_name")
+
+        if (providersData) setProviders(providersData)
+
+        // Get current user/provider
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (user) {
+          const { data: providerData } = await supabase.from("providers").select("*").eq("user_id", user.id).single()
+
+          if (providerData) {
+            setCurrentProvider(providerData)
+            if (!formData.provider_id) {
+              setFormData((prev) => ({ ...prev, provider_id: providerData.id }))
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error loading data:", error)
+      }
+    }
+
+    loadData()
   }, [])
 
   const handleSubmit = async (isDraft: boolean) => {
+    if (!isDraft) {
+      // Open signature dialog for finalization
+      setShowSignatureDialog(true)
+      return
+    }
+
+    await saveDischarge("draft")
+  }
+
+  const saveDischarge = async (status: string) => {
     setIsLoading(true)
     try {
       const supabase = createClient()
 
+      // Calculate length of stay
+      const admissionDate = new Date(formData.admission_date)
+      const dischargeDate = new Date(formData.discharge_date)
+      const lengthOfStay = Math.ceil((dischargeDate.getTime() - admissionDate.getTime()) / (1000 * 60 * 60 * 24))
+
       const submitData = {
         ...formData,
-        status: isDraft ? "draft" : "finalized",
-        finalized_at: isDraft ? null : new Date().toISOString(),
-        finalized_by: isDraft ? null : providerId,
+        medications_at_discharge: { medications },
+        follow_up_appointments: { appointments: followUps },
+        length_of_stay: lengthOfStay,
+        status: status,
+        finalized_at: status === "finalized" ? new Date().toISOString() : null,
+        finalized_by: status === "finalized" ? currentProvider?.id || formData.provider_id : null,
       }
 
       if (isEditing && existingSummary) {
         const { error } = await supabase.from("discharge_summaries").update(submitData).eq("id", existingSummary.id)
 
         if (error) throw error
-        toast.success("Discharge summary updated successfully")
+        toast.success(status === "finalized" ? "Discharge summary finalized and signed" : "Discharge summary updated")
         router.push(`/discharge-summary/${existingSummary.id}`)
       } else {
         const { data, error } = await supabase.from("discharge_summaries").insert([submitData]).select().single()
 
         if (error) throw error
-        toast.success("Discharge summary created successfully")
+        toast.success(status === "finalized" ? "Discharge summary created and signed" : "Discharge summary created")
         router.push(`/discharge-summary/${data.id}`)
       }
     } catch (error) {
@@ -107,6 +184,29 @@ export function DischargeSummaryForm({ existingSummary, isEditing = false }: Dis
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleFinalizeAndSign = async () => {
+    // Validate signature PIN (in production, verify against provider's stored PIN)
+    if (signaturePin.length < 4) {
+      setSignatureError("Please enter your signature PIN (minimum 4 digits)")
+      return
+    }
+
+    if (!signatureConfirmed) {
+      setSignatureError("You must confirm the attestation to sign")
+      return
+    }
+
+    // Validate required fields
+    if (!formData.patient_id || !formData.discharge_diagnosis || !formData.discharge_date) {
+      setSignatureError("Please complete all required fields before signing")
+      return
+    }
+
+    setSignatureError("")
+    setShowSignatureDialog(false)
+    await saveDischarge("finalized")
   }
 
   const addMedication = () => {
@@ -139,9 +239,85 @@ export function DischargeSummaryForm({ existingSummary, isEditing = false }: Dis
 
   return (
     <div className="space-y-6 max-w-5xl">
+      <Dialog open={showSignatureDialog} onOpenChange={setShowSignatureDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <PenTool className="h-5 w-5" />
+              Electronic Signature Required
+            </DialogTitle>
+            <DialogDescription>
+              By signing this document, you attest that all information is accurate and complete.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Provider Info */}
+            <div className="p-3 bg-muted rounded-lg">
+              <p className="text-sm font-medium">Signing Provider:</p>
+              <p className="text-sm text-muted-foreground">
+                {currentProvider
+                  ? `${currentProvider.first_name} ${currentProvider.last_name}, ${currentProvider.credentials || "MD"}`
+                  : providers.find((p) => p.id === formData.provider_id)
+                    ? `${providers.find((p) => p.id === formData.provider_id)?.first_name} ${providers.find((p) => p.id === formData.provider_id)?.last_name}`
+                    : "Unknown Provider"}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">{new Date().toLocaleString()}</p>
+            </div>
+
+            {/* Attestation */}
+            <div className="flex items-start space-x-3 p-3 border border-border rounded-lg">
+              <Checkbox
+                id="attestation"
+                checked={signatureConfirmed}
+                onCheckedChange={(checked) => setSignatureConfirmed(checked as boolean)}
+              />
+              <label htmlFor="attestation" className="text-sm leading-relaxed cursor-pointer">
+                I hereby attest that I have reviewed this discharge summary, that the information contained herein is
+                accurate to the best of my knowledge, and that I am authorized to sign this document as the treating
+                provider.
+              </label>
+            </div>
+
+            {/* Signature PIN */}
+            <div className="space-y-2">
+              <Label htmlFor="signature-pin">Signature PIN</Label>
+              <Input
+                id="signature-pin"
+                type="password"
+                placeholder="Enter your signature PIN"
+                value={signaturePin}
+                onChange={(e) => setSignaturePin(e.target.value)}
+                maxLength={6}
+              />
+              <p className="text-xs text-muted-foreground">
+                Enter your provider signature PIN to electronically sign this document.
+              </p>
+            </div>
+
+            {signatureError && (
+              <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                <AlertTriangle className="h-4 w-4 text-destructive" />
+                <p className="text-sm text-destructive">{signatureError}</p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSignatureDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleFinalizeAndSign} disabled={isLoading}>
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Sign & Finalize
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link href="/discharge-summary">
+          <Link href="/discharge-summaries">
             <Button variant="outline" size="icon">
               <ArrowLeft className="h-4 w-4" />
             </Button>
@@ -163,8 +339,8 @@ export function DischargeSummaryForm({ existingSummary, isEditing = false }: Dis
             Save Draft
           </Button>
           <Button onClick={() => handleSubmit(false)} disabled={isLoading}>
-            <Send className="h-4 w-4 mr-2" />
-            Finalize & Submit
+            <PenTool className="h-4 w-4 mr-2" />
+            Finalize & Sign
           </Button>
         </div>
       </div>
@@ -178,12 +354,59 @@ export function DischargeSummaryForm({ existingSummary, isEditing = false }: Dis
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="patient_id">Patient ID</Label>
-              <Input
-                id="patient_id"
+              <Label htmlFor="patient_id">Patient *</Label>
+              <Select
                 value={formData.patient_id}
-                onChange={(e) => setFormData({ ...formData, patient_id: e.target.value })}
-                placeholder="Select or enter patient ID"
+                onValueChange={(value) => setFormData({ ...formData, patient_id: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select patient" />
+                </SelectTrigger>
+                <SelectContent>
+                  {patients.map((patient) => (
+                    <SelectItem key={patient.id} value={patient.id}>
+                      {patient.last_name}, {patient.first_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="provider_id">Provider *</Label>
+              <Select
+                value={formData.provider_id}
+                onValueChange={(value) => setFormData({ ...formData, provider_id: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select provider" />
+                </SelectTrigger>
+                <SelectContent>
+                  {providers.map((provider) => (
+                    <SelectItem key={provider.id} value={provider.id}>
+                      {provider.last_name}, {provider.first_name} - {provider.specialty}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="admission_date">Admission Date *</Label>
+              <Input
+                id="admission_date"
+                type="date"
+                value={formData.admission_date}
+                onChange={(e) => setFormData({ ...formData, admission_date: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="discharge_date">Discharge Date *</Label>
+              <Input
+                id="discharge_date"
+                type="date"
+                value={formData.discharge_date}
+                onChange={(e) => setFormData({ ...formData, discharge_date: e.target.value })}
               />
             </div>
             <div className="space-y-2">
@@ -204,26 +427,6 @@ export function DischargeSummaryForm({ existingSummary, isEditing = false }: Dis
                   <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="admission_date">Admission Date</Label>
-              <Input
-                id="admission_date"
-                type="date"
-                value={formData.admission_date}
-                onChange={(e) => setFormData({ ...formData, admission_date: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="discharge_date">Discharge Date</Label>
-              <Input
-                id="discharge_date"
-                type="date"
-                value={formData.discharge_date}
-                onChange={(e) => setFormData({ ...formData, discharge_date: e.target.value })}
-              />
             </div>
           </div>
         </CardContent>
@@ -247,7 +450,7 @@ export function DischargeSummaryForm({ existingSummary, isEditing = false }: Dis
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="discharge_diagnosis">Discharge Diagnosis</Label>
+            <Label htmlFor="discharge_diagnosis">Discharge Diagnosis *</Label>
             <Textarea
               id="discharge_diagnosis"
               value={formData.discharge_diagnosis}
@@ -473,72 +676,75 @@ export function DischargeSummaryForm({ existingSummary, isEditing = false }: Dis
               id="aftercare_plan"
               value={formData.aftercare_plan}
               onChange={(e) => setFormData({ ...formData, aftercare_plan: e.target.value })}
-              placeholder="Comprehensive aftercare plan..."
+              placeholder="Comprehensive aftercare and continuing care plan..."
               rows={4}
             />
           </div>
 
-          {followUps.length > 0 && (
-            <div className="space-y-3">
-              <Label>Follow-Up Appointments</Label>
-              {followUps.map((followUp, index) => (
-                <div key={index} className="p-4 border border-border rounded-lg space-y-3">
-                  <div className="flex items-center justify-between">
-                    <Badge variant="outline">Appointment {index + 1}</Badge>
-                    <Button variant="ghost" size="sm" onClick={() => removeFollowUp(index)}>
-                      <X className="h-4 w-4" />
-                    </Button>
+          {followUps.length === 0 ? (
+            <div className="text-center py-6 text-muted-foreground border border-dashed border-border rounded-lg">
+              <p>No follow-up appointments added yet</p>
+              <Button variant="outline" size="sm" onClick={addFollowUp} className="mt-2 bg-transparent">
+                <Plus className="h-4 w-4 mr-2" />
+                Add First Appointment
+              </Button>
+            </div>
+          ) : (
+            followUps.map((followUp, index) => (
+              <div key={index} className="p-4 border border-border rounded-lg space-y-3">
+                <div className="flex items-center justify-between">
+                  <Badge variant="outline">Appointment {index + 1}</Badge>
+                  <Button variant="ghost" size="sm" onClick={() => removeFollowUp(index)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-2">
+                    <Label>Provider/Specialty</Label>
+                    <Input
+                      value={followUp.provider}
+                      onChange={(e) => updateFollowUp(index, "provider", e.target.value)}
+                      placeholder="e.g., Primary Care"
+                    />
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="space-y-2">
-                      <Label>Provider</Label>
-                      <Input
-                        value={followUp.provider}
-                        onChange={(e) => updateFollowUp(index, "provider", e.target.value)}
-                        placeholder="Provider name"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Date</Label>
-                      <Input
-                        type="date"
-                        value={followUp.date}
-                        onChange={(e) => updateFollowUp(index, "date", e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Type</Label>
-                      <Input
-                        value={followUp.type}
-                        onChange={(e) => updateFollowUp(index, "type", e.target.value)}
-                        placeholder="e.g., Therapy"
-                      />
-                    </div>
+                  <div className="space-y-2">
+                    <Label>Date</Label>
+                    <Input
+                      type="date"
+                      value={followUp.date}
+                      onChange={(e) => updateFollowUp(index, "date", e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Type</Label>
+                    <Input
+                      value={followUp.type}
+                      onChange={(e) => updateFollowUp(index, "type", e.target.value)}
+                      placeholder="e.g., Follow-up visit"
+                    />
                   </div>
                 </div>
-              ))}
-            </div>
+              </div>
+            ))
           )}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="functional_status">Functional Status</Label>
-              <Textarea
-                id="functional_status"
-                value={formData.functional_status}
-                onChange={(e) => setFormData({ ...formData, functional_status: e.target.value })}
-                placeholder="Patient's functional abilities at discharge..."
-                rows={3}
+              <Label htmlFor="follow_up_provider">Primary Follow-up Provider</Label>
+              <Input
+                id="follow_up_provider"
+                value={formData.follow_up_provider}
+                onChange={(e) => setFormData({ ...formData, follow_up_provider: e.target.value })}
+                placeholder="Name of primary follow-up provider"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="support_system_notes">Support System</Label>
-              <Textarea
-                id="support_system_notes"
-                value={formData.support_system_notes}
-                onChange={(e) => setFormData({ ...formData, support_system_notes: e.target.value })}
-                placeholder="Available support systems and resources..."
-                rows={3}
+              <Label htmlFor="follow_up_date">Primary Follow-up Date</Label>
+              <Input
+                id="follow_up_date"
+                type="date"
+                value={formData.follow_up_date}
+                onChange={(e) => setFormData({ ...formData, follow_up_date: e.target.value })}
               />
             </div>
           </div>
@@ -549,38 +755,30 @@ export function DischargeSummaryForm({ existingSummary, isEditing = false }: Dis
       <Card>
         <CardHeader>
           <CardTitle className="font-[family-name:var(--font-work-sans)]">Additional Information</CardTitle>
-          <CardDescription>Special considerations and patient education</CardDescription>
+          <CardDescription>Support system, education, and special considerations</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="special_considerations">Special Considerations</Label>
-            <Textarea
-              id="special_considerations"
-              value={formData.special_considerations}
-              onChange={(e) => setFormData({ ...formData, special_considerations: e.target.value })}
-              placeholder="Any special considerations for this patient..."
-              rows={3}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="barriers_to_discharge">Barriers to Discharge</Label>
-            <Textarea
-              id="barriers_to_discharge"
-              value={formData.barriers_to_discharge}
-              onChange={(e) => setFormData({ ...formData, barriers_to_discharge: e.target.value })}
-              placeholder="Any barriers that were addressed or remain..."
-              rows={3}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="family_involvement">Family Involvement</Label>
-            <Textarea
-              id="family_involvement"
-              value={formData.family_involvement}
-              onChange={(e) => setFormData({ ...formData, family_involvement: e.target.value })}
-              placeholder="Family involvement in care and discharge planning..."
-              rows={3}
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="family_involvement">Family Involvement</Label>
+              <Textarea
+                id="family_involvement"
+                value={formData.family_involvement}
+                onChange={(e) => setFormData({ ...formData, family_involvement: e.target.value })}
+                placeholder="Describe family involvement in care..."
+                rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="support_system_notes">Support System Notes</Label>
+              <Textarea
+                id="support_system_notes"
+                value={formData.support_system_notes}
+                onChange={(e) => setFormData({ ...formData, support_system_notes: e.target.value })}
+                placeholder="Patient's support system and resources..."
+                rows={3}
+              />
+            </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor="patient_education_provided">Patient Education Provided</Label>
@@ -588,9 +786,31 @@ export function DischargeSummaryForm({ existingSummary, isEditing = false }: Dis
               id="patient_education_provided"
               value={formData.patient_education_provided}
               onChange={(e) => setFormData({ ...formData, patient_education_provided: e.target.value })}
-              placeholder="Education topics covered with patient..."
+              placeholder="Education provided to patient and family..."
               rows={3}
             />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="barriers_to_discharge">Barriers to Discharge</Label>
+              <Textarea
+                id="barriers_to_discharge"
+                value={formData.barriers_to_discharge}
+                onChange={(e) => setFormData({ ...formData, barriers_to_discharge: e.target.value })}
+                placeholder="Any identified barriers..."
+                rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="special_considerations">Special Considerations</Label>
+              <Textarea
+                id="special_considerations"
+                value={formData.special_considerations}
+                onChange={(e) => setFormData({ ...formData, special_considerations: e.target.value })}
+                placeholder="Any special considerations..."
+                rows={3}
+              />
+            </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor="emergency_contact_info">Emergency Contact Information</Label>
@@ -598,25 +818,25 @@ export function DischargeSummaryForm({ existingSummary, isEditing = false }: Dis
               id="emergency_contact_info"
               value={formData.emergency_contact_info}
               onChange={(e) => setFormData({ ...formData, emergency_contact_info: e.target.value })}
-              placeholder="Emergency contact details..."
+              placeholder="Emergency contact numbers and resources..."
               rows={2}
             />
           </div>
         </CardContent>
       </Card>
 
-      {/* Action Buttons */}
-      <div className="flex items-center justify-end gap-2 pb-8">
-        <Link href="/discharge-summary">
-          <Button variant="outline">Cancel</Button>
-        </Link>
+      {/* Bottom Action Bar */}
+      <div className="flex items-center justify-end gap-2 pt-4 border-t border-border">
+        <Button variant="outline" onClick={() => router.push("/discharge-summaries")}>
+          Cancel
+        </Button>
         <Button variant="outline" onClick={() => handleSubmit(true)} disabled={isLoading}>
           <Save className="h-4 w-4 mr-2" />
           Save Draft
         </Button>
         <Button onClick={() => handleSubmit(false)} disabled={isLoading}>
-          <Send className="h-4 w-4 mr-2" />
-          Finalize & Submit
+          <PenTool className="h-4 w-4 mr-2" />
+          Finalize & Sign
         </Button>
       </div>
     </div>

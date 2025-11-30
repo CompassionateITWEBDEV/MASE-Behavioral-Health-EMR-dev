@@ -36,17 +36,39 @@ Current system has ${staff?.length || 0} staff members and ${notes?.length || 0}
 
 Always be helpful, professional, and provide specific, actionable guidance. When reviewing documentation, cite specific Joint Commission standards when relevant. Format your responses clearly with bullet points and sections when appropriate.`
 
-    const result = streamText({
+    const result = await streamText({
       model: "openai/gpt-4o-mini",
       system: systemPrompt,
       messages: messages.map((m: any) => ({
         role: m.role,
         content: m.content,
       })),
-      abortSignal: req.signal,
     })
 
-    return result.toUIMessageStreamResponse()
+    // Return as a proper streaming response
+    const encoder = new TextEncoder()
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of result.textStream) {
+            // Format as SSE with the expected "0:" prefix
+            const data = JSON.stringify(chunk)
+            controller.enqueue(encoder.encode(`0:${data}\n`))
+          }
+          controller.close()
+        } catch (error) {
+          controller.error(error)
+        }
+      },
+    })
+
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    })
   } catch (error) {
     console.error("AI Coaching chat error:", error)
     return new Response(JSON.stringify({ error: "Failed to process chat" }), {

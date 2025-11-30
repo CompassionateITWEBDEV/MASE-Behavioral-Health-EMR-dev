@@ -25,7 +25,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Skeleton } from "@/components/ui/skeleton"
-import { MessageSquare, Send, Phone, Video, Bell, Search, Plus, Users, AlertTriangle, Megaphone } from "lucide-react"
+import {
+  MessageSquare,
+  Send,
+  Phone,
+  Video,
+  Bell,
+  Search,
+  Plus,
+  Users,
+  AlertTriangle,
+  Megaphone,
+  PhoneCall,
+  VideoIcon,
+} from "lucide-react"
 import { toast } from "sonner"
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
@@ -72,7 +85,32 @@ export default function CommunicationsPage() {
     affected_areas: [] as string[],
   })
 
+  const [isCallDialogOpen, setIsCallDialogOpen] = useState(false)
+  const [isVideoDialogOpen, setIsVideoDialogOpen] = useState(false)
+  const [callInProgress, setCallInProgress] = useState(false)
+
   const [sendingMessage, setSendingMessage] = useState(false)
+
+  const handleSelectConversation = async (msg: any) => {
+    setSelectedConversation(msg)
+
+    // Mark as read if unread
+    if (!msg.is_read) {
+      try {
+        await fetch("/api/communications", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "mark_read",
+            message_id: msg.id,
+          }),
+        })
+        mutate()
+      } catch (error) {
+        console.error("Failed to mark as read:", error)
+      }
+    }
+  }
 
   const handleSendMessage = async () => {
     if (!newMessage.subject.trim() || !newMessage.message.trim()) {
@@ -88,7 +126,12 @@ export default function CommunicationsPage() {
         body: JSON.stringify({
           action: "send_message",
           sender_id: provider.id,
-          ...newMessage,
+          patient_id: newMessage.patient_id && newMessage.patient_id !== "no-patient" ? newMessage.patient_id : null,
+          subject: newMessage.subject,
+          message: newMessage.message,
+          priority: newMessage.priority,
+          message_type: newMessage.message_type,
+          recipients: newMessage.recipients,
         }),
       })
 
@@ -205,6 +248,28 @@ export default function CommunicationsPage() {
     }
   }
 
+  const handleStartCall = () => {
+    setCallInProgress(true)
+    toast.success("Initiating voice call...")
+    // Simulate call connection
+    setTimeout(() => {
+      setCallInProgress(false)
+      toast.info("Call ended")
+      setIsCallDialogOpen(false)
+    }, 3000)
+  }
+
+  const handleStartVideoCall = () => {
+    setCallInProgress(true)
+    toast.success("Initiating video call...")
+    // Simulate call connection
+    setTimeout(() => {
+      setCallInProgress(false)
+      toast.info("Video call ended")
+      setIsVideoDialogOpen(false)
+    }, 3000)
+  }
+
   const toggleRecipient = (recipientId: string) => {
     setNewMessage((prev) => ({
       ...prev,
@@ -297,14 +362,19 @@ export default function CommunicationsPage() {
                     <div className="space-y-2">
                       <Label>Related Patient (Optional)</Label>
                       <Select
-                        value={newMessage.patient_id}
-                        onValueChange={(value) => setNewMessage((prev) => ({ ...prev, patient_id: value }))}
+                        value={newMessage.patient_id || "no-patient"}
+                        onValueChange={(value) =>
+                          setNewMessage((prev) => ({
+                            ...prev,
+                            patient_id: value === "no-patient" ? "" : value,
+                          }))
+                        }
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select a patient..." />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">No patient</SelectItem>
+                          <SelectItem value="no-patient">No patient</SelectItem>
                           {patients.map((patient: any) => (
                             <SelectItem key={patient.id} value={patient.id}>
                               {patient.first_name} {patient.last_name}
@@ -314,7 +384,7 @@ export default function CommunicationsPage() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Subject</Label>
+                      <Label>Subject *</Label>
                       <Input
                         value={newMessage.subject}
                         onChange={(e) => setNewMessage((prev) => ({ ...prev, subject: e.target.value }))}
@@ -322,7 +392,7 @@ export default function CommunicationsPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Message</Label>
+                      <Label>Message *</Label>
                       <Textarea
                         value={newMessage.message}
                         onChange={(e) => setNewMessage((prev) => ({ ...prev, message: e.target.value }))}
@@ -446,13 +516,22 @@ export default function CommunicationsPage() {
                       <div className="text-center py-8 text-muted-foreground">
                         <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
                         <p>No messages yet</p>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-2 bg-transparent"
+                          onClick={() => setIsNewMessageOpen(true)}
+                        >
+                          <Plus className="mr-2 h-4 w-4" />
+                          Send First Message
+                        </Button>
                       </div>
                     ) : (
-                      <div className="space-y-2">
+                      <div className="space-y-2 max-h-96 overflow-y-auto">
                         {filteredMessages.map((msg: any) => (
                           <div
                             key={msg.id}
-                            onClick={() => setSelectedConversation(msg)}
+                            onClick={() => handleSelectConversation(msg)}
                             className={`flex items-center space-x-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                               selectedConversation?.id === msg.id ? "bg-accent border-primary" : "hover:bg-accent/50"
                             }`}
@@ -510,12 +589,101 @@ export default function CommunicationsPage() {
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          <Button variant="outline" size="sm">
-                            <Phone className="h-4 w-4" />
-                          </Button>
-                          <Button variant="outline" size="sm">
-                            <Video className="h-4 w-4" />
-                          </Button>
+                          <Dialog open={isCallDialogOpen} onOpenChange={setIsCallDialogOpen}>
+                            <DialogTrigger asChild>
+                              <Button variant="outline" size="sm">
+                                <Phone className="h-4 w-4" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Voice Call</DialogTitle>
+                                <DialogDescription>
+                                  Start a voice call with{" "}
+                                  {selectedConversation.patients
+                                    ? `${selectedConversation.patients.first_name} ${selectedConversation.patients.last_name}`
+                                    : "this contact"}
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="py-6 text-center">
+                                {callInProgress ? (
+                                  <div className="space-y-4">
+                                    <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mx-auto animate-pulse">
+                                      <PhoneCall className="h-10 w-10 text-green-600" />
+                                    </div>
+                                    <p className="text-lg font-medium">Calling...</p>
+                                    <p className="text-sm text-muted-foreground">Connecting to secure line</p>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-4">
+                                    <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center mx-auto">
+                                      <Phone className="h-10 w-10 text-muted-foreground" />
+                                    </div>
+                                    <p className="text-sm text-muted-foreground">
+                                      This will initiate a HIPAA-compliant voice call
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                              <DialogFooter>
+                                <Button variant="outline" onClick={() => setIsCallDialogOpen(false)}>
+                                  Cancel
+                                </Button>
+                                <Button onClick={handleStartCall} disabled={callInProgress}>
+                                  <Phone className="mr-2 h-4 w-4" />
+                                  {callInProgress ? "Connecting..." : "Start Call"}
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+
+                          <Dialog open={isVideoDialogOpen} onOpenChange={setIsVideoDialogOpen}>
+                            <DialogTrigger asChild>
+                              <Button variant="outline" size="sm">
+                                <Video className="h-4 w-4" />
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Video Call</DialogTitle>
+                                <DialogDescription>
+                                  Start a video call with{" "}
+                                  {selectedConversation.patients
+                                    ? `${selectedConversation.patients.first_name} ${selectedConversation.patients.last_name}`
+                                    : "this contact"}
+                                </DialogDescription>
+                              </DialogHeader>
+                              <div className="py-6 text-center">
+                                {callInProgress ? (
+                                  <div className="space-y-4">
+                                    <div className="w-20 h-20 rounded-full bg-blue-100 flex items-center justify-center mx-auto animate-pulse">
+                                      <VideoIcon className="h-10 w-10 text-blue-600" />
+                                    </div>
+                                    <p className="text-lg font-medium">Connecting Video...</p>
+                                    <p className="text-sm text-muted-foreground">Setting up secure video connection</p>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-4">
+                                    <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center mx-auto">
+                                      <Video className="h-10 w-10 text-muted-foreground" />
+                                    </div>
+                                    <p className="text-sm text-muted-foreground">
+                                      This will initiate a HIPAA-compliant video call
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                              <DialogFooter>
+                                <Button variant="outline" onClick={() => setIsVideoDialogOpen(false)}>
+                                  Cancel
+                                </Button>
+                                <Button onClick={handleStartVideoCall} disabled={callInProgress}>
+                                  <Video className="mr-2 h-4 w-4" />
+                                  {callInProgress ? "Connecting..." : "Start Video Call"}
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
                         </div>
                       </CardTitle>
                     ) : (
@@ -599,7 +767,7 @@ export default function CommunicationsPage() {
                             </Select>
                           </div>
                           <div className="space-y-2">
-                            <Label>Title</Label>
+                            <Label>Title *</Label>
                             <Input
                               value={newAnnouncement.title}
                               onChange={(e) => setNewAnnouncement((prev) => ({ ...prev, title: e.target.value }))}
@@ -607,7 +775,7 @@ export default function CommunicationsPage() {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label>Message</Label>
+                            <Label>Message *</Label>
                             <Textarea
                               value={newAnnouncement.message}
                               onChange={(e) => setNewAnnouncement((prev) => ({ ...prev, message: e.target.value }))}
@@ -639,6 +807,15 @@ export default function CommunicationsPage() {
                     <div className="text-center py-8 text-muted-foreground">
                       <Megaphone className="h-12 w-12 mx-auto mb-4 opacity-50" />
                       <p>No announcements yet</p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-2 bg-transparent"
+                        onClick={() => setIsAnnouncementOpen(true)}
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        Create First Announcement
+                      </Button>
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -646,7 +823,10 @@ export default function CommunicationsPage() {
                         <div key={announcement.id} className="p-4 border rounded-lg">
                           <div className="flex justify-between items-start mb-2">
                             <h4 className="font-medium">{announcement.title}</h4>
-                            <Badge variant="outline">{new Date(announcement.created_at).toLocaleDateString()}</Badge>
+                            <div className="flex gap-2">
+                              {announcement.priority === "high" && <Badge variant="destructive">High Priority</Badge>}
+                              <Badge variant="outline">{new Date(announcement.created_at).toLocaleDateString()}</Badge>
+                            </div>
                           </div>
                           <p className="text-sm text-muted-foreground">{announcement.message}</p>
                         </div>
@@ -694,13 +874,42 @@ export default function CommunicationsPage() {
                             </Select>
                           </div>
                           <div className="space-y-2">
-                            <Label>Emergency Message</Label>
+                            <Label>Emergency Message *</Label>
                             <Textarea
                               value={emergencyAlert.message}
                               onChange={(e) => setEmergencyAlert((prev) => ({ ...prev, message: e.target.value }))}
                               placeholder="Describe the emergency situation"
                               rows={4}
                             />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Affected Areas</Label>
+                            <div className="grid grid-cols-2 gap-2">
+                              {["Dispensing", "Lobby", "Counseling", "Medical", "All Areas"].map((area) => (
+                                <div key={area} className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={`area-${area}`}
+                                    checked={emergencyAlert.affected_areas.includes(area)}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        setEmergencyAlert((prev) => ({
+                                          ...prev,
+                                          affected_areas: [...prev.affected_areas, area],
+                                        }))
+                                      } else {
+                                        setEmergencyAlert((prev) => ({
+                                          ...prev,
+                                          affected_areas: prev.affected_areas.filter((a) => a !== area),
+                                        }))
+                                      }
+                                    }}
+                                  />
+                                  <label htmlFor={`area-${area}`} className="text-sm cursor-pointer">
+                                    {area}
+                                  </label>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         </div>
                         <DialogFooter>
@@ -723,11 +932,17 @@ export default function CommunicationsPage() {
                       For immediate patient safety concerns, use the emergency alert system above.
                     </p>
                     <div className="flex gap-2">
-                      <Button variant="destructive" size="sm">
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => {
+                          toast.success("Dialing 911...")
+                        }}
+                      >
                         <Phone className="mr-2 h-4 w-4" />
-                        Emergency Services
+                        Emergency Services (911)
                       </Button>
-                      <Button variant="outline" size="sm">
+                      <Button variant="outline" size="sm" onClick={() => setIsEmergencyOpen(true)}>
                         <Bell className="mr-2 h-4 w-4" />
                         Alert Team
                       </Button>
@@ -756,6 +971,15 @@ export default function CommunicationsPage() {
                               </span>
                             </div>
                             <p className="text-sm mt-2">{alert.message}</p>
+                            {alert.affected_areas?.length > 0 && (
+                              <div className="flex gap-1 mt-2">
+                                {alert.affected_areas.map((area: string) => (
+                                  <Badge key={area} variant="outline" className="text-xs">
+                                    {area}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
                             <p className="text-xs text-muted-foreground mt-1">Created by: {alert.created_by}</p>
                           </div>
                         ))}

@@ -1,4 +1,4 @@
-import { createBrowserClient } from "@supabase/ssr"
+import { createBrowserClient as createSupabaseBrowserClient } from "@supabase/ssr"
 
 export function createClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -7,8 +7,10 @@ export function createClient() {
   if (!supabaseUrl || !supabaseKey) {
     console.warn("[v0] Supabase environment variables not configured, using placeholder")
     // Return a mock client that won't crash but won't work either
-    return createBrowserClient("https://placeholder.supabase.co", "placeholder-key")
+    return createSupabaseBrowserClient("https://placeholder.supabase.co", "placeholder-key")
   }
 
-  return createBrowserClient(supabaseUrl, supabaseKey)
+  return createSupabaseBrowserClient(supabaseUrl, supabaseKey)
 }
+
+export const createBrowserClient = createClient

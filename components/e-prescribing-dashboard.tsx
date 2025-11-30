@@ -11,23 +11,49 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { AlertCircle, Plus, Search, Send, FileText, Clock, CheckCircle, Loader2, AlertTriangle } from "lucide-react"
+import {
+  AlertCircle,
+  Plus,
+  Search,
+  Send,
+  FileText,
+  Clock,
+  CheckCircle,
+  Loader2,
+  AlertTriangle,
+  Eye,
+  Edit,
+  Trash2,
+  RefreshCw,
+} from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useToast } from "@/hooks/use-toast"
 import useSWR from "swr"
 
 interface Patient {
   id: string
   first_name: string
   last_name: string
+  date_of_birth?: string
+  phone?: string
+}
+
+interface Pharmacy {
+  id: string
+  name: string
+  address?: string
+  phone?: string
+  fax?: string
+  accepts_e_prescribing?: boolean
 }
 
 interface Medication {
   id: string
   name: string
-  strength: string
-  form: string
+  strength?: string
+  form?: string
 }
 
 interface Prescription {
@@ -49,8 +75,14 @@ interface Prescription {
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
 export function EPrescribingDashboard() {
+  const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [isNewPrescriptionOpen, setIsNewPrescriptionOpen] = useState(false)
+  const [selectedPrescription, setSelectedPrescription] = useState<Prescription | null>(null)
+  const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
 
   const { data, error, isLoading, mutate } = useSWR("/api/prescriptions", fetcher)
   const prescriptions: Prescription[] = data?.prescriptions || []
@@ -86,17 +118,45 @@ export function EPrescribingDashboard() {
   }
 
   const handleSendPrescription = async (id: string) => {
+    setIsProcessing(true)
     try {
-      const response = await fetch("/api/prescriptions", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, status: "sent" }),
+      const response = await fetch(`/api/prescriptions/${id}/send`, {
+        method: "POST",
       })
       if (response.ok) {
+        toast({ title: "Prescription sent", description: "Successfully transmitted to pharmacy" })
         mutate()
+      } else {
+        toast({ title: "Error", description: "Failed to send prescription", variant: "destructive" })
       }
     } catch (error) {
       console.error("Error sending prescription:", error)
+      toast({ title: "Error", description: "Failed to send prescription", variant: "destructive" })
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleDeletePrescription = async () => {
+    if (!selectedPrescription) return
+    setIsProcessing(true)
+    try {
+      const response = await fetch(`/api/prescriptions?id=${selectedPrescription.id}`, {
+        method: "DELETE",
+      })
+      if (response.ok) {
+        toast({ title: "Prescription deleted", description: "Successfully removed" })
+        setIsDeleteDialogOpen(false)
+        setSelectedPrescription(null)
+        mutate()
+      } else {
+        toast({ title: "Error", description: "Failed to delete prescription", variant: "destructive" })
+      }
+    } catch (error) {
+      console.error("Error deleting prescription:", error)
+      toast({ title: "Error", description: "Failed to delete prescription", variant: "destructive" })
+    } finally {
+      setIsProcessing(false)
     }
   }
 
@@ -191,29 +251,36 @@ export function EPrescribingDashboard() {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Prescription Management</CardTitle>
-                <Dialog open={isNewPrescriptionOpen} onOpenChange={setIsNewPrescriptionOpen}>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <Plus className="h-4 w-4 mr-2" />
-                      New Prescription
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                      <DialogTitle>Create New Prescription</DialogTitle>
-                    </DialogHeader>
-                    <NewPrescriptionForm
-                      onClose={() => setIsNewPrescriptionOpen(false)}
-                      onSuccess={() => {
-                        setIsNewPrescriptionOpen(false)
-                        mutate()
-                      }}
-                    />
-                  </DialogContent>
-                </Dialog>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => mutate()}>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Refresh
+                  </Button>
+                  <Dialog open={isNewPrescriptionOpen} onOpenChange={setIsNewPrescriptionOpen}>
+                    <DialogTrigger asChild>
+                      <Button>
+                        <Plus className="h-4 w-4 mr-2" />
+                        New Prescription
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl">
+                      <DialogHeader>
+                        <DialogTitle>Create New Prescription</DialogTitle>
+                      </DialogHeader>
+                      <NewPrescriptionForm
+                        onClose={() => setIsNewPrescriptionOpen(false)}
+                        onSuccess={() => {
+                          setIsNewPrescriptionOpen(false)
+                          mutate()
+                          toast({ title: "Prescription created", description: "Successfully added new prescription" })
+                        }}
+                      />
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </div>
 
-              <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-4 mt-4">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
@@ -268,14 +335,47 @@ export function EPrescribingDashboard() {
                         <TableCell>{new Date(prescription.prescribedDate).toLocaleDateString()}</TableCell>
                         <TableCell>
                           <div className="flex items-center space-x-2">
-                            <Button variant="outline" size="sm">
-                              <FileText className="h-4 w-4" />
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedPrescription(prescription)
+                                setIsViewDialogOpen(true)
+                              }}
+                            >
+                              <Eye className="h-4 w-4" />
                             </Button>
                             {prescription.status === "pending" && (
-                              <Button size="sm" onClick={() => handleSendPrescription(prescription.id)}>
-                                <Send className="h-4 w-4 mr-1" />
-                                Send
-                              </Button>
+                              <>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedPrescription(prescription)
+                                    setIsEditDialogOpen(true)
+                                  }}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleSendPrescription(prescription.id)}
+                                  disabled={isProcessing}
+                                >
+                                  <Send className="h-4 w-4 mr-1" />
+                                  Send
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedPrescription(prescription)
+                                    setIsDeleteDialogOpen(true)
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </>
                             )}
                           </div>
                         </TableCell>
@@ -296,6 +396,104 @@ export function EPrescribingDashboard() {
           <DrugInteractionsTab />
         </TabsContent>
       </Tabs>
+
+      {/* View Prescription Dialog */}
+      <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Prescription Details</DialogTitle>
+          </DialogHeader>
+          {selectedPrescription && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground">Patient</Label>
+                  <p className="font-medium">{selectedPrescription.patientName}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Status</Label>
+                  <Badge className={getStatusColor(selectedPrescription.status)}>{selectedPrescription.status}</Badge>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Medication</Label>
+                  <p className="font-medium">{selectedPrescription.medicationName}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Strength</Label>
+                  <p className="font-medium">{selectedPrescription.strength || "N/A"}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Quantity</Label>
+                  <p className="font-medium">{selectedPrescription.quantity}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Days Supply</Label>
+                  <p className="font-medium">{selectedPrescription.daysSupply || "N/A"}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Refills</Label>
+                  <p className="font-medium">{selectedPrescription.refills}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Pharmacy</Label>
+                  <p className="font-medium">{selectedPrescription.pharmacyName || "Not assigned"}</p>
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-muted-foreground">Directions</Label>
+                  <p className="font-medium">{selectedPrescription.directions || "N/A"}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Prescribed Date</Label>
+                  <p className="font-medium">{new Date(selectedPrescription.prescribedDate).toLocaleDateString()}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Prescription Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Prescription</DialogTitle>
+          </DialogHeader>
+          {selectedPrescription && (
+            <EditPrescriptionForm
+              prescription={selectedPrescription}
+              onClose={() => setIsEditDialogOpen(false)}
+              onSuccess={() => {
+                setIsEditDialogOpen(false)
+                setSelectedPrescription(null)
+                mutate()
+                toast({ title: "Prescription updated", description: "Successfully saved changes" })
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Prescription</DialogTitle>
+          </DialogHeader>
+          <p>Are you sure you want to delete this prescription for {selectedPrescription?.patientName}?</p>
+          <p className="text-sm text-muted-foreground">
+            {selectedPrescription?.medicationName} - {selectedPrescription?.strength}
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeletePrescription} disabled={isProcessing}>
+              {isProcessing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -307,17 +505,20 @@ function NewPrescriptionForm({ onClose, onSuccess }: { onClose: () => void; onSu
     strength: "",
     dosageForm: "",
     quantity: "",
-    daysSupply: "",
+    daysSupply: "30",
     directions: "",
     refills: "0",
+    pharmacyId: "",
     pharmacyName: "",
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [patients, setPatients] = useState<Patient[]>([])
+  const [pharmacies, setPharmacies] = useState<Pharmacy[]>([])
   const [medications, setMedications] = useState<Medication[]>([])
   const [loadingPatients, setLoadingPatients] = useState(true)
+  const [loadingPharmacies, setLoadingPharmacies] = useState(true)
+  const [patientSearch, setPatientSearch] = useState("")
 
-  // Fetch patients on mount
   useEffect(() => {
     const fetchPatients = async () => {
       try {
@@ -330,6 +531,20 @@ function NewPrescriptionForm({ onClose, onSuccess }: { onClose: () => void; onSu
         console.error("Error fetching patients:", error)
       } finally {
         setLoadingPatients(false)
+      }
+    }
+
+    const fetchPharmacies = async () => {
+      try {
+        const response = await fetch("/api/pharmacies?is_active=true")
+        if (response.ok) {
+          const data = await response.json()
+          setPharmacies(data.pharmacies || [])
+        }
+      } catch (error) {
+        console.error("Error fetching pharmacies:", error)
+      } finally {
+        setLoadingPharmacies(false)
       }
     }
 
@@ -346,8 +561,13 @@ function NewPrescriptionForm({ onClose, onSuccess }: { onClose: () => void; onSu
     }
 
     fetchPatients()
+    fetchPharmacies()
     fetchMedications()
   }, [])
+
+  const filteredPatients = patients.filter(
+    (p) => patientSearch === "" || `${p.first_name} ${p.last_name}`.toLowerCase().includes(patientSearch.toLowerCase()),
+  )
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -372,6 +592,7 @@ function NewPrescriptionForm({ onClose, onSuccess }: { onClose: () => void; onSu
           days_supply: Number.parseInt(formData.daysSupply) || 30,
           directions: formData.directions,
           refills: Number.parseInt(formData.refills) || 0,
+          pharmacy_id: formData.pharmacyId || null,
           pharmacy_name: formData.pharmacyName,
           status: "pending",
         }),
@@ -396,18 +617,42 @@ function NewPrescriptionForm({ onClose, onSuccess }: { onClose: () => void; onSu
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label htmlFor="patient">Patient *</Label>
-          <Select value={formData.patientId} onValueChange={(value) => setFormData({ ...formData, patientId: value })}>
-            <SelectTrigger>
-              <SelectValue placeholder={loadingPatients ? "Loading..." : "Select patient"} />
-            </SelectTrigger>
-            <SelectContent>
-              {patients.map((patient) => (
-                <SelectItem key={patient.id} value={patient.id}>
-                  {patient.first_name} {patient.last_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {loadingPatients ? (
+            <Skeleton className="h-10 w-full" />
+          ) : patients.length === 0 ? (
+            <div className="text-sm text-muted-foreground p-2 border rounded">
+              No patients found. Please add patients first.
+            </div>
+          ) : (
+            <Select
+              value={formData.patientId}
+              onValueChange={(value) => setFormData({ ...formData, patientId: value })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select patient" />
+              </SelectTrigger>
+              <SelectContent>
+                <div className="p-2">
+                  <Input
+                    placeholder="Search patients..."
+                    value={patientSearch}
+                    onChange={(e) => setPatientSearch(e.target.value)}
+                    className="mb-2"
+                  />
+                </div>
+                {filteredPatients.length === 0 ? (
+                  <div className="p-2 text-sm text-muted-foreground">No matching patients</div>
+                ) : (
+                  filteredPatients.map((patient) => (
+                    <SelectItem key={patient.id} value={patient.id}>
+                      {patient.first_name} {patient.last_name}
+                      {patient.date_of_birth && ` (DOB: ${new Date(patient.date_of_birth).toLocaleDateString()})`}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
         <div>
@@ -438,9 +683,12 @@ function NewPrescriptionForm({ onClose, onSuccess }: { onClose: () => void; onSu
                 <>
                   <SelectItem value="Methadone">Methadone</SelectItem>
                   <SelectItem value="Buprenorphine">Buprenorphine</SelectItem>
+                  <SelectItem value="Buprenorphine/Naloxone">Buprenorphine/Naloxone (Suboxone)</SelectItem>
                   <SelectItem value="Naltrexone">Naltrexone</SelectItem>
-                  <SelectItem value="Suboxone">Suboxone</SelectItem>
-                  <SelectItem value="Vivitrol">Vivitrol</SelectItem>
+                  <SelectItem value="Naltrexone ER">Naltrexone ER (Vivitrol)</SelectItem>
+                  <SelectItem value="Clonidine">Clonidine</SelectItem>
+                  <SelectItem value="Gabapentin">Gabapentin</SelectItem>
+                  <SelectItem value="Hydroxyzine">Hydroxyzine</SelectItem>
                 </>
               )}
             </SelectContent>
@@ -513,21 +761,43 @@ function NewPrescriptionForm({ onClose, onSuccess }: { onClose: () => void; onSu
 
         <div>
           <Label htmlFor="pharmacy">Pharmacy</Label>
-          <Select
-            value={formData.pharmacyName}
-            onValueChange={(value) => setFormData({ ...formData, pharmacyName: value })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select pharmacy" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="CVS Pharmacy">CVS Pharmacy</SelectItem>
-              <SelectItem value="Walgreens">Walgreens</SelectItem>
-              <SelectItem value="Rite Aid">Rite Aid</SelectItem>
-              <SelectItem value="Walmart Pharmacy">Walmart Pharmacy</SelectItem>
-              <SelectItem value="On-site Dispensary">On-site Dispensary</SelectItem>
-            </SelectContent>
-          </Select>
+          {loadingPharmacies ? (
+            <Skeleton className="h-10 w-full" />
+          ) : (
+            <Select
+              value={formData.pharmacyId}
+              onValueChange={(value) => {
+                const pharmacy = pharmacies.find((p) => p.id === value)
+                setFormData({
+                  ...formData,
+                  pharmacyId: value,
+                  pharmacyName: pharmacy?.name || "",
+                })
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select pharmacy" />
+              </SelectTrigger>
+              <SelectContent>
+                {pharmacies.length > 0 ? (
+                  pharmacies.map((pharmacy) => (
+                    <SelectItem key={pharmacy.id} value={pharmacy.id}>
+                      {pharmacy.name}
+                      {pharmacy.address && ` - ${pharmacy.address}`}
+                    </SelectItem>
+                  ))
+                ) : (
+                  <>
+                    <SelectItem value="cvs">CVS Pharmacy</SelectItem>
+                    <SelectItem value="walgreens">Walgreens</SelectItem>
+                    <SelectItem value="riteaid">Rite Aid</SelectItem>
+                    <SelectItem value="walmart">Walmart Pharmacy</SelectItem>
+                    <SelectItem value="onsite">On-site Dispensary</SelectItem>
+                  </>
+                )}
+              </SelectContent>
+            </Select>
+          )}
         </div>
       </div>
 
@@ -535,7 +805,7 @@ function NewPrescriptionForm({ onClose, onSuccess }: { onClose: () => void; onSu
         <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
           Cancel
         </Button>
-        <Button type="submit" disabled={isSubmitting}>
+        <Button type="submit" disabled={isSubmitting || !formData.patientId || !formData.medicationName}>
           {isSubmitting ? (
             <>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -550,13 +820,200 @@ function NewPrescriptionForm({ onClose, onSuccess }: { onClose: () => void; onSu
   )
 }
 
+function EditPrescriptionForm({
+  prescription,
+  onClose,
+  onSuccess,
+}: {
+  prescription: Prescription
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const [formData, setFormData] = useState({
+    medicationName: prescription.medicationName || "",
+    strength: prescription.strength || "",
+    quantity: prescription.quantity?.toString() || "",
+    daysSupply: prescription.daysSupply?.toString() || "30",
+    directions: prescription.directions || "",
+    refills: prescription.refills?.toString() || "0",
+  })
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+
+    try {
+      const response = await fetch("/api/prescriptions", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: prescription.id,
+          medication_name: formData.medicationName,
+          strength: formData.strength,
+          quantity: Number.parseInt(formData.quantity) || 0,
+          days_supply: Number.parseInt(formData.daysSupply) || 30,
+          directions: formData.directions,
+          refills: Number.parseInt(formData.refills) || 0,
+        }),
+      })
+
+      if (response.ok) {
+        onSuccess()
+      } else {
+        const errorData = await response.json()
+        alert(errorData.error || "Failed to update prescription")
+      }
+    } catch (error) {
+      console.error("Error updating prescription:", error)
+      alert("Failed to update prescription")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label>Patient</Label>
+          <Input value={prescription.patientName} disabled />
+        </div>
+        <div>
+          <Label htmlFor="medication">Medication</Label>
+          <Input
+            id="medication"
+            value={formData.medicationName}
+            onChange={(e) => setFormData({ ...formData, medicationName: e.target.value })}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
+        <div>
+          <Label htmlFor="strength">Strength</Label>
+          <Input
+            id="strength"
+            value={formData.strength}
+            onChange={(e) => setFormData({ ...formData, strength: e.target.value })}
+          />
+        </div>
+        <div>
+          <Label htmlFor="quantity">Quantity</Label>
+          <Input
+            id="quantity"
+            type="number"
+            value={formData.quantity}
+            onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+          />
+        </div>
+        <div>
+          <Label htmlFor="daysSupply">Days Supply</Label>
+          <Input
+            id="daysSupply"
+            type="number"
+            value={formData.daysSupply}
+            onChange={(e) => setFormData({ ...formData, daysSupply: e.target.value })}
+          />
+        </div>
+      </div>
+
+      <div>
+        <Label htmlFor="directions">Directions</Label>
+        <Textarea
+          id="directions"
+          value={formData.directions}
+          onChange={(e) => setFormData({ ...formData, directions: e.target.value })}
+          rows={3}
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="refills">Refills</Label>
+        <Select value={formData.refills} onValueChange={(value) => setFormData({ ...formData, refills: value })}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="0">0</SelectItem>
+            <SelectItem value="1">1</SelectItem>
+            <SelectItem value="2">2</SelectItem>
+            <SelectItem value="3">3</SelectItem>
+            <SelectItem value="4">4</SelectItem>
+            <SelectItem value="5">5</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex justify-end space-x-2 pt-4">
+        <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            "Save Changes"
+          )}
+        </Button>
+      </div>
+    </form>
+  )
+}
+
 function DrugFormularyTab() {
   const [searchTerm, setSearchTerm] = useState("")
   const { data, isLoading } = useSWR("/api/medications", fetcher)
   const medications = data?.medications || []
 
-  const filteredMeds = medications.filter((med: Medication) =>
-    med.name?.toLowerCase().includes(searchTerm.toLowerCase()),
+  const commonMedications = [
+    {
+      name: "Methadone",
+      category: "Opioid Agonist",
+      schedule: "II",
+      forms: ["Oral Solution", "Tablet", "Dispersible Tablet"],
+    },
+    {
+      name: "Buprenorphine",
+      category: "Partial Opioid Agonist",
+      schedule: "III",
+      forms: ["Sublingual Tablet", "Film", "Injection"],
+    },
+    {
+      name: "Buprenorphine/Naloxone",
+      category: "Partial Opioid Agonist",
+      schedule: "III",
+      forms: ["Sublingual Film", "Sublingual Tablet"],
+    },
+    {
+      name: "Naltrexone",
+      category: "Opioid Antagonist",
+      schedule: "Non-controlled",
+      forms: ["Tablet", "Extended-Release Injection"],
+    },
+    { name: "Clonidine", category: "Alpha-2 Agonist", schedule: "Non-controlled", forms: ["Tablet", "Patch"] },
+    {
+      name: "Gabapentin",
+      category: "Anticonvulsant",
+      schedule: "V (some states)",
+      forms: ["Capsule", "Tablet", "Solution"],
+    },
+    {
+      name: "Hydroxyzine",
+      category: "Antihistamine",
+      schedule: "Non-controlled",
+      forms: ["Tablet", "Capsule", "Solution"],
+    },
+    { name: "Trazodone", category: "Antidepressant", schedule: "Non-controlled", forms: ["Tablet"] },
+  ]
+
+  const filteredMedications = commonMedications.filter(
+    (med) =>
+      med.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      med.category.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
   return (
@@ -574,40 +1031,38 @@ function DrugFormularyTab() {
         </div>
       </CardHeader>
       <CardContent>
-        {isLoading ? (
-          <div className="space-y-2">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <Skeleton key={i} className="h-12 w-full" />
-            ))}
-          </div>
-        ) : filteredMeds.length === 0 ? (
-          <div className="text-center py-8 text-muted-foreground">
-            {searchTerm ? "No medications match your search" : "No medications in formulary"}
-          </div>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Medication Name</TableHead>
-                <TableHead>Strength</TableHead>
-                <TableHead>Form</TableHead>
-                <TableHead>Status</TableHead>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Medication</TableHead>
+              <TableHead>Category</TableHead>
+              <TableHead>Schedule</TableHead>
+              <TableHead>Available Forms</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredMedications.map((med, index) => (
+              <TableRow key={index}>
+                <TableCell className="font-medium">{med.name}</TableCell>
+                <TableCell>{med.category}</TableCell>
+                <TableCell>
+                  <Badge
+                    variant={
+                      med.schedule.includes("II")
+                        ? "destructive"
+                        : med.schedule.includes("III")
+                          ? "default"
+                          : "secondary"
+                    }
+                  >
+                    {med.schedule}
+                  </Badge>
+                </TableCell>
+                <TableCell>{med.forms.join(", ")}</TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredMeds.map((med: Medication) => (
-                <TableRow key={med.id}>
-                  <TableCell className="font-medium">{med.name}</TableCell>
-                  <TableCell>{med.strength || "—"}</TableCell>
-                  <TableCell>{med.form || "—"}</TableCell>
-                  <TableCell>
-                    <Badge className="bg-green-100 text-green-800">Preferred</Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        )}
+            ))}
+          </TableBody>
+        </Table>
       </CardContent>
     </Card>
   )
@@ -616,53 +1071,49 @@ function DrugFormularyTab() {
 function DrugInteractionsTab() {
   const [drug1, setDrug1] = useState("")
   const [drug2, setDrug2] = useState("")
-  const [checking, setChecking] = useState(false)
-  const [result, setResult] = useState<{ severity: string; description: string } | null>(null)
+  const [checkResult, setCheckResult] = useState<any>(null)
+  const [isChecking, setIsChecking] = useState(false)
 
-  const checkInteraction = async () => {
-    if (!drug1 || !drug2) {
-      alert("Please enter both medications")
-      return
-    }
+  const handleCheckInteraction = async () => {
+    if (!drug1 || !drug2) return
 
-    setChecking(true)
-    setResult(null)
+    setIsChecking(true)
 
     // Simulate interaction check
-    setTimeout(() => {
-      const interactions: Record<string, { severity: string; description: string }> = {
-        "methadone-benzodiazepines": {
-          severity: "severe",
-          description:
-            "Concurrent use of opioids with benzodiazepines may result in profound sedation, respiratory depression, coma, and death.",
-        },
-        "buprenorphine-naltrexone": {
-          severity: "severe",
-          description:
-            "Naltrexone can precipitate acute withdrawal symptoms in patients physically dependent on opioids.",
-        },
-        "methadone-fluconazole": {
-          severity: "moderate",
-          description:
-            "Fluconazole may increase methadone levels, potentially leading to increased sedation and respiratory depression.",
-        },
-      }
+    await new Promise((resolve) => setTimeout(resolve, 1000))
 
-      const key = `${drug1.toLowerCase()}-${drug2.toLowerCase()}`
-      const reverseKey = `${drug2.toLowerCase()}-${drug1.toLowerCase()}`
+    const interactions: Record<string, any> = {
+      "methadone-benzodiazepines": {
+        severity: "major",
+        description:
+          "Concurrent use of opioids with benzodiazepines may result in profound sedation, respiratory depression, coma, and death.",
+        recommendation: "Avoid concurrent use. If necessary, limit dosages and duration.",
+      },
+      "buprenorphine-benzodiazepines": {
+        severity: "major",
+        description: "Concurrent use may result in profound sedation, respiratory depression, coma, and death.",
+        recommendation: "Avoid concurrent use. Consider alternatives.",
+      },
+      "methadone-naltrexone": {
+        severity: "contraindicated",
+        description: "Naltrexone will block the effects of methadone and may precipitate withdrawal.",
+        recommendation: "Do not use concurrently. Wait appropriate washout period.",
+      },
+    }
 
-      if (interactions[key]) {
-        setResult(interactions[key])
-      } else if (interactions[reverseKey]) {
-        setResult(interactions[reverseKey])
-      } else {
-        setResult({
+    const key = `${drug1.toLowerCase()}-${drug2.toLowerCase()}`
+    const reverseKey = `${drug2.toLowerCase()}-${drug1.toLowerCase()}`
+
+    setCheckResult(
+      interactions[key] ||
+        interactions[reverseKey] || {
           severity: "none",
-          description: "No significant interactions found between these medications.",
-        })
-      }
-      setChecking(false)
-    }, 1000)
+          description: "No significant interaction found between these medications.",
+          recommendation: "Standard monitoring recommended.",
+        },
+    )
+
+    setIsChecking(false)
   }
 
   return (
@@ -673,62 +1124,75 @@ function DrugInteractionsTab() {
       <CardContent className="space-y-6">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label>First Medication</Label>
-            <Input placeholder="Enter medication name" value={drug1} onChange={(e) => setDrug1(e.target.value)} />
+            <Label>Drug 1</Label>
+            <Select value={drug1} onValueChange={setDrug1}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select first drug" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="methadone">Methadone</SelectItem>
+                <SelectItem value="buprenorphine">Buprenorphine</SelectItem>
+                <SelectItem value="naltrexone">Naltrexone</SelectItem>
+                <SelectItem value="benzodiazepines">Benzodiazepines</SelectItem>
+                <SelectItem value="gabapentin">Gabapentin</SelectItem>
+                <SelectItem value="clonidine">Clonidine</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           <div>
-            <Label>Second Medication</Label>
-            <Input placeholder="Enter medication name" value={drug2} onChange={(e) => setDrug2(e.target.value)} />
+            <Label>Drug 2</Label>
+            <Select value={drug2} onValueChange={setDrug2}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select second drug" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="methadone">Methadone</SelectItem>
+                <SelectItem value="buprenorphine">Buprenorphine</SelectItem>
+                <SelectItem value="naltrexone">Naltrexone</SelectItem>
+                <SelectItem value="benzodiazepines">Benzodiazepines</SelectItem>
+                <SelectItem value="gabapentin">Gabapentin</SelectItem>
+                <SelectItem value="clonidine">Clonidine</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 
-        <Button onClick={checkInteraction} disabled={checking}>
-          {checking ? (
+        <Button onClick={handleCheckInteraction} disabled={!drug1 || !drug2 || isChecking}>
+          {isChecking ? (
             <>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               Checking...
             </>
           ) : (
-            "Check Interactions"
+            "Check Interaction"
           )}
         </Button>
 
-        {result && (
-          <Card
-            className={
-              result.severity === "severe"
-                ? "border-red-500 bg-red-50"
-                : result.severity === "moderate"
-                  ? "border-yellow-500 bg-yellow-50"
-                  : "border-green-500 bg-green-50"
-            }
+        {checkResult && (
+          <div
+            className={`p-4 rounded-lg border ${
+              checkResult.severity === "contraindicated"
+                ? "bg-red-50 border-red-200"
+                : checkResult.severity === "major"
+                  ? "bg-orange-50 border-orange-200"
+                  : checkResult.severity === "moderate"
+                    ? "bg-yellow-50 border-yellow-200"
+                    : "bg-green-50 border-green-200"
+            }`}
           >
-            <CardContent className="pt-4">
-              <div className="flex items-start gap-3">
-                {result.severity === "severe" ? (
-                  <AlertCircle className="h-5 w-5 text-red-500 mt-0.5" />
-                ) : result.severity === "moderate" ? (
-                  <AlertTriangle className="h-5 w-5 text-yellow-500 mt-0.5" />
-                ) : (
-                  <CheckCircle className="h-5 w-5 text-green-500 mt-0.5" />
-                )}
-                <div>
-                  <h4
-                    className={`font-semibold capitalize ${
-                      result.severity === "severe"
-                        ? "text-red-700"
-                        : result.severity === "moderate"
-                          ? "text-yellow-700"
-                          : "text-green-700"
-                    }`}
-                  >
-                    {result.severity === "none" ? "No Interaction" : `${result.severity} Interaction`}
-                  </h4>
-                  <p className="text-sm mt-1">{result.description}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+            <div className="flex items-center gap-2 mb-2">
+              {checkResult.severity === "contraindicated" || checkResult.severity === "major" ? (
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+              ) : checkResult.severity === "moderate" ? (
+                <AlertCircle className="h-5 w-5 text-yellow-500" />
+              ) : (
+                <CheckCircle className="h-5 w-5 text-green-500" />
+              )}
+              <span className="font-semibold capitalize">{checkResult.severity} Interaction</span>
+            </div>
+            <p className="text-sm mb-2">{checkResult.description}</p>
+            <p className="text-sm font-medium">Recommendation: {checkResult.recommendation}</p>
+          </div>
         )}
       </CardContent>
     </Card>

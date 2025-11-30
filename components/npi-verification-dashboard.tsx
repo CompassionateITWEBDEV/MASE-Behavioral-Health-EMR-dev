@@ -8,6 +8,9 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Skeleton } from "@/components/ui/skeleton"
+import { toast } from "sonner"
 import {
   Shield,
   Search,
@@ -19,109 +22,48 @@ import {
   Plus,
   Eye,
   ExternalLink,
+  Loader2,
 } from "lucide-react"
 
-interface NPIVerification {
-  id: string
-  providerId: string
-  providerName: string
-  npiNumber: string
-  npiType: 1 | 2
-  verificationStatus: "pending" | "verified" | "invalid" | "expired"
-  verificationDate?: string
-  verificationSource: string
-  providerNameOnNPI?: string
-  taxonomyCode?: string
-  taxonomyDescription?: string
-  practiceAddress?: string
-  phoneNumber?: string
-  lastUpdatedNPI?: string
-  deactivationDate?: string
-  reactivationDate?: string
-  notes?: string
+interface NPIVerificationDashboardProps {
+  npiRecords: any[]
+  providers: any[]
+  isLoading: boolean
+  onRefresh: () => void
 }
 
-const mockNPIVerifications: NPIVerification[] = [
-  {
-    id: "1",
-    providerId: "prov001",
-    providerName: "Dr. Sarah Johnson",
-    npiNumber: "1234567890",
-    npiType: 1,
-    verificationStatus: "verified",
-    verificationDate: "2024-12-01",
-    verificationSource: "NPPES Registry",
-    providerNameOnNPI: "SARAH JOHNSON",
-    taxonomyCode: "207Q00000X",
-    taxonomyDescription: "Family Medicine",
-    practiceAddress: "123 Medical Center Dr, Detroit, MI 48201",
-    phoneNumber: "(313) 555-0123",
-    lastUpdatedNPI: "2024-11-15",
-    notes: "Primary care physician, verified through NPPES",
-  },
-  {
-    id: "2",
-    providerId: "prov002",
-    providerName: "Dr. Michael Chen",
-    npiNumber: "2345678901",
-    npiType: 1,
-    verificationStatus: "verified",
-    verificationDate: "2024-11-28",
-    verificationSource: "NPPES Registry",
-    providerNameOnNPI: "MICHAEL CHEN",
-    taxonomyCode: "2084P0800X",
-    taxonomyDescription: "Psychiatry & Neurology - Psychiatry",
-    practiceAddress: "456 Healthcare Blvd, Ann Arbor, MI 48104",
-    phoneNumber: "(734) 555-0456",
-    lastUpdatedNPI: "2024-10-20",
-    notes: "Psychiatrist specializing in addiction medicine",
-  },
-  {
-    id: "3",
-    providerId: "prov003",
-    providerName: "Dr. Emily Rodriguez",
-    npiNumber: "3456789012",
-    npiType: 1,
-    verificationStatus: "pending",
-    verificationSource: "Manual Entry",
-    notes: "New provider, NPI verification in progress",
-  },
-  {
-    id: "4",
-    providerId: "prov004",
-    providerName: "MASE Behavioral Health Center",
-    npiNumber: "4567890123",
-    npiType: 2,
-    verificationStatus: "verified",
-    verificationDate: "2024-12-05",
-    verificationSource: "NPPES Registry",
-    providerNameOnNPI: "MASE BEHAVIORAL HEALTH CENTER",
-    taxonomyCode: "261QM0850X",
-    taxonomyDescription: "Clinic/Center - Adult Mental Health",
-    practiceAddress: "789 Treatment Way, Grand Rapids, MI 49503",
-    phoneNumber: "(616) 555-0789",
-    lastUpdatedNPI: "2024-11-30",
-    notes: "Organizational NPI for facility billing",
-  },
-]
-
-export function NPIVerificationDashboard() {
-  const [npiVerifications, setNPIVerifications] = useState<NPIVerification[]>(mockNPIVerifications)
+export function NPIVerificationDashboard({
+  npiRecords,
+  providers,
+  isLoading,
+  onRefresh,
+}: NPIVerificationDashboardProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [showAddForm, setShowAddForm] = useState(false)
   const [isVerifying, setIsVerifying] = useState<string | null>(null)
+  const [isSearchingNPPES, setIsSearchingNPPES] = useState(false)
+  const [nppesSearchResults, setNppesSearchResults] = useState<any[]>([])
+  const [showNPPESSearch, setShowNPPESSearch] = useState(false)
+  const [nppesSearchQuery, setNppesSearchQuery] = useState({ firstName: "", lastName: "", npiNumber: "", state: "" })
+  const [viewDetails, setViewDetails] = useState<any | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
   const [newNPI, setNewNPI] = useState({
-    providerName: "",
+    providerId: "",
     npiNumber: "",
     npiType: 1 as 1 | 2,
+    providerNameOnNpi: "",
+    taxonomyCode: "",
+    taxonomyDescription: "",
+    practiceAddress: "",
+    phoneNumber: "",
     notes: "",
   })
 
-  const filteredVerifications = npiVerifications.filter(
+  const filteredVerifications = npiRecords.filter(
     (verification) =>
-      verification.providerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      verification.npiNumber.includes(searchTerm) ||
-      verification.taxonomyDescription?.toLowerCase().includes(searchTerm.toLowerCase()),
+      verification.providerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      verification.npi_number?.includes(searchTerm) ||
+      verification.taxonomy_description?.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
   const getStatusIcon = (status: string) => {
@@ -139,7 +81,7 @@ export function NPIVerificationDashboard() {
     }
   }
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string): "default" | "destructive" | "secondary" | "outline" => {
     switch (status) {
       case "verified":
         return "default"
@@ -154,48 +96,143 @@ export function NPIVerificationDashboard() {
     }
   }
 
-  const handleVerifyNPI = async (npiId: string) => {
-    setIsVerifying(npiId)
+  const handleNPPESSearch = async () => {
+    setIsSearchingNPPES(true)
+    try {
+      // Build NPPES API URL
+      const params = new URLSearchParams()
+      if (nppesSearchQuery.npiNumber) {
+        params.append("number", nppesSearchQuery.npiNumber)
+      }
+      if (nppesSearchQuery.firstName) {
+        params.append("first_name", nppesSearchQuery.firstName)
+      }
+      if (nppesSearchQuery.lastName) {
+        params.append("last_name", nppesSearchQuery.lastName)
+      }
+      if (nppesSearchQuery.state) {
+        params.append("state", nppesSearchQuery.state)
+      }
+      params.append("version", "2.1")
+      params.append("limit", "10")
 
-    // Simulate NPI verification API call
-    setTimeout(() => {
-      setNPIVerifications((prev) =>
-        prev.map((npi) =>
-          npi.id === npiId
-            ? {
-                ...npi,
-                verificationStatus: "verified" as const,
-                verificationDate: new Date().toISOString().split("T")[0],
-                verificationSource: "NPPES Registry",
-                lastUpdatedNPI: new Date().toISOString().split("T")[0],
-              }
-            : npi,
-        ),
-      )
-      setIsVerifying(null)
-    }, 2000)
+      const response = await fetch(`https://npiregistry.cms.hhs.gov/api/?${params.toString()}`)
+      const data = await response.json()
+
+      if (data.results && data.results.length > 0) {
+        setNppesSearchResults(data.results)
+        toast.success(`Found ${data.results.length} result(s)`)
+      } else {
+        setNppesSearchResults([])
+        toast.info("No results found in NPPES registry")
+      }
+    } catch (error) {
+      console.error("NPPES search error:", error)
+      toast.error("Failed to search NPPES registry")
+      setNppesSearchResults([])
+    } finally {
+      setIsSearchingNPPES(false)
+    }
   }
 
-  const handleAddNPI = () => {
-    const newVerification: NPIVerification = {
-      id: Date.now().toString(),
-      providerId: `prov${Date.now()}`,
-      providerName: newNPI.providerName,
-      npiNumber: newNPI.npiNumber,
-      npiType: newNPI.npiType,
-      verificationStatus: "pending",
-      verificationSource: "Manual Entry",
-      notes: newNPI.notes,
+  const importFromNPPES = (result: any) => {
+    const basic = result.basic || {}
+    const taxonomy = result.taxonomies?.[0] || {}
+    const address = result.addresses?.[0] || {}
+
+    setNewNPI({
+      ...newNPI,
+      npiNumber: result.number || "",
+      npiType: result.enumeration_type === "NPI-1" ? 1 : 2,
+      providerNameOnNpi:
+        result.enumeration_type === "NPI-1"
+          ? `${basic.first_name || ""} ${basic.last_name || ""}`.trim()
+          : basic.organization_name || "",
+      taxonomyCode: taxonomy.code || "",
+      taxonomyDescription: taxonomy.desc || "",
+      practiceAddress:
+        `${address.address_1 || ""} ${address.address_2 || ""}, ${address.city || ""}, ${address.state || ""} ${address.postal_code || ""}`.trim(),
+      phoneNumber: address.telephone_number || "",
+    })
+    setShowNPPESSearch(false)
+    toast.success("NPI data imported from NPPES")
+  }
+
+  const handleVerifyNPI = async (npiId: string) => {
+    setIsVerifying(npiId)
+    try {
+      const response = await fetch("/api/provider-verification", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "npi", id: npiId, action: "verify" }),
+      })
+
+      if (!response.ok) throw new Error("Failed to verify")
+      toast.success("NPI verified successfully")
+      onRefresh()
+    } catch (error) {
+      toast.error("Failed to verify NPI")
+    } finally {
+      setIsVerifying(null)
+    }
+  }
+
+  const handleAddNPI = async () => {
+    if (!newNPI.providerId || !newNPI.npiNumber) {
+      toast.error("Please select a provider and enter NPI number")
+      return
     }
 
-    setNPIVerifications([...npiVerifications, newVerification])
-    setNewNPI({
-      providerName: "",
-      npiNumber: "",
-      npiType: 1,
-      notes: "",
-    })
-    setShowAddForm(false)
+    setIsSaving(true)
+    try {
+      const response = await fetch("/api/provider-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "npi",
+          providerId: newNPI.providerId,
+          npiNumber: newNPI.npiNumber,
+          npiType: newNPI.npiType,
+          providerNameOnNpi: newNPI.providerNameOnNpi,
+          taxonomyCode: newNPI.taxonomyCode,
+          taxonomyDescription: newNPI.taxonomyDescription,
+          practiceAddress: newNPI.practiceAddress,
+          phoneNumber: newNPI.phoneNumber,
+          notes: newNPI.notes,
+        }),
+      })
+
+      if (!response.ok) throw new Error("Failed to add NPI")
+
+      toast.success("NPI added successfully")
+      setNewNPI({
+        providerId: "",
+        npiNumber: "",
+        npiType: 1,
+        providerNameOnNpi: "",
+        taxonomyCode: "",
+        taxonomyDescription: "",
+        practiceAddress: "",
+        phoneNumber: "",
+        notes: "",
+      })
+      setShowAddForm(false)
+      onRefresh()
+    } catch (error) {
+      toast.error("Failed to add NPI")
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-32 w-full" />
+      </div>
+    )
   }
 
   return (
@@ -205,10 +242,16 @@ export function NPIVerificationDashboard() {
           <h2 className="text-2xl font-bold">NPI Verification System</h2>
           <p className="text-muted-foreground">Verify and manage National Provider Identifier (NPI) numbers</p>
         </div>
-        <Button onClick={() => setShowAddForm(!showAddForm)} className="bg-primary hover:bg-primary/90">
-          <Plus className="mr-2 h-4 w-4" />
-          Add NPI
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowNPPESSearch(true)}>
+            <Search className="mr-2 h-4 w-4" />
+            Search NPPES
+          </Button>
+          <Button onClick={() => setShowAddForm(!showAddForm)} className="bg-primary hover:bg-primary/90">
+            <Plus className="mr-2 h-4 w-4" />
+            Add NPI
+          </Button>
+        </div>
       </div>
 
       {/* Search */}
@@ -226,6 +269,105 @@ export function NPIVerificationDashboard() {
         </CardContent>
       </Card>
 
+      <Dialog open={showNPPESSearch} onOpenChange={setShowNPPESSearch}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Search NPPES Registry</DialogTitle>
+            <DialogDescription>
+              Search the National Plan and Provider Enumeration System (NPPES) for provider NPI information
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <Label>NPI Number</Label>
+                <Input
+                  placeholder="1234567890"
+                  value={nppesSearchQuery.npiNumber}
+                  onChange={(e) => setNppesSearchQuery({ ...nppesSearchQuery, npiNumber: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>State</Label>
+                <Input
+                  placeholder="MI"
+                  maxLength={2}
+                  value={nppesSearchQuery.state}
+                  onChange={(e) => setNppesSearchQuery({ ...nppesSearchQuery, state: e.target.value.toUpperCase() })}
+                />
+              </div>
+              <div>
+                <Label>First Name</Label>
+                <Input
+                  placeholder="John"
+                  value={nppesSearchQuery.firstName}
+                  onChange={(e) => setNppesSearchQuery({ ...nppesSearchQuery, firstName: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>Last Name</Label>
+                <Input
+                  placeholder="Smith"
+                  value={nppesSearchQuery.lastName}
+                  onChange={(e) => setNppesSearchQuery({ ...nppesSearchQuery, lastName: e.target.value })}
+                />
+              </div>
+            </div>
+            <Button onClick={handleNPPESSearch} disabled={isSearchingNPPES} className="w-full">
+              {isSearchingNPPES ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Searching...
+                </>
+              ) : (
+                <>
+                  <Search className="mr-2 h-4 w-4" />
+                  Search NPPES Registry
+                </>
+              )}
+            </Button>
+
+            {nppesSearchResults.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="font-medium">Search Results</h4>
+                {nppesSearchResults.map((result, index) => (
+                  <Card key={index}>
+                    <CardContent className="pt-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-medium">
+                              {result.enumeration_type === "NPI-1"
+                                ? `${result.basic?.first_name} ${result.basic?.last_name}`
+                                : result.basic?.organization_name}
+                            </span>
+                            <Badge variant="outline">NPI: {result.number}</Badge>
+                            <Badge variant="secondary">
+                              {result.enumeration_type === "NPI-1" ? "Individual" : "Organization"}
+                            </Badge>
+                          </div>
+                          {result.taxonomies?.[0] && (
+                            <p className="text-sm text-muted-foreground">{result.taxonomies[0].desc}</p>
+                          )}
+                          {result.addresses?.[0] && (
+                            <p className="text-sm text-muted-foreground">
+                              {result.addresses[0].city}, {result.addresses[0].state}
+                            </p>
+                          )}
+                        </div>
+                        <Button size="sm" onClick={() => importFromNPPES(result)}>
+                          Import
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Add NPI Form */}
       {showAddForm && (
         <Card>
@@ -236,13 +378,22 @@ export function NPIVerificationDashboard() {
           <CardContent className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <Label htmlFor="providerName">Provider Name *</Label>
-                <Input
-                  id="providerName"
-                  value={newNPI.providerName}
-                  onChange={(e) => setNewNPI({ ...newNPI, providerName: e.target.value })}
-                  placeholder="Dr. John Smith"
-                />
+                <Label htmlFor="providerId">Provider *</Label>
+                <Select
+                  value={newNPI.providerId}
+                  onValueChange={(value) => setNewNPI({ ...newNPI, providerId: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select provider" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {providers.map((provider) => (
+                      <SelectItem key={provider.id} value={provider.id}>
+                        {provider.first_name} {provider.last_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label htmlFor="npiNumber">NPI Number *</Label>
@@ -256,20 +407,72 @@ export function NPIVerificationDashboard() {
               </div>
             </div>
 
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <Label htmlFor="npiType">NPI Type</Label>
+                <Select
+                  value={newNPI.npiType.toString()}
+                  onValueChange={(value) => setNewNPI({ ...newNPI, npiType: Number.parseInt(value) as 1 | 2 })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Type 1 - Individual Provider</SelectItem>
+                    <SelectItem value="2">Type 2 - Organization</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="providerNameOnNpi">Name on NPI</Label>
+                <Input
+                  id="providerNameOnNpi"
+                  value={newNPI.providerNameOnNpi}
+                  onChange={(e) => setNewNPI({ ...newNPI, providerNameOnNpi: e.target.value })}
+                  placeholder="Name as it appears on NPI"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <Label htmlFor="taxonomyCode">Taxonomy Code</Label>
+                <Input
+                  id="taxonomyCode"
+                  value={newNPI.taxonomyCode}
+                  onChange={(e) => setNewNPI({ ...newNPI, taxonomyCode: e.target.value })}
+                  placeholder="207Q00000X"
+                />
+              </div>
+              <div>
+                <Label htmlFor="taxonomyDescription">Taxonomy Description</Label>
+                <Input
+                  id="taxonomyDescription"
+                  value={newNPI.taxonomyDescription}
+                  onChange={(e) => setNewNPI({ ...newNPI, taxonomyDescription: e.target.value })}
+                  placeholder="Family Medicine"
+                />
+              </div>
+            </div>
+
             <div>
-              <Label htmlFor="npiType">NPI Type</Label>
-              <Select
-                value={newNPI.npiType.toString()}
-                onValueChange={(value) => setNewNPI({ ...newNPI, npiType: Number.parseInt(value) as 1 | 2 })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">Type 1 - Individual Provider</SelectItem>
-                  <SelectItem value="2">Type 2 - Organization</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label htmlFor="practiceAddress">Practice Address</Label>
+              <Input
+                id="practiceAddress"
+                value={newNPI.practiceAddress}
+                onChange={(e) => setNewNPI({ ...newNPI, practiceAddress: e.target.value })}
+                placeholder="123 Medical Center Dr, City, State ZIP"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="phoneNumber">Phone Number</Label>
+              <Input
+                id="phoneNumber"
+                value={newNPI.phoneNumber}
+                onChange={(e) => setNewNPI({ ...newNPI, phoneNumber: e.target.value })}
+                placeholder="(555) 123-4567"
+              />
             </div>
 
             <div>
@@ -284,7 +487,8 @@ export function NPIVerificationDashboard() {
             </div>
 
             <div className="flex gap-2 pt-4">
-              <Button onClick={handleAddNPI} className="bg-primary hover:bg-primary/90">
+              <Button onClick={handleAddNPI} disabled={isSaving} className="bg-primary hover:bg-primary/90">
+                {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Add NPI
               </Button>
               <Button variant="outline" onClick={() => setShowAddForm(false)}>
@@ -297,131 +501,205 @@ export function NPIVerificationDashboard() {
 
       {/* NPI Verification List */}
       <div className="grid gap-4">
-        {filteredVerifications.map((verification) => (
-          <Card key={verification.id}>
+        {filteredVerifications.length === 0 ? (
+          <Card>
             <CardContent className="pt-6">
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Shield className="h-5 w-5 text-primary" />
-                    <h3 className="text-lg font-semibold">{verification.providerName}</h3>
-                    <Badge variant="outline">NPI: {verification.npiNumber}</Badge>
-                    <Badge variant="outline">Type {verification.npiType}</Badge>
-                    <div className="flex items-center gap-1">
-                      {getStatusIcon(verification.verificationStatus)}
-                      <Badge variant={getStatusColor(verification.verificationStatus)}>
-                        {verification.verificationStatus.toUpperCase()}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  {verification.taxonomyDescription && (
-                    <div className="mb-2">
-                      <Badge variant="secondary">{verification.taxonomyDescription}</Badge>
-                    </div>
-                  )}
-
-                  <div className="grid gap-2 md:grid-cols-2 text-sm mb-3">
-                    {verification.verificationDate && (
-                      <div>
-                        <span className="font-medium">Verified:</span> {verification.verificationDate}
-                      </div>
-                    )}
-                    <div>
-                      <span className="font-medium">Source:</span> {verification.verificationSource}
-                    </div>
-                    {verification.taxonomyCode && (
-                      <div>
-                        <span className="font-medium">Taxonomy:</span> {verification.taxonomyCode}
-                      </div>
-                    )}
-                    {verification.lastUpdatedNPI && (
-                      <div>
-                        <span className="font-medium">Last Updated:</span> {verification.lastUpdatedNPI}
-                      </div>
-                    )}
-                  </div>
-
-                  {verification.practiceAddress && (
-                    <div className="text-sm mb-2">
-                      <span className="font-medium">Practice Address:</span> {verification.practiceAddress}
-                    </div>
-                  )}
-
-                  {verification.phoneNumber && (
-                    <div className="text-sm mb-2">
-                      <span className="font-medium">Phone:</span> {verification.phoneNumber}
-                    </div>
-                  )}
-
-                  {verification.notes && (
-                    <div className="text-sm mb-3">
-                      <span className="font-medium">Notes:</span> {verification.notes}
-                    </div>
-                  )}
-
-                  {verification.deactivationDate && (
-                    <div className="text-sm text-red-600 mb-2">
-                      <span className="font-medium">Deactivated:</span> {verification.deactivationDate}
-                    </div>
-                  )}
-
-                  {verification.reactivationDate && (
-                    <div className="text-sm text-green-600 mb-2">
-                      <span className="font-medium">Reactivated:</span> {verification.reactivationDate}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex gap-2">
-                  {verification.verificationStatus === "pending" && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleVerifyNPI(verification.id)}
-                      disabled={isVerifying === verification.id}
-                    >
-                      {isVerifying === verification.id ? (
-                        <>
-                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                          Verifying...
-                        </>
-                      ) : (
-                        <>
-                          <Shield className="mr-2 h-4 w-4" />
-                          Verify NPI
-                        </>
-                      )}
-                    </Button>
-                  )}
-                  <Button variant="outline" size="sm">
-                    <Eye className="mr-2 h-4 w-4" />
-                    Details
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    NPPES
-                  </Button>
-                </div>
+              <div className="text-center py-8">
+                <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-medium mb-2">No NPI verifications found</h3>
+                <p className="text-muted-foreground">
+                  {searchTerm ? "Try adjusting your search terms." : "Add your first NPI verification to get started."}
+                </p>
               </div>
             </CardContent>
           </Card>
-        ))}
+        ) : (
+          filteredVerifications.map((verification) => (
+            <Card key={verification.id}>
+              <CardContent className="pt-6">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      <Shield className="h-5 w-5 text-primary" />
+                      <h3 className="text-lg font-semibold">{verification.providerName}</h3>
+                      <Badge variant="outline">NPI: {verification.npi_number}</Badge>
+                      <Badge variant="outline">Type {verification.npi_type}</Badge>
+                      <div className="flex items-center gap-1">
+                        {getStatusIcon(verification.verification_status)}
+                        <Badge variant={getStatusColor(verification.verification_status)}>
+                          {verification.verification_status?.toUpperCase()}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {verification.taxonomy_description && (
+                      <div className="mb-2">
+                        <Badge variant="secondary">{verification.taxonomy_description}</Badge>
+                      </div>
+                    )}
+
+                    <div className="grid gap-2 md:grid-cols-2 text-sm mb-3">
+                      {verification.verification_date && (
+                        <div>
+                          <span className="font-medium">Verified:</span> {verification.verification_date}
+                        </div>
+                      )}
+                      <div>
+                        <span className="font-medium">Source:</span> {verification.verification_source}
+                      </div>
+                      {verification.taxonomy_code && (
+                        <div>
+                          <span className="font-medium">Taxonomy:</span> {verification.taxonomy_code}
+                        </div>
+                      )}
+                      {verification.last_updated_npi && (
+                        <div>
+                          <span className="font-medium">Last Updated:</span> {verification.last_updated_npi}
+                        </div>
+                      )}
+                    </div>
+
+                    {verification.practice_address && (
+                      <div className="text-sm mb-2">
+                        <span className="font-medium">Practice Address:</span> {verification.practice_address}
+                      </div>
+                    )}
+
+                    {verification.phone_number && (
+                      <div className="text-sm mb-2">
+                        <span className="font-medium">Phone:</span> {verification.phone_number}
+                      </div>
+                    )}
+
+                    {verification.notes && (
+                      <div className="text-sm mb-3">
+                        <span className="font-medium">Notes:</span> {verification.notes}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2">
+                    {verification.verification_status === "pending" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleVerifyNPI(verification.id)}
+                        disabled={isVerifying === verification.id}
+                      >
+                        {isVerifying === verification.id ? (
+                          <>
+                            <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                            Verifying...
+                          </>
+                        ) : (
+                          <>
+                            <Shield className="mr-2 h-4 w-4" />
+                            Verify NPI
+                          </>
+                        )}
+                      </Button>
+                    )}
+                    <Button variant="outline" size="sm" onClick={() => setViewDetails(verification)}>
+                      <Eye className="mr-2 h-4 w-4" />
+                      Details
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        window.open(
+                          `https://npiregistry.cms.hhs.gov/provider-view/${verification.npi_number}`,
+                          "_blank",
+                        )
+                      }
+                    >
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      NPPES
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
 
-      {filteredVerifications.length === 0 && (
-        <Card>
-          <CardContent className="pt-6">
-            <div className="text-center py-8">
-              <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium mb-2">No NPI verifications found</h3>
-              <p className="text-muted-foreground">
-                {searchTerm ? "Try adjusting your search terms." : "Add your first NPI verification to get started."}
-              </p>
+      {/* View Details Dialog */}
+      <Dialog open={!!viewDetails} onOpenChange={() => setViewDetails(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>NPI Details</DialogTitle>
+          </DialogHeader>
+          {viewDetails && (
+            <div className="space-y-4">
+              <div className="grid gap-2">
+                <div className="flex justify-between">
+                  <span className="font-medium">Provider:</span>
+                  <span>{viewDetails.providerName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">NPI Number:</span>
+                  <span>{viewDetails.npi_number}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">NPI Type:</span>
+                  <span>
+                    Type {viewDetails.npi_type} ({viewDetails.npi_type === 1 ? "Individual" : "Organization"})
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Status:</span>
+                  <Badge variant={getStatusColor(viewDetails.verification_status)}>
+                    {viewDetails.verification_status?.toUpperCase()}
+                  </Badge>
+                </div>
+                {viewDetails.provider_name_on_npi && (
+                  <div className="flex justify-between">
+                    <span className="font-medium">Name on NPI:</span>
+                    <span>{viewDetails.provider_name_on_npi}</span>
+                  </div>
+                )}
+                {viewDetails.taxonomy_code && (
+                  <div className="flex justify-between">
+                    <span className="font-medium">Taxonomy Code:</span>
+                    <span>{viewDetails.taxonomy_code}</span>
+                  </div>
+                )}
+                {viewDetails.taxonomy_description && (
+                  <div className="flex justify-between">
+                    <span className="font-medium">Specialty:</span>
+                    <span>{viewDetails.taxonomy_description}</span>
+                  </div>
+                )}
+                {viewDetails.practice_address && (
+                  <div>
+                    <span className="font-medium">Practice Address:</span>
+                    <p className="text-sm text-muted-foreground">{viewDetails.practice_address}</p>
+                  </div>
+                )}
+                {viewDetails.phone_number && (
+                  <div className="flex justify-between">
+                    <span className="font-medium">Phone:</span>
+                    <span>{viewDetails.phone_number}</span>
+                  </div>
+                )}
+                {viewDetails.verification_date && (
+                  <div className="flex justify-between">
+                    <span className="font-medium">Verified Date:</span>
+                    <span>{viewDetails.verification_date}</span>
+                  </div>
+                )}
+                {viewDetails.notes && (
+                  <div>
+                    <span className="font-medium">Notes:</span>
+                    <p className="text-sm text-muted-foreground">{viewDetails.notes}</p>
+                  </div>
+                )}
+              </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* NPI Information Card */}
       <Card>

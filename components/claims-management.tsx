@@ -21,20 +21,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import {
-  FileCheck,
-  Search,
-  Eye,
-  RefreshCw,
-  Download,
-  Filter,
-  Calendar,
-  DollarSign,
-  Plus,
-  Package,
-  Send,
-  AlertTriangle,
-} from "lucide-react"
+import { FileCheck, Search, Eye, RefreshCw, Download, DollarSign, Plus, Package, Send, Edit } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
@@ -74,6 +62,7 @@ interface Batch {
 }
 
 export function ClaimsManagement() {
+  const { toast } = useToast()
   const { data, isLoading, mutate } = useSWR("/api/claims", fetcher)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
@@ -81,6 +70,7 @@ export function ClaimsManagement() {
   const [showNewClaimDialog, setShowNewClaimDialog] = useState(false)
   const [showNewBatchDialog, setShowNewBatchDialog] = useState(false)
   const [showViewDialog, setShowViewDialog] = useState(false)
+  const [showEditDialog, setShowEditDialog] = useState(false)
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null)
   const [selectedClaimsForBatch, setSelectedClaimsForBatch] = useState<string[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -94,6 +84,14 @@ export function ClaimsManagement() {
     totalCharges: "",
     claimType: "professional",
     notes: "",
+  })
+
+  // Edit claim state
+  const [editClaim, setEditClaim] = useState({
+    status: "",
+    notes: "",
+    paidAmount: "",
+    denialReason: "",
   })
 
   // New batch form state
@@ -155,6 +153,7 @@ export function ClaimsManagement() {
       })
 
       if (res.ok) {
+        toast({ title: "Success", description: "Claim created successfully" })
         setShowNewClaimDialog(false)
         setNewClaim({
           patientId: "",
@@ -168,13 +167,18 @@ export function ClaimsManagement() {
         mutate()
       }
     } catch (error) {
-      console.error("Error creating claim:", error)
+      toast({ title: "Error", description: "Failed to create claim", variant: "destructive" })
     } finally {
       setIsSubmitting(false)
     }
   }
 
   const handleCreateBatch = async () => {
+    if (selectedClaimsForBatch.length === 0) {
+      toast({ title: "Error", description: "Please select at least one claim", variant: "destructive" })
+      return
+    }
+
     setIsSubmitting(true)
     try {
       const res = await fetch("/api/claims", {
@@ -188,13 +192,14 @@ export function ClaimsManagement() {
       })
 
       if (res.ok) {
+        toast({ title: "Success", description: "Batch created successfully" })
         setShowNewBatchDialog(false)
         setNewBatch({ batchType: "837P", notes: "" })
         setSelectedClaimsForBatch([])
         mutate()
       }
     } catch (error) {
-      console.error("Error creating batch:", error)
+      toast({ title: "Error", description: "Failed to create batch", variant: "destructive" })
     } finally {
       setIsSubmitting(false)
     }
@@ -207,9 +212,10 @@ export function ClaimsManagement() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: claimId, action: "appeal" }),
       })
+      toast({ title: "Success", description: "Appeal initiated" })
       mutate()
     } catch (error) {
-      console.error("Error appealing claim:", error)
+      toast({ title: "Error", description: "Failed to appeal claim", variant: "destructive" })
     }
   }
 
@@ -220,9 +226,59 @@ export function ClaimsManagement() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: batchId, action: "submit_batch" }),
       })
+      toast({ title: "Success", description: "Batch submitted to clearinghouse" })
       mutate()
     } catch (error) {
-      console.error("Error submitting batch:", error)
+      toast({ title: "Error", description: "Failed to submit batch", variant: "destructive" })
+    }
+  }
+
+  const handleViewClaim = (claim: Claim) => {
+    setSelectedClaim(claim)
+    setShowViewDialog(true)
+  }
+
+  const handleEditClaim = (claim: Claim) => {
+    setSelectedClaim(claim)
+    setEditClaim({
+      status: claim.status,
+      notes: claim.notes || "",
+      paidAmount: claim.paidAmount?.toString() || "",
+      denialReason: claim.denialReason || "",
+    })
+    setShowEditDialog(true)
+  }
+
+  const handleUpdateClaim = async () => {
+    if (!selectedClaim) return
+
+    setIsSubmitting(true)
+    try {
+      const updates: any = {
+        claim_status: editClaim.status,
+        notes: editClaim.notes,
+      }
+
+      if (editClaim.paidAmount) {
+        updates.paid_amount = Number.parseFloat(editClaim.paidAmount)
+      }
+      if (editClaim.denialReason) {
+        updates.denial_reason = editClaim.denialReason
+      }
+
+      await fetch("/api/claims", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: selectedClaim.id, action: "update", ...updates }),
+      })
+
+      toast({ title: "Success", description: "Claim updated successfully" })
+      setShowEditDialog(false)
+      mutate()
+    } catch (error) {
+      toast({ title: "Error", description: "Failed to update claim", variant: "destructive" })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -230,6 +286,23 @@ export function ClaimsManagement() {
     setSelectedClaimsForBatch((prev) =>
       prev.includes(claimId) ? prev.filter((id) => id !== claimId) : [...prev, claimId],
     )
+  }
+
+  const handleExportClaims = () => {
+    const csv = [
+      ["Claim Number", "Patient", "Payer", "Service Date", "Charges", "Status"].join(","),
+      ...filteredClaims.map((c) =>
+        [c.claimNumber, c.patientName, c.payerName, c.serviceDate, c.totalCharges, c.status].join(","),
+      ),
+    ].join("\n")
+
+    const blob = new Blob([csv], { type: "text/csv" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `claims-export-${new Date().toISOString().split("T")[0]}.csv`
+    a.click()
+    toast({ title: "Exported", description: "Claims exported to CSV" })
   }
 
   const pendingClaims = claims.filter((c) => c.status === "pending")
@@ -242,7 +315,7 @@ export function ClaimsManagement() {
           <p className="text-muted-foreground">Track and manage insurance claims</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
+          <Button variant="outline" onClick={handleExportClaims}>
             <Download className="mr-2 h-4 w-4" />
             Export Claims
           </Button>
@@ -323,7 +396,7 @@ export function ClaimsManagement() {
                 <Button variant="outline" onClick={() => setShowNewBatchDialog(false)}>
                   Cancel
                 </Button>
-                <Button onClick={handleCreateBatch} disabled={isSubmitting}>
+                <Button onClick={handleCreateBatch} disabled={isSubmitting || selectedClaimsForBatch.length === 0}>
                   {isSubmitting ? "Creating..." : "Create Batch"}
                 </Button>
               </DialogFooter>
@@ -540,252 +613,197 @@ export function ClaimsManagement() {
                 ) : (
                   <>
                     <div className="text-2xl font-bold">{summary.collectionRate || 0}%</div>
-                    <p className="text-xs text-muted-foreground">
-                      {Number(summary.collectionRate) >= 90 ? "Above target" : "Below target"}
-                    </p>
+                    <p className="text-xs text-muted-foreground">of total charges collected</p>
                   </>
                 )}
               </CardContent>
             </Card>
           </div>
 
-          {/* Filters */}
+          {/* Claims List */}
           <Card>
-            <CardContent className="pt-6">
-              <div className="flex flex-wrap gap-4">
-                <div className="flex items-center space-x-2 flex-1 min-w-[200px]">
-                  <Search className="h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search claims by number, patient, or payer..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="flex-1"
-                  />
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Claims List</CardTitle>
+                  <CardDescription>View and manage all claims</CardDescription>
                 </div>
-
-                <div className="flex items-center space-x-2">
-                  <Filter className="h-4 w-4 text-muted-foreground" />
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-[140px]">
-                      <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="pending">Pending</SelectItem>
-                      <SelectItem value="submitted">Submitted</SelectItem>
-                      <SelectItem value="paid">Paid</SelectItem>
-                      <SelectItem value="denied">Denied</SelectItem>
-                      <SelectItem value="appealed">Appealed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Select value={payerFilter} onValueChange={setPayerFilter}>
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="Payer" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Payers</SelectItem>
-                      {uniquePayers.map((payer) => (
-                        <SelectItem key={payer} value={payer}>
-                          {payer}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <Button variant="outline" size="sm" onClick={() => mutate()}>
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Refresh
+                <Button variant="ghost" size="icon" onClick={() => mutate()}>
+                  <RefreshCw className="h-4 w-4" />
                 </Button>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Claims List */}
-          {isLoading ? (
-            <div className="space-y-4">
-              {[1, 2, 3].map((i) => (
-                <Card key={i}>
-                  <CardContent className="pt-6">
-                    <Skeleton className="h-24 w-full" />
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : filteredClaims.length === 0 ? (
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-center py-8">
-                  <FileCheck className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium mb-2">No claims found</h3>
-                  <p className="text-muted-foreground">
-                    {searchTerm || statusFilter !== "all" || payerFilter !== "all"
-                      ? "Try adjusting your search or filter criteria."
-                      : "Click 'New Claim' to create a manual claim entry."}
-                  </p>
+            </CardHeader>
+            <CardContent>
+              {/* Filters */}
+              <div className="flex gap-4 mb-4">
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search by claim number, patient, or payer..."
+                      className="pl-8"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                  </div>
                 </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-4">
-              {filteredClaims.map((claim) => (
-                <Card key={claim.id}>
-                  <CardContent className="pt-6">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <FileCheck className="h-5 w-5 text-primary" />
-                          <h3 className="text-lg font-semibold">{claim.patientName}</h3>
-                          <Badge variant="outline">{claim.claimNumber}</Badge>
-                          <Badge variant={getStatusColor(claim.status)}>{claim.status.toUpperCase()}</Badge>
-                        </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                    <SelectItem value="submitted">Submitted</SelectItem>
+                    <SelectItem value="paid">Paid</SelectItem>
+                    <SelectItem value="denied">Denied</SelectItem>
+                    <SelectItem value="appealed">Appealed</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={payerFilter} onValueChange={setPayerFilter}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Payer" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Payers</SelectItem>
+                    {uniquePayers.map((payer) => (
+                      <SelectItem key={payer} value={payer}>
+                        {payer}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-                        <div className="grid gap-2 md:grid-cols-3 text-sm mb-3">
-                          <div>
-                            <span className="font-medium">Payer:</span> {claim.payerName}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Calendar className="h-4 w-4 text-muted-foreground" />
-                            <span>Service: {claim.serviceDate}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Calendar className="h-4 w-4 text-muted-foreground" />
-                            <span>Submitted: {claim.submissionDate || "Not submitted"}</span>
-                          </div>
+              {/* Claims Table */}
+              {isLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <Skeleton key={i} className="h-16 w-full" />
+                  ))}
+                </div>
+              ) : filteredClaims.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <FileCheck className="h-12 w-12 mx-auto mb-4" />
+                  <p className="text-lg font-medium">No claims found</p>
+                  <p className="text-sm">Create a new claim to get started</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredClaims.map((claim) => (
+                    <div
+                      key={claim.id}
+                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50"
+                    >
+                      <div className="flex-1 grid grid-cols-4 gap-4">
+                        <div>
+                          <p className="font-medium">{claim.claimNumber}</p>
+                          <p className="text-sm text-muted-foreground">{claim.patientName}</p>
                         </div>
-
-                        <div className="grid gap-2 md:grid-cols-4 text-sm mb-3">
-                          <div>
-                            <span className="font-medium">Charges:</span> ${claim.totalCharges.toFixed(2)}
-                          </div>
-                          {claim.allowedAmount && (
-                            <div>
-                              <span className="font-medium">Allowed:</span> ${claim.allowedAmount.toFixed(2)}
-                            </div>
-                          )}
+                        <div>
+                          <p className="text-sm">{claim.payerName}</p>
+                          <p className="text-sm text-muted-foreground">{claim.serviceDate}</p>
+                        </div>
+                        <div>
+                          <p className="font-medium">${claim.totalCharges.toFixed(2)}</p>
                           {claim.paidAmount && (
-                            <div>
-                              <span className="font-medium">Paid:</span> ${claim.paidAmount.toFixed(2)}
-                            </div>
-                          )}
-                          {claim.patientResponsibility && (
-                            <div>
-                              <span className="font-medium">Patient:</span> ${claim.patientResponsibility.toFixed(2)}
-                            </div>
+                            <p className="text-sm text-green-600">Paid: ${claim.paidAmount.toFixed(2)}</p>
                           )}
                         </div>
-
-                        {claim.denialReason && (
-                          <div className="text-sm text-red-600 mb-2">
-                            <span className="font-medium">Denial Reason:</span> {claim.denialReason}
-                          </div>
-                        )}
-
-                        {claim.notes && (
-                          <div className="text-sm mb-3">
-                            <span className="font-medium">Notes:</span> {claim.notes}
-                          </div>
-                        )}
+                        <div className="flex items-center gap-2">
+                          <Badge variant={getStatusColor(claim.status)}>
+                            {claim.status.charAt(0).toUpperCase() + claim.status.slice(1)}
+                          </Badge>
+                        </div>
                       </div>
-
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedClaim(claim)
-                            setShowViewDialog(true)
-                          }}
-                        >
-                          <Eye className="mr-2 h-4 w-4" />
-                          View
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => handleViewClaim(claim)}>
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleEditClaim(claim)}>
+                          <Edit className="h-4 w-4" />
                         </Button>
                         {claim.status === "denied" && (
-                          <Button variant="outline" size="sm" onClick={() => handleAppeal(claim.id)}>
-                            <RefreshCw className="mr-2 h-4 w-4" />
+                          <Button variant="ghost" size="sm" onClick={() => handleAppeal(claim.id)}>
                             Appeal
-                          </Button>
-                        )}
-                        {(claim.status === "pending" || claim.status === "submitted") && (
-                          <Button variant="outline" size="sm">
-                            <RefreshCw className="mr-2 h-4 w-4" />
-                            Check Status
                           </Button>
                         )}
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="batches" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Claim Batches</CardTitle>
-              <CardDescription>View and manage claim batches for clearinghouse submission</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Claim Batches</CardTitle>
+                  <CardDescription>Manage claim submission batches</CardDescription>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => mutate()}>
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               {isLoading ? (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {[1, 2, 3].map((i) => (
                     <Skeleton key={i} className="h-16 w-full" />
                   ))}
                 </div>
               ) : batches.length === 0 ? (
-                <div className="text-center py-8">
-                  <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium mb-2">No batches found</h3>
-                  <p className="text-muted-foreground">
-                    Click &quot;New Batch&quot; to create a claim batch for submission.
-                  </p>
+                <div className="text-center py-12 text-muted-foreground">
+                  <Package className="h-12 w-12 mx-auto mb-4" />
+                  <p className="text-lg font-medium">No batches found</p>
+                  <p className="text-sm">Create a batch to submit multiple claims at once</p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-2">
                   {batches.map((batch) => (
-                    <div key={batch.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <Package className="h-4 w-4 text-primary" />
-                          <span className="font-medium">{batch.batchNumber}</span>
-                          <Badge variant="outline">{batch.batchType}</Badge>
+                    <div
+                      key={batch.id}
+                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50"
+                    >
+                      <div className="flex-1 grid grid-cols-4 gap-4">
+                        <div>
+                          <p className="font-medium">{batch.batchNumber}</p>
+                          <p className="text-sm text-muted-foreground">{batch.batchType}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm">{batch.totalClaims} claims</p>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(batch.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="font-medium">${batch.totalCharges.toFixed(2)}</p>
+                        </div>
+                        <div>
                           <Badge
                             variant={
                               batch.batchStatus === "submitted"
                                 ? "default"
-                                : batch.batchStatus === "accepted"
-                                  ? "default"
-                                  : batch.batchStatus === "rejected"
-                                    ? "destructive"
-                                    : "secondary"
+                                : batch.batchStatus === "pending"
+                                  ? "secondary"
+                                  : "outline"
                             }
                           >
-                            {batch.batchStatus.toUpperCase()}
+                            {batch.batchStatus.charAt(0).toUpperCase() + batch.batchStatus.slice(1)}
                           </Badge>
                         </div>
-                        <div className="text-sm text-muted-foreground">
-                          {batch.totalClaims} claims | ${batch.totalCharges.toLocaleString()} total
-                          {batch.submittedAt && ` | Submitted: ${new Date(batch.submittedAt).toLocaleDateString()}`}
-                        </div>
-                        {batch.notes && <div className="text-sm mt-1">{batch.notes}</div>}
                       </div>
-                      <div className="flex gap-2">
-                        {batch.batchStatus === "pending" && (
-                          <Button size="sm" onClick={() => handleSubmitBatch(batch.id)}>
-                            <Send className="mr-2 h-4 w-4" />
-                            Submit
-                          </Button>
-                        )}
-                        <Button variant="outline" size="sm">
-                          <Eye className="mr-2 h-4 w-4" />
-                          View
+                      {batch.batchStatus === "pending" && (
+                        <Button size="sm" onClick={() => handleSubmitBatch(batch.id)}>
+                          <Send className="mr-2 h-4 w-4" />
+                          Submit
                         </Button>
-                      </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -800,18 +818,11 @@ export function ClaimsManagement() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Claim Details</DialogTitle>
+            <DialogDescription>Full details for claim {selectedClaim?.claimNumber}</DialogDescription>
           </DialogHeader>
           {selectedClaim && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-muted-foreground">Claim Number</Label>
-                  <p className="font-medium">{selectedClaim.claimNumber}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Status</Label>
-                  <Badge variant={getStatusColor(selectedClaim.status)}>{selectedClaim.status.toUpperCase()}</Badge>
-                </div>
                 <div>
                   <Label className="text-muted-foreground">Patient</Label>
                   <p className="font-medium">{selectedClaim.patientName}</p>
@@ -821,44 +832,112 @@ export function ClaimsManagement() {
                   <p className="font-medium">{selectedClaim.payerName}</p>
                 </div>
                 <div>
-                  <Label className="text-muted-foreground">Service Date</Label>
-                  <p className="font-medium">{selectedClaim.serviceDate}</p>
+                  <Label className="text-muted-foreground">Provider</Label>
+                  <p className="font-medium">{selectedClaim.providerName}</p>
                 </div>
                 <div>
-                  <Label className="text-muted-foreground">Submission Date</Label>
-                  <p className="font-medium">{selectedClaim.submissionDate || "Not submitted"}</p>
+                  <Label className="text-muted-foreground">Service Date</Label>
+                  <p className="font-medium">{selectedClaim.serviceDate}</p>
                 </div>
                 <div>
                   <Label className="text-muted-foreground">Total Charges</Label>
                   <p className="font-medium">${selectedClaim.totalCharges.toFixed(2)}</p>
                 </div>
                 <div>
-                  <Label className="text-muted-foreground">Amount Paid</Label>
-                  <p className="font-medium">
-                    {selectedClaim.paidAmount ? `$${selectedClaim.paidAmount.toFixed(2)}` : "Pending"}
-                  </p>
+                  <Label className="text-muted-foreground">Status</Label>
+                  <Badge variant={getStatusColor(selectedClaim.status)}>
+                    {selectedClaim.status.charAt(0).toUpperCase() + selectedClaim.status.slice(1)}
+                  </Badge>
                 </div>
-              </div>
-              {selectedClaim.denialReason && (
-                <div className="p-4 bg-red-50 rounded-lg">
-                  <div className="flex items-center gap-2 text-red-600 mb-2">
-                    <AlertTriangle className="h-4 w-4" />
-                    <span className="font-medium">Denial Reason</span>
+                {selectedClaim.paidAmount && (
+                  <div>
+                    <Label className="text-muted-foreground">Paid Amount</Label>
+                    <p className="font-medium text-green-600">${selectedClaim.paidAmount.toFixed(2)}</p>
                   </div>
-                  <p className="text-sm">{selectedClaim.denialReason}</p>
-                </div>
-              )}
-              {selectedClaim.notes && (
-                <div>
-                  <Label className="text-muted-foreground">Notes</Label>
-                  <p className="text-sm">{selectedClaim.notes}</p>
-                </div>
-              )}
+                )}
+                {selectedClaim.denialReason && (
+                  <div className="col-span-2">
+                    <Label className="text-muted-foreground">Denial Reason</Label>
+                    <p className="font-medium text-red-600">{selectedClaim.denialReason}</p>
+                  </div>
+                )}
+                {selectedClaim.notes && (
+                  <div className="col-span-2">
+                    <Label className="text-muted-foreground">Notes</Label>
+                    <p>{selectedClaim.notes}</p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowViewDialog(false)}>
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Claim Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Claim</DialogTitle>
+            <DialogDescription>Update claim {selectedClaim?.claimNumber}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select value={editClaim.status} onValueChange={(v) => setEditClaim({ ...editClaim, status: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="submitted">Submitted</SelectItem>
+                  <SelectItem value="paid">Paid</SelectItem>
+                  <SelectItem value="denied">Denied</SelectItem>
+                  <SelectItem value="appealed">Appealed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {editClaim.status === "paid" && (
+              <div className="space-y-2">
+                <Label>Paid Amount</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={editClaim.paidAmount}
+                  onChange={(e) => setEditClaim({ ...editClaim, paidAmount: e.target.value })}
+                  placeholder="0.00"
+                />
+              </div>
+            )}
+            {editClaim.status === "denied" && (
+              <div className="space-y-2">
+                <Label>Denial Reason</Label>
+                <Textarea
+                  value={editClaim.denialReason}
+                  onChange={(e) => setEditClaim({ ...editClaim, denialReason: e.target.value })}
+                  placeholder="Reason for denial..."
+                />
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea
+                value={editClaim.notes}
+                onChange={(e) => setEditClaim({ ...editClaim, notes: e.target.value })}
+                placeholder="Additional notes..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateClaim} disabled={isSubmitting}>
+              {isSubmitting ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>

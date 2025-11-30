@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardSidebar } from "@/components/dashboard-sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,7 +9,18 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Users, DollarSign, Clock, AlertTriangle, Download, Filter, RefreshCw } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 import useSWR from "swr"
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
@@ -23,7 +35,57 @@ function formatCurrency(amount: number): string {
 }
 
 export default function AnalyticsPage() {
-  const { data, error, isLoading, mutate } = useSWR("/api/analytics", fetcher)
+  const { toast } = useToast()
+  const [isFilterOpen, setIsFilterOpen] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [filters, setFilters] = useState({
+    dateRange: "30",
+    provider: "all",
+    program: "all",
+  })
+
+  const { data, error, isLoading, mutate } = useSWR(
+    `/api/analytics?dateRange=${filters.dateRange}&provider=${filters.provider}&program=${filters.program}`,
+    fetcher,
+  )
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true)
+    await mutate()
+    setIsRefreshing(false)
+    toast({
+      title: "Data Refreshed",
+      description: "Analytics data has been updated.",
+    })
+  }
+
+  const handleApplyFilters = () => {
+    mutate()
+    setIsFilterOpen(false)
+    toast({
+      title: "Filters Applied",
+      description: "Analytics data has been filtered.",
+    })
+  }
+
+  const handleExport = () => {
+    const exportData = {
+      exportDate: new Date().toISOString(),
+      filters,
+      data,
+    }
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `analytics-export-${new Date().toISOString().split("T")[0]}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast({
+      title: "Export Complete",
+      description: "Analytics data has been exported.",
+    })
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -37,15 +99,15 @@ export default function AnalyticsPage() {
               <p className="text-muted-foreground">Comprehensive insights and performance metrics</p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => mutate()}>
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Refresh
+              <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isRefreshing}>
+                <RefreshCw className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
+                {isRefreshing ? "Refreshing..." : "Refresh"}
               </Button>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={() => setIsFilterOpen(true)}>
                 <Filter className="mr-2 h-4 w-4" />
                 Filter
               </Button>
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={handleExport}>
                 <Download className="mr-2 h-4 w-4" />
                 Export
               </Button>
@@ -56,6 +118,9 @@ export default function AnalyticsPage() {
             <Card className="border-destructive">
               <CardContent className="p-4">
                 <p className="text-destructive">Failed to load analytics data. Please try again.</p>
+                <Button variant="outline" size="sm" className="mt-2 bg-transparent" onClick={() => mutate()}>
+                  Retry
+                </Button>
               </CardContent>
             </Card>
           )}
@@ -406,7 +471,7 @@ export default function AnalyticsPage() {
                 <Card>
                   <CardHeader>
                     <CardTitle>Quality Metrics</CardTitle>
-                    <CardDescription>Performance indicators and benchmarks</CardDescription>
+                    <CardDescription>Documentation and adherence rates</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {isLoading ? (
@@ -444,31 +509,24 @@ export default function AnalyticsPage() {
                 <Card>
                   <CardHeader>
                     <CardTitle>Provider Performance</CardTitle>
-                    <CardDescription>Individual provider metrics</CardDescription>
+                    <CardDescription>Top performing providers</CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="space-y-3">
                     {isLoading ? (
                       <Skeleton className="h-32 w-full" />
-                    ) : data?.quality?.providerPerformance?.length > 0 ? (
-                      data.quality.providerPerformance.map(
-                        (provider: {
-                          id: string
-                          name: string
-                          caseload: number
-                          successRate: number
-                          documentationRate: number
-                        }) => (
-                          <div key={provider.id} className="flex justify-between items-center">
-                            <span className="text-sm">{provider.name}</span>
-                            <div className="flex gap-2">
-                              <Badge variant="outline">{provider.caseload} patients</Badge>
-                              <Badge variant="default">{provider.successRate}%</Badge>
-                            </div>
-                          </div>
-                        ),
-                      )
                     ) : (
-                      <p className="text-sm text-muted-foreground">No provider data available</p>
+                      data?.quality?.providerPerformance?.map((provider: any) => (
+                        <div key={provider.id} className="flex items-center justify-between p-2 rounded border">
+                          <div>
+                            <p className="font-medium text-sm">{provider.name}</p>
+                            <p className="text-xs text-muted-foreground">{provider.role}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-sm font-medium">{provider.successRate}%</p>
+                            <p className="text-xs text-muted-foreground">{provider.caseload} cases</p>
+                          </div>
+                        </div>
+                      )) || <p className="text-muted-foreground text-sm">No provider data available</p>
                     )}
                   </CardContent>
                 </Card>
@@ -480,28 +538,48 @@ export default function AnalyticsPage() {
                 <Card>
                   <CardHeader>
                     <CardTitle>Regulatory Compliance</CardTitle>
-                    <CardDescription>Adherence to federal and state requirements</CardDescription>
+                    <CardDescription>Current compliance status</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {isLoading ? (
                       <Skeleton className="h-32 w-full" />
                     ) : (
                       <>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm">DEA Compliance</span>
-                          <Badge variant="default">{data?.compliance?.dea || 0}%</Badge>
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-sm">DEA Compliance</span>
+                            <Badge variant={data?.compliance?.dea >= 95 ? "default" : "destructive"}>
+                              {data?.compliance?.dea || 0}%
+                            </Badge>
+                          </div>
+                          <Progress value={data?.compliance?.dea || 0} className="h-2" />
                         </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm">SAMHSA Requirements</span>
-                          <Badge variant="default">{data?.compliance?.samhsa || 0}%</Badge>
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-sm">SAMHSA Compliance</span>
+                            <Badge variant={data?.compliance?.samhsa >= 95 ? "default" : "destructive"}>
+                              {data?.compliance?.samhsa || 0}%
+                            </Badge>
+                          </div>
+                          <Progress value={data?.compliance?.samhsa || 0} className="h-2" />
                         </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm">State Licensing</span>
-                          <Badge variant="default">{data?.compliance?.stateLicensing || 0}%</Badge>
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-sm">State Licensing</span>
+                            <Badge variant={data?.compliance?.stateLicensing >= 95 ? "default" : "destructive"}>
+                              {data?.compliance?.stateLicensing || 0}%
+                            </Badge>
+                          </div>
+                          <Progress value={data?.compliance?.stateLicensing || 0} className="h-2" />
                         </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm">HIPAA Compliance</span>
-                          <Badge variant="default">{data?.compliance?.hipaa || 0}%</Badge>
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-sm">HIPAA Compliance</span>
+                            <Badge variant={data?.compliance?.hipaa >= 95 ? "default" : "destructive"}>
+                              {data?.compliance?.hipaa || 0}%
+                            </Badge>
+                          </div>
+                          <Progress value={data?.compliance?.hipaa || 0} className="h-2" />
                         </div>
                       </>
                     )}
@@ -511,7 +589,7 @@ export default function AnalyticsPage() {
                 <Card>
                   <CardHeader>
                     <CardTitle>Audit Readiness</CardTitle>
-                    <CardDescription>Documentation and process compliance</CardDescription>
+                    <CardDescription>Preparedness for regulatory audits</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {isLoading ? (
@@ -520,7 +598,7 @@ export default function AnalyticsPage() {
                       <>
                         <div className="space-y-2">
                           <div className="flex justify-between">
-                            <span className="text-sm">Required Documentation</span>
+                            <span className="text-sm">Documentation</span>
                             <span className="text-sm font-medium">
                               {data?.compliance?.auditReadiness?.documentation || 0}%
                             </span>
@@ -545,6 +623,64 @@ export default function AnalyticsPage() {
           </Tabs>
         </main>
       </div>
+
+      <Dialog open={isFilterOpen} onOpenChange={setIsFilterOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Filter Analytics</DialogTitle>
+            <DialogDescription>Apply filters to customize the analytics view</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Date Range</Label>
+              <Select value={filters.dateRange} onValueChange={(v) => setFilters({ ...filters, dateRange: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="7">Last 7 Days</SelectItem>
+                  <SelectItem value="30">Last 30 Days</SelectItem>
+                  <SelectItem value="90">Last 90 Days</SelectItem>
+                  <SelectItem value="365">Last Year</SelectItem>
+                  <SelectItem value="all">All Time</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Provider</Label>
+              <Select value={filters.provider} onValueChange={(v) => setFilters({ ...filters, provider: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Providers</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Program</Label>
+              <Select value={filters.program} onValueChange={(v) => setFilters({ ...filters, program: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Programs</SelectItem>
+                  <SelectItem value="methadone">Methadone</SelectItem>
+                  <SelectItem value="buprenorphine">Buprenorphine</SelectItem>
+                  <SelectItem value="naltrexone">Naltrexone</SelectItem>
+                  <SelectItem value="counseling">Counseling Only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsFilterOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleApplyFilters}>Apply Filters</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

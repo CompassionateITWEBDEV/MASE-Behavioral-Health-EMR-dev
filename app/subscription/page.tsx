@@ -749,7 +749,7 @@ export default function SubscriptionPage() {
       await fetch("/api/specialty-config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.JSONstringify({ specialtyIds: newSelection }),
+        body: JSON.stringify({ specialtyIds: newSelection }),
       })
     } catch (error) {
       console.error("[v0] Error saving specialties:", error)

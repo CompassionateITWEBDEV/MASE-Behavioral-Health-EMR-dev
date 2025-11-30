@@ -19,22 +19,25 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { FileSignature, Plus, Edit, Copy, Eye, Download, Search, AlertTriangle } from "lucide-react"
+import { FileSignature, Plus, Edit, Copy, Eye, Download, Search, AlertTriangle, Check, X } from "lucide-react"
 import { mutate } from "swr"
+import { useToast } from "@/hooks/use-toast"
+
+interface FormTemplate {
+  id: number
+  name: string
+  category: string
+  description: string
+  version: string
+  isRequired: boolean
+  lastModified: string
+  status: string
+  completionRate: number
+}
 
 interface FormTemplateManagerProps {
   data: {
-    formTemplates: Array<{
-      id: number
-      name: string
-      category: string
-      description: string
-      version: string
-      isRequired: boolean
-      lastModified: string
-      status: string
-      completionRate: number
-    }>
+    formTemplates: FormTemplate[]
   } | null
   isLoading: boolean
   error: Error | null
@@ -59,6 +62,13 @@ export function FormTemplateManager({ data, isLoading, error }: FormTemplateMana
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [newForm, setNewForm] = useState({ name: "", category: "", description: "", isRequired: false })
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const [previewDialogOpen, setPreviewDialogOpen] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [selectedTemplate, setSelectedTemplate] = useState<FormTemplate | null>(null)
+  const [editForm, setEditForm] = useState({ name: "", category: "", description: "", isRequired: false })
+
+  const { toast } = useToast()
 
   const formTemplates = data?.formTemplates || []
 
@@ -85,12 +95,79 @@ export function FormTemplateManager({ data, isLoading, error }: FormTemplateMana
         setIsCreateDialogOpen(false)
         setNewForm({ name: "", category: "", description: "", isRequired: false })
         mutate("/api/consent-forms")
+        toast({
+          title: "Template Created",
+          description: "New consent form template has been created successfully.",
+        })
       }
     } catch (err) {
       console.error("Error creating template:", err)
+      toast({
+        title: "Error",
+        description: "Failed to create template. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  const handlePreview = (template: FormTemplate) => {
+    setSelectedTemplate(template)
+    setPreviewDialogOpen(true)
+  }
+
+  const handleEdit = (template: FormTemplate) => {
+    setSelectedTemplate(template)
+    setEditForm({
+      name: template.name,
+      category: template.category,
+      description: template.description || "",
+      isRequired: template.isRequired,
+    })
+    setEditDialogOpen(true)
+  }
+
+  const handleSaveEdit = async () => {
+    setIsSubmitting(true)
+    // Simulate save
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+    setIsSubmitting(false)
+    setEditDialogOpen(false)
+    toast({
+      title: "Template Updated",
+      description: "Consent form template has been updated successfully.",
+    })
+    mutate("/api/consent-forms")
+  }
+
+  const handleDuplicate = (template: FormTemplate) => {
+    setNewForm({
+      name: `${template.name} (Copy)`,
+      category: template.category,
+      description: template.description || "",
+      isRequired: template.isRequired,
+    })
+    setIsCreateDialogOpen(true)
+    toast({
+      title: "Template Duplicated",
+      description: "Edit the duplicated template and save to create a new version.",
+    })
+  }
+
+  const handleExport = (template: FormTemplate) => {
+    const exportData = JSON.stringify(template, null, 2)
+    const blob = new Blob([exportData], { type: "application/json" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `${template.name.replace(/\s+/g, "_")}_template.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast({
+      title: "Template Exported",
+      description: `${template.name} has been exported as JSON.`,
+    })
   }
 
   if (error) {
@@ -281,19 +358,19 @@ export function FormTemplateManager({ data, isLoading, error }: FormTemplateMana
                     <span>Status: {template.status}</span>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={() => handlePreview(template)}>
                       <Eye className="h-4 w-4 mr-1" />
                       Preview
                     </Button>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={() => handleEdit(template)}>
                       <Edit className="h-4 w-4 mr-1" />
                       Edit
                     </Button>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={() => handleDuplicate(template)}>
                       <Copy className="h-4 w-4 mr-1" />
                       Duplicate
                     </Button>
-                    <Button variant="outline" size="sm">
+                    <Button variant="outline" size="sm" onClick={() => handleExport(template)}>
                       <Download className="h-4 w-4 mr-1" />
                       Export
                     </Button>
@@ -304,6 +381,135 @@ export function FormTemplateManager({ data, isLoading, error }: FormTemplateMana
           ))}
         </div>
       )}
+
+      <Dialog open={previewDialogOpen} onOpenChange={setPreviewDialogOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{selectedTemplate?.name}</DialogTitle>
+            <DialogDescription>Preview of consent form template</DialogDescription>
+          </DialogHeader>
+          {selectedTemplate && (
+            <div className="space-y-4">
+              <div className="flex items-center space-x-2">
+                {selectedTemplate.isRequired ? (
+                  <Badge variant="destructive">Required</Badge>
+                ) : (
+                  <Badge variant="secondary">Optional</Badge>
+                )}
+                <Badge variant="outline">v{selectedTemplate.version}</Badge>
+                <Badge variant="outline">{selectedTemplate.category}</Badge>
+              </div>
+
+              <div className="border rounded-lg p-6 bg-white">
+                <div className="text-center mb-6">
+                  <h2 className="text-xl font-bold">{selectedTemplate.name}</h2>
+                  <p className="text-sm text-muted-foreground mt-1">{selectedTemplate.description}</p>
+                </div>
+
+                <div className="space-y-4 text-sm">
+                  <p>
+                    I, the undersigned patient, hereby consent to and authorize the following as described in this form.
+                    I understand that this consent is voluntary and that I may withdraw my consent at any time.
+                  </p>
+
+                  <div className="border-t pt-4">
+                    <h4 className="font-semibold mb-2">Terms and Conditions:</h4>
+                    <ul className="list-disc pl-5 space-y-1">
+                      <li>I understand the purpose and nature of the services provided.</li>
+                      <li>I have been informed of the potential risks and benefits.</li>
+                      <li>I have had the opportunity to ask questions and have them answered.</li>
+                      <li>I understand my rights as a patient under applicable laws and regulations.</li>
+                    </ul>
+                  </div>
+
+                  <div className="border-t pt-4 mt-6">
+                    <div className="grid grid-cols-2 gap-8">
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Patient Signature</p>
+                        <div className="border-b border-dashed h-8"></div>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Date</p>
+                        <div className="border-b border-dashed h-8"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                <Check className="h-4 w-4 text-green-500" />
+                <span>Completion Rate: {selectedTemplate.completionRate}%</span>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Edit Form Template</DialogTitle>
+            <DialogDescription>Modify the consent form template settings</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-name">Form Name</Label>
+                <Input
+                  id="edit-name"
+                  value={editForm.name}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-category">Category</Label>
+                <Select
+                  value={editForm.category}
+                  onValueChange={(value) => setEditForm({ ...editForm, category: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((category) => (
+                      <SelectItem key={category} value={category}>
+                        {category}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-description">Description</Label>
+              <Textarea
+                id="edit-description"
+                value={editForm.description}
+                onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="edit-required"
+                checked={editForm.isRequired}
+                onCheckedChange={(checked) => setEditForm({ ...editForm, isRequired: checked })}
+              />
+              <Label htmlFor="edit-required">Required for all patients</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              <X className="h-4 w-4 mr-1" />
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={isSubmitting}>
+              <Check className="h-4 w-4 mr-1" />
+              {isSubmitting ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
