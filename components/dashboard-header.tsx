@@ -80,6 +80,8 @@ export function DashboardHeader() {
   const [searchQuery, setSearchQuery] = useState("")
   const [notifications, setNotifications] = useState(initialNotifications)
   const [notificationOpen, setNotificationOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
 
   const unreadCount = notifications.filter((n) => !n.read).length
 
@@ -100,7 +102,18 @@ export function DashboardHeader() {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
   }
 
+  const handleSettingsNavigation = (path: string) => {
+    setSettingsOpen(false)
+    router.push(path)
+  }
+
+  const handleUserNavigation = (path: string) => {
+    setUserMenuOpen(false)
+    router.push(path)
+  }
+
   const handleSignOut = () => {
+    setUserMenuOpen(false)
     router.push("/landing")
   }
 
@@ -178,7 +191,7 @@ export function DashboardHeader() {
             </SheetContent>
           </Sheet>
 
-          <DropdownMenu>
+          <DropdownMenu open={settingsOpen} onOpenChange={setSettingsOpen}>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon">
                 <Settings className="h-5 w-5" />
@@ -187,26 +200,26 @@ export function DashboardHeader() {
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>Settings</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push("/settings")}>
+              <DropdownMenuItem onSelect={() => handleSettingsNavigation("/settings")}>
                 <Cog className="mr-2 h-4 w-4" />
                 General Settings
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push("/subscription")}>
+              <DropdownMenuItem onSelect={() => handleSettingsNavigation("/subscription")}>
                 <CreditCard className="mr-2 h-4 w-4" />
                 Subscription & Billing
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push("/staff")}>
+              <DropdownMenuItem onSelect={() => handleSettingsNavigation("/staff")}>
                 <Users className="mr-2 h-4 w-4" />
                 User Management
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push("/facility")}>
+              <DropdownMenuItem onSelect={() => handleSettingsNavigation("/facility")}>
                 <Building2 className="mr-2 h-4 w-4" />
                 Facility Settings
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <DropdownMenu>
+          <DropdownMenu open={userMenuOpen} onOpenChange={setUserMenuOpen}>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon">
                 <User className="h-5 w-5" />
@@ -220,16 +233,16 @@ export function DashboardHeader() {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => router.push("/settings")}>
+              <DropdownMenuItem onSelect={() => handleUserNavigation("/settings")}>
                 <UserCircle className="mr-2 h-4 w-4" />
                 My Profile
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => router.push("/my-work")}>
+              <DropdownMenuItem onSelect={() => handleUserNavigation("/my-work")}>
                 <Briefcase className="mr-2 h-4 w-4" />
                 My Work Queue
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleSignOut} className="text-red-600">
+              <DropdownMenuItem onSelect={handleSignOut} className="text-red-600">
                 <LogOut className="mr-2 h-4 w-4" />
                 Sign Out
               </DropdownMenuItem>
