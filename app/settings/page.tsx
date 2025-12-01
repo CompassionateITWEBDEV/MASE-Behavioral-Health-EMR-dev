@@ -15,9 +15,131 @@ import { Textarea } from "@/components/ui/textarea"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { Save, Shield, Menu, Check } from "lucide-react"
 import Link from "next/link"
+import { useToast } from "@/hooks/use-toast"
 
 export default function SettingsPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const { toast } = useToast()
+
+  const [passwords, setPasswords] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  })
+
+  const [profile, setProfile] = useState({
+    firstName: "Dr. Sarah",
+    lastName: "Johnson",
+    email: "sarah.johnson@mase.org",
+    phone: "(555) 123-4567",
+    license: "LMSW-12345",
+    role: "lmsw",
+    bio: "",
+  })
+
+  const handlePasswordChange = async () => {
+    if (!passwords.currentPassword || !passwords.newPassword || !passwords.confirmPassword) {
+      toast({
+        title: "Error",
+        description: "Please fill in all password fields",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (passwords.newPassword !== passwords.confirmPassword) {
+      toast({
+        title: "Error",
+        description: "New passwords do not match",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (passwords.newPassword.length < 8) {
+      toast({
+        title: "Error",
+        description: "Password must be at least 8 characters long",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSaving(true)
+
+    try {
+      const response = await fetch("/api/settings/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPassword: passwords.currentPassword,
+          newPassword: passwords.newPassword,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Password changed successfully",
+        })
+        setPasswords({ currentPassword: "", newPassword: "", confirmPassword: "" })
+      } else {
+        toast({
+          title: "Error",
+          description: data.error || "Failed to change password",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("[v0] Password change error:", error)
+      toast({
+        title: "Error",
+        description: "An error occurred while changing password",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleSaveChanges = async () => {
+    setIsSaving(true)
+
+    try {
+      const response = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Settings saved successfully",
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: data.error || "Failed to save settings",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("[v0] Settings save error:", error)
+      toast({
+        title: "Error",
+        description: "An error occurred while saving settings",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -48,9 +170,9 @@ export default function SettingsPage() {
               </h1>
               <p className="text-sm md:text-base text-muted-foreground">Manage your EMR system configuration</p>
             </div>
-            <Button className="w-full sm:w-auto">
+            <Button className="w-full sm:w-auto" onClick={handleSaveChanges} disabled={isSaving}>
               <Save className="mr-2 h-4 w-4" />
-              Save Changes
+              {isSaving ? "Saving..." : "Save Changes"}
             </Button>
           </div>
 
@@ -95,37 +217,58 @@ export default function SettingsPage() {
                       <Label htmlFor="firstName" className="text-sm">
                         First Name
                       </Label>
-                      <Input id="firstName" defaultValue="Dr. Sarah" />
+                      <Input
+                        id="firstName"
+                        value={profile.firstName}
+                        onChange={(e) => setProfile({ ...profile, firstName: e.target.value })}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="lastName" className="text-sm">
                         Last Name
                       </Label>
-                      <Input id="lastName" defaultValue="Johnson" />
+                      <Input
+                        id="lastName"
+                        value={profile.lastName}
+                        onChange={(e) => setProfile({ ...profile, lastName: e.target.value })}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="email" className="text-sm">
                         Email
                       </Label>
-                      <Input id="email" type="email" defaultValue="sarah.johnson@mase.org" />
+                      <Input
+                        id="email"
+                        type="email"
+                        value={profile.email}
+                        onChange={(e) => setProfile({ ...profile, email: e.target.value })}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="phone" className="text-sm">
                         Phone
                       </Label>
-                      <Input id="phone" defaultValue="(555) 123-4567" />
+                      <Input
+                        id="phone"
+                        value={profile.phone}
+                        onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="license" className="text-sm">
                         License Number
                       </Label>
-                      <Input id="license" defaultValue="LMSW-12345" />
+                      <Input
+                        id="license"
+                        value={profile.license}
+                        onChange={(e) => setProfile({ ...profile, license: e.target.value })}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="role" className="text-sm">
                         Role
                       </Label>
-                      <Select defaultValue="lmsw">
+                      <Select value={profile.role} onValueChange={(value) => setProfile({ ...profile, role: value })}>
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
@@ -143,7 +286,12 @@ export default function SettingsPage() {
                     <Label htmlFor="bio" className="text-sm">
                       Professional Bio
                     </Label>
-                    <Textarea id="bio" placeholder="Brief professional background..." />
+                    <Textarea
+                      id="bio"
+                      placeholder="Brief professional background..."
+                      value={profile.bio}
+                      onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
+                    />
                   </div>
                 </CardContent>
               </Card>
@@ -163,20 +311,38 @@ export default function SettingsPage() {
                       <Label htmlFor="currentPassword" className="text-sm">
                         Current Password
                       </Label>
-                      <Input id="currentPassword" type="password" />
+                      <Input
+                        id="currentPassword"
+                        type="password"
+                        value={passwords.currentPassword}
+                        onChange={(e) => setPasswords({ ...passwords, currentPassword: e.target.value })}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="newPassword" className="text-sm">
                         New Password
                       </Label>
-                      <Input id="newPassword" type="password" />
+                      <Input
+                        id="newPassword"
+                        type="password"
+                        value={passwords.newPassword}
+                        onChange={(e) => setPasswords({ ...passwords, newPassword: e.target.value })}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="confirmPassword" className="text-sm">
                         Confirm New Password
                       </Label>
-                      <Input id="confirmPassword" type="password" />
+                      <Input
+                        id="confirmPassword"
+                        type="password"
+                        value={passwords.confirmPassword}
+                        onChange={(e) => setPasswords({ ...passwords, confirmPassword: e.target.value })}
+                      />
                     </div>
+                    <Button onClick={handlePasswordChange} disabled={isSaving} className="w-full sm:w-auto">
+                      {isSaving ? "Changing..." : "Change Password"}
+                    </Button>
                   </div>
                   <div className="space-y-4">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">

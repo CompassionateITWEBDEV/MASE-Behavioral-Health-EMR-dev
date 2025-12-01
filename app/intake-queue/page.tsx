@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { DashboardSidebar } from "@/components/dashboard-sidebar"
 import { UDSCollectionModal } from "@/components/uds-collection-modal"
+import { useRouter } from "next/navigation"
 import {
   Users,
   CheckCircle,
@@ -26,6 +27,7 @@ import {
 } from "lucide-react"
 
 export default function IntakeQueuePage() {
+  const router = useRouter()
   const [selectedStage, setSelectedStage] = useState("all")
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedPatient, setSelectedPatient] = useState<any>(null)
@@ -33,6 +35,7 @@ export default function IntakeQueuePage() {
   const [intakePatients, setIntakePatients] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [notificationCount, setNotificationCount] = useState(0)
 
   useEffect(() => {
     const loadIntakePatients = async () => {
@@ -82,6 +85,23 @@ export default function IntakeQueuePage() {
     }
 
     loadIntakePatients()
+
+    const loadNotifications = async () => {
+      try {
+        const response = await fetch("/api/notifications")
+        if (response.ok) {
+          const data = await response.json()
+          const unreadCount = data.notifications?.filter((n: any) => !n.is_read).length || 0
+          setNotificationCount(unreadCount)
+        }
+      } catch (err) {
+        console.error("[v0] Error loading notifications:", err)
+      }
+    }
+
+    loadNotifications()
+    const interval = setInterval(loadNotifications, 30000)
+    return () => clearInterval(interval)
   }, [])
 
   const queueStages = [
@@ -130,6 +150,14 @@ export default function IntakeQueuePage() {
     console.log(`UDS completed for patient ${selectedPatient?.id}:`, results)
   }
 
+  const handleNewIntake = () => {
+    router.push("/intake")
+  }
+
+  const handleNotifications = () => {
+    router.push("/notifications")
+  }
+
   if (loading) {
     return (
       <div className="flex min-h-screen bg-background">
@@ -159,11 +187,19 @@ export default function IntakeQueuePage() {
               <p className="text-muted-foreground mt-2">Manage patient admission workflow from entry to dosing</p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={handleNotifications}>
                 <Bell className="mr-2 h-4 w-4" />
                 Notifications
+                {notificationCount > 0 && (
+                  <Badge
+                    variant="destructive"
+                    className="ml-2 h-5 w-5 rounded-full p-0 flex items-center justify-center"
+                  >
+                    {notificationCount}
+                  </Badge>
+                )}
               </Button>
-              <Button size="sm">
+              <Button size="sm" onClick={handleNewIntake}>
                 <FileText className="mr-2 h-4 w-4" />
                 New Intake
               </Button>

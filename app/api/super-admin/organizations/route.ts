@@ -1,9 +1,9 @@
-import { createClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
 import { type NextRequest, NextResponse } from "next/server"
 
 export async function GET() {
   try {
-    const supabase = await createClient()
+    const supabase = createServiceClient()
 
     const { data: organizations, error } = await supabase
       .from("organizations")
@@ -34,7 +34,9 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const supabase = await createClient()
+    console.log("[v0] Creating organization with data:", body)
+
+    const supabase = createServiceClient()
 
     const { data: organization, error } = await supabase
       .from("organizations")
@@ -53,8 +55,12 @@ export async function POST(request: NextRequest) {
       .select()
       .single()
 
-    if (error) throw error
+    if (error) {
+      console.error("[v0] Create organization error:", error)
+      throw error
+    }
 
+    console.log("[v0] Organization created successfully:", organization)
     return NextResponse.json(organization)
   } catch (error) {
     console.error("[v0] Create organization error:", error)

@@ -43,7 +43,13 @@ export default function SuperAdminDashboard() {
   })
 
   const handleCreateOrganization = async () => {
+    if (!formData.organization_name || !formData.organization_slug || !formData.email) {
+      console.error("[v0] Missing required fields")
+      return
+    }
+
     try {
+      console.log("[v0] Creating organization with data:", formData)
       const response = await fetch("/api/super-admin/organizations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -52,6 +58,7 @@ export default function SuperAdminDashboard() {
 
       if (response.ok) {
         const newOrg = await response.json()
+        console.log("[v0] Organization created successfully:", newOrg)
         setNewOrgOpen(false)
         mutate()
 
@@ -68,6 +75,9 @@ export default function SuperAdminDashboard() {
           state: "MI",
           zip_code: "",
         })
+      } else {
+        const error = await response.json()
+        console.error("[v0] Failed to create organization:", error)
       }
     } catch (error) {
       console.error("[v0] Create organization error:", error)
@@ -90,11 +100,32 @@ export default function SuperAdminDashboard() {
 
   const copyToClipboard = async (link: string, type: string) => {
     try {
+      // Try modern clipboard API first
+      window.focus()
       await navigator.clipboard.writeText(link)
       setCopiedLink(type)
       setTimeout(() => setCopiedLink(null), 2000)
     } catch (error) {
       console.error("[v0] Failed to copy:", error)
+      // Fallback to textarea method
+      try {
+        const textarea = document.createElement("textarea")
+        textarea.value = link
+        textarea.style.position = "fixed"
+        textarea.style.opacity = "0"
+        document.body.appendChild(textarea)
+        textarea.focus()
+        textarea.select()
+        const successful = document.execCommand("copy")
+        document.body.removeChild(textarea)
+
+        if (successful) {
+          setCopiedLink(type)
+          setTimeout(() => setCopiedLink(null), 2000)
+        }
+      } catch (fallbackError) {
+        console.error("[v0] Fallback copy also failed:", fallbackError)
+      }
     }
   }
 
@@ -182,15 +213,16 @@ export default function SuperAdminDashboard() {
                   <div className="space-y-4">
                     <div className="grid md:grid-cols-2 gap-4">
                       <div>
-                        <Label>Organization Name</Label>
+                        <Label>Organization Name *</Label>
                         <Input
                           value={formData.organization_name}
                           onChange={(e) => setFormData({ ...formData, organization_name: e.target.value })}
                           placeholder="MASE Behavioral Health"
+                          required
                         />
                       </div>
                       <div>
-                        <Label>Slug (URL)</Label>
+                        <Label>Slug (URL) *</Label>
                         <Input
                           value={formData.organization_slug}
                           onChange={(e) =>
@@ -200,6 +232,7 @@ export default function SuperAdminDashboard() {
                             })
                           }
                           placeholder="mase-behavioral"
+                          required
                         />
                       </div>
                       <div>
@@ -219,12 +252,13 @@ export default function SuperAdminDashboard() {
                         </Select>
                       </div>
                       <div>
-                        <Label>Email</Label>
+                        <Label>Email *</Label>
                         <Input
                           type="email"
                           value={formData.email}
                           onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                           placeholder="info@clinic.com"
+                          required
                         />
                       </div>
                       <div>
@@ -268,7 +302,12 @@ export default function SuperAdminDashboard() {
                         />
                       </div>
                     </div>
-                    <Button onClick={handleCreateOrganization} className="w-full">
+                    <p className="text-xs text-muted-foreground">* Required fields</p>
+                    <Button
+                      onClick={handleCreateOrganization}
+                      className="w-full"
+                      disabled={!formData.organization_name || !formData.organization_slug || !formData.email}
+                    >
                       Create Organization
                     </Button>
                   </div>

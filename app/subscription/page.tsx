@@ -51,6 +51,7 @@ import {
   Headphones,
 } from "lucide-react"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
+import { useToast } from "@/components/ui/use-toast"
 
 interface SubscriptionFeature {
   id: string
@@ -633,7 +634,7 @@ const medicalSpecialties = [
 
 export default function SubscriptionPage() {
   const [features, setFeatures] = useState<SubscriptionFeature[]>(allFeatures)
-  const [currentPlan] = useState("professional")
+  const [currentPlan, setCurrentPlan] = useState("professional") // Initialize with professional plan
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false)
   const [isAddOnOpen, setIsAddOnOpen] = useState(false)
   const [selectedAddOn, setSelectedAddOn] = useState<SubscriptionFeature | AddonFeature | null>(null) // Updated type
@@ -642,11 +643,21 @@ export default function SubscriptionPage() {
   const [emrType, setEmrType] = useState<"behavioral" | "primary">("behavioral")
   const [selectedSpecialties, setSelectedSpecialties] = useState<string[]>(["behavioral-health"])
   const [isSavingSpecialties, setIsSavingSpecialties] = useState(false)
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false)
+  const [copiedLink, setCopiedLink] = useState(false)
+  const [onboardingEmail, setOnboardingEmail] = useState("")
+  const [emailSent, setEmailSent] = useState(false)
+  const { toast } = useToast() // Initialize toast
 
   const pathname = usePathname()
-  const isSuperAdmin =
-    pathname.startsWith("/super-admin") ||
-    (typeof window !== "undefined" && window.location.pathname.includes("super-admin"))
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const adminStatus = localStorage.getItem("isSuperAdmin") === "true"
+      setIsSuperAdmin(adminStatus)
+    }
+  }, [])
 
   // Combine all available features for toggling logic
   const allAvailableFeatures = [...allFeatures, ...advancedAddOnFeatures]
@@ -676,6 +687,38 @@ export default function SubscriptionPage() {
     }
     loadSpecialties()
   }, [isSuperAdmin])
+
+  const generateOnboardingLink = () => {
+    const baseUrl = typeof window !== "undefined" ? window.location.origin : ""
+    // In production, this would include actual org_id from user's context
+    return `${baseUrl}/clinic-onboarding?ref=subscription`
+  }
+
+  const copyOnboardingLink = async () => {
+    try {
+      await navigator.clipboard.writeText(generateOnboardingLink())
+      setCopiedLink(true)
+      setTimeout(() => setCopiedLink(false), 2000)
+    } catch (error) {
+      console.error("[v0] Failed to copy:", error)
+    }
+  }
+
+  const sendOnboardingEmail = async () => {
+    if (!onboardingEmail) return
+
+    try {
+      // In production, this would call an API to send the email
+      setEmailSent(true)
+      setTimeout(() => {
+        setEmailSent(false)
+        setOnboardingEmail("")
+        setIsOnboardingOpen(false)
+      }, 2000)
+    } catch (error) {
+      console.error("[v0] Send onboarding email error:", error)
+    }
+  }
 
   const toggleFeature = (featureId: string) => {
     setFeatures((prev) =>
@@ -772,8 +815,38 @@ export default function SubscriptionPage() {
     }
   }
 
+  const handleSelectPlan = async (planId: string) => {
+    if (planId === currentPlan) return
+
+    try {
+      const response = await fetch("/api/subscription/plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ planId }),
+      })
+
+      if (response.ok) {
+        setCurrentPlan(planId)
+        toast({
+          title: "Plan Updated",
+          description: `Successfully switched to ${subscriptionPlans.find((p) => p.id === planId)?.name} plan`,
+        })
+        setIsUpgradeOpen(false)
+      } else {
+        throw new Error("Failed to update plan")
+      }
+    } catch (error) {
+      console.error("[v0] Error updating plan:", error)
+      toast({
+        title: "Error",
+        description: "Failed to update subscription plan. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#f8fafc" }}>
+    <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 p-6">
       <div className="hidden lg:block">
         <DashboardSidebar />
       </div>
@@ -804,6 +877,85 @@ export default function SubscriptionPage() {
               </p>
             </div>
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
+              {isSuperAdmin && (
+                <Dialog open={isOnboardingOpen} onOpenChange={setIsOnboardingOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" className="w-full sm:w-auto bg-transparent">
+                      <Send className="h-4 w-4 mr-2" />
+                      <span className="hidden sm:inline">Send Onboarding Link</span>
+                      <span className="sm:hidden">Onboard</span>
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-lg">
+                    <DialogHeader>
+                      <DialogTitle>New Clinic Onboarding</DialogTitle>
+                      <DialogDescription>Share this link with new clinics to begin their EMR setup</DialogDescription>
+                    </DialogHeader>
+                    <Tabs defaultValue="link" className="mt-4">
+                      <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="link">Copy Link</TabsTrigger>
+                        <TabsTrigger value="email">Send Email</TabsTrigger>
+                      </TabsList>
+
+                      <TabsContent value="link" className="space-y-4 mt-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Onboarding Link</label>
+                          <div className="flex gap-2">
+                            <input
+                              readOnly
+                              value={generateOnboardingLink()}
+                              className="flex-1 px-3 py-2 text-xs border rounded-md bg-muted"
+                            />
+                            <Button size="sm" onClick={copyOnboardingLink}>
+                              {copiedLink ? <Check className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+                            </Button>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            This link will guide new clinics through the complete setup process
+                          </p>
+                        </div>
+                      </TabsContent>
+
+                      <TabsContent value="email" className="space-y-4 mt-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Recipient Email</label>
+                          <input
+                            type="email"
+                            placeholder="admin@newclinic.com"
+                            value={onboardingEmail}
+                            onChange={(e) => setOnboardingEmail(e.target.value)}
+                            className="w-full px-3 py-2 border rounded-md"
+                          />
+                        </div>
+                        <div className="p-4 rounded-lg bg-muted/50 space-y-2">
+                          <p className="text-sm font-medium">Email Preview:</p>
+                          <p className="text-xs text-muted-foreground">Subject: Your MASE EMR Setup Link</p>
+                          <p className="text-xs text-muted-foreground">
+                            Welcome! Click the link below to begin setting up your clinic on MASE EMR...
+                          </p>
+                        </div>
+                        <Button
+                          className="w-full"
+                          onClick={sendOnboardingEmail}
+                          disabled={!onboardingEmail || emailSent}
+                        >
+                          {emailSent ? (
+                            <>
+                              <Check className="h-4 w-4 mr-2" />
+                              Sent!
+                            </>
+                          ) : (
+                            <>
+                              <Send className="h-4 w-4 mr-2" />
+                              Send Onboarding Email
+                            </>
+                          )}
+                        </Button>
+                      </TabsContent>
+                    </Tabs>
+                  </DialogContent>
+                </Dialog>
+              )}
               <Button variant="outline" className="w-full sm:w-auto bg-transparent">
                 <Download className="h-4 w-4 mr-2" />
                 <span className="hidden sm:inline">Export Usage Report</span>
@@ -865,6 +1017,7 @@ export default function SubscriptionPage() {
                             className="w-full mt-4"
                             variant={currentPlan === plan.id ? "outline" : "default"}
                             disabled={currentPlan === plan.id}
+                            onClick={() => handleSelectPlan(plan.id)}
                           >
                             {currentPlan === plan.id ? "Current Plan" : "Select Plan"}
                           </Button>

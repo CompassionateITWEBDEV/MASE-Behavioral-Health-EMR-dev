@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import {
   Bell,
@@ -17,6 +17,7 @@ import {
   Users,
   Cog,
   Check,
+  Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,56 +33,46 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
-const initialNotifications = [
-  {
-    id: 1,
-    title: "New Patient Intake",
-    message: "John D. completed intake forms",
-    time: "5 min ago",
-    read: false,
-    link: "/intake-queue",
-  },
-  {
-    id: 2,
-    title: "Lab Results Ready",
-    message: "UDS results for Sarah M.",
-    time: "15 min ago",
-    read: false,
-    link: "/patients",
-  },
-  {
-    id: 3,
-    title: "Appointment Reminder",
-    message: "3 appointments in next hour",
-    time: "30 min ago",
-    read: true,
-    link: "/appointments",
-  },
-  {
-    id: 4,
-    title: "Prior Auth Approved",
-    message: "Auth #PA-2024-001 approved",
-    time: "1 hour ago",
-    read: true,
-    link: "/insurance",
-  },
-  {
-    id: 5,
-    title: "Compliance Alert",
-    message: "2 assessments due today",
-    time: "2 hours ago",
-    read: false,
-    link: "/assessments",
-  },
-]
+interface Notification {
+  id: string
+  title: string
+  message: string
+  time: string
+  read: boolean
+  link: string
+  type: string
+  created_at: string
+}
 
 export function DashboardHeader() {
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
-  const [notifications, setNotifications] = useState(initialNotifications)
+  const [notifications, setNotifications] = useState<Notification[]>([])
   const [notificationOpen, setNotificationOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
-  const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [loading, setLoading] = useState(true)
+
+  // Fetch real notifications from the database
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        setLoading(true)
+        const response = await fetch("/api/notifications")
+        if (response.ok) {
+          const data = await response.json()
+          setNotifications(data.notifications || [])
+        }
+      } catch (error) {
+        console.error("Failed to fetch notifications:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchNotifications()
+    // Poll for new notifications every 30 seconds
+    const interval = setInterval(fetchNotifications, 30000)
+    return () => clearInterval(interval)
+  }, [])
 
   const unreadCount = notifications.filter((n) => !n.read).length
 
@@ -92,29 +83,65 @@ export function DashboardHeader() {
     }
   }
 
-  const handleNotificationClick = (notification: (typeof notifications)[0]) => {
+  const handleNotificationClick = async (notification: Notification) => {
+    // Mark as read in database
+    try {
+      await fetch("/api/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notificationId: notification.id }),
+      })
+    } catch (error) {
+      console.error("Failed to mark notification as read:", error)
+    }
+
     setNotifications((prev) => prev.map((n) => (n.id === notification.id ? { ...n, read: true } : n)))
     setNotificationOpen(false)
     router.push(notification.link)
   }
 
-  const markAllRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+  const markAllRead = async () => {
+    try {
+      await fetch("/api/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ markAllRead: true }),
+      })
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })))
+    } catch (error) {
+      console.error("Failed to mark all as read:", error)
+    }
   }
 
   const handleSettingsNavigation = (path: string) => {
-    setSettingsOpen(false)
     router.push(path)
   }
 
   const handleUserNavigation = (path: string) => {
-    setUserMenuOpen(false)
     router.push(path)
   }
 
   const handleSignOut = () => {
-    setUserMenuOpen(false)
+    // Clear super admin status from localStorage
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("isSuperAdmin")
+    }
     router.push("/landing")
+  }
+
+  // Format time for display
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+
+    if (diffMins < 1) return "Just now"
+    if (diffMins < 60) return `${diffMins} min ago`
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? "s" : ""} ago`
+    return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`
   }
 
   return (
@@ -143,6 +170,7 @@ export function DashboardHeader() {
             />
           </form>
 
+          {/* Notifications Sheet */}
           <Sheet open={notificationOpen} onOpenChange={setNotificationOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="relative">
@@ -169,29 +197,37 @@ export function DashboardHeader() {
               </SheetHeader>
               <ScrollArea className="h-[calc(100vh-100px)] mt-4">
                 <div className="space-y-2">
-                  {notifications.map((notification) => (
-                    <div
-                      key={notification.id}
-                      onClick={() => handleNotificationClick(notification)}
-                      className={`p-4 rounded-lg cursor-pointer transition-colors ${
-                        notification.read
-                          ? "bg-gray-50 hover:bg-gray-100"
-                          : "bg-cyan-50 hover:bg-cyan-100 border-l-4 border-cyan-500"
-                      }`}
-                    >
-                      <div className="flex justify-between items-start">
-                        <h4 className="font-medium text-sm">{notification.title}</h4>
-                        <span className="text-xs text-gray-500">{notification.time}</span>
-                      </div>
-                      <p className="text-sm text-gray-600 mt-1">{notification.message}</p>
+                  {loading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
                     </div>
-                  ))}
+                  ) : notifications.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">No notifications</div>
+                  ) : (
+                    notifications.map((notification) => (
+                      <div
+                        key={notification.id}
+                        onClick={() => handleNotificationClick(notification)}
+                        className={`p-4 rounded-lg cursor-pointer transition-colors ${
+                          notification.read
+                            ? "bg-gray-50 hover:bg-gray-100"
+                            : "bg-cyan-50 hover:bg-cyan-100 border-l-4 border-cyan-500"
+                        }`}
+                      >
+                        <div className="flex justify-between items-start">
+                          <h4 className="font-medium text-sm">{notification.title}</h4>
+                          <span className="text-xs text-gray-500">{formatTime(notification.created_at)}</span>
+                        </div>
+                        <p className="text-sm text-gray-600 mt-1">{notification.message}</p>
+                      </div>
+                    ))
+                  )}
                 </div>
               </ScrollArea>
             </SheetContent>
           </Sheet>
 
-          <DropdownMenu open={settingsOpen} onOpenChange={setSettingsOpen}>
+          <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon">
                 <Settings className="h-5 w-5" />
@@ -219,7 +255,7 @@ export function DashboardHeader() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <DropdownMenu open={userMenuOpen} onOpenChange={setUserMenuOpen}>
+          <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon">
                 <User className="h-5 w-5" />
