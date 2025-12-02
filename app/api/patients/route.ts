@@ -1,9 +1,10 @@
-import { createClient } from "@/lib/supabase/server"
+import { createClient } from "@supabase/supabase-js"
 import { NextResponse } from "next/server"
+
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 export async function GET(request: Request) {
   try {
-    const supabase = await createClient()
     const { searchParams } = new URL(request.url)
     const search = searchParams.get("search")
     const status = searchParams.get("status")
@@ -20,7 +21,10 @@ export async function GET(request: Request) {
         email,
         gender,
         address,
-        status,
+        emergency_contact_name,
+        emergency_contact_phone,
+        insurance_provider,
+        insurance_id,
         created_at
       `)
       .order("last_name", { ascending: true })
@@ -29,12 +33,14 @@ export async function GET(request: Request) {
       query = query.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,phone.ilike.%${search}%`)
     }
 
-    if (status) {
+    if (status && status !== "all") {
       query = query.eq("status", status)
     }
 
     if (limit) {
       query = query.limit(Number.parseInt(limit))
+    } else {
+      query = query.limit(200)
     }
 
     const { data: patients, error } = await query
@@ -44,6 +50,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ patients: [], error: error.message }, { status: 500 })
     }
 
+    console.log(`[v0] Fetched ${patients?.length || 0} patients`)
     return NextResponse.json({ patients: patients || [] })
   } catch (error) {
     console.error("[v0] Patients API error:", error)
@@ -53,7 +60,6 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const supabase = await createClient()
     const body = await request.json()
 
     const { data, error } = await supabase
@@ -66,7 +72,10 @@ export async function POST(request: Request) {
         email: body.email,
         gender: body.gender,
         address: body.address,
-        status: body.status || "active",
+        emergency_contact_name: body.emergency_contact_name,
+        emergency_contact_phone: body.emergency_contact_phone,
+        insurance_provider: body.insurance_provider,
+        insurance_id: body.insurance_id,
       })
       .select()
       .single()

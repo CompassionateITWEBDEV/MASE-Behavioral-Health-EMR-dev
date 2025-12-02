@@ -14,7 +14,7 @@ const DEFAULT_PROVIDER = {
   last_name: "Provider",
   email: "demo@example.com",
   role: "physician",
-  title: "MD",
+  specialization: "General",
 }
 
 export default async function AppointmentsPage({
@@ -59,7 +59,7 @@ export default async function AppointmentsPage({
         id,
         first_name,
         last_name,
-        title
+        specialization
       )
     `)
     .gte("appointment_date", selectedDate)
@@ -86,7 +86,7 @@ export default async function AppointmentsPage({
         id,
         first_name,
         last_name,
-        title
+        specialization
       )
     `)
     .gt("appointment_date", selectedDate)
@@ -111,7 +111,7 @@ export default async function AppointmentsPage({
         id,
         first_name,
         last_name,
-        title
+        specialization
       )
     `)
     .lt("appointment_date", selectedDate)
@@ -126,7 +126,7 @@ export default async function AppointmentsPage({
     .order("first_name")
   const { data: providers } = await supabase
     .from("providers")
-    .select("id, first_name, last_name, title")
+    .select("id, first_name, last_name, specialization")
     .order("first_name")
 
   // Calculate appointment statistics

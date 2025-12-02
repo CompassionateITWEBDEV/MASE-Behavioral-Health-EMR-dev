@@ -1,8 +1,8 @@
-import { createServerClient } from "@/lib/supabase/server"
+import { createServiceClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 
 export async function GET(request: Request) {
-  const supabase = await createServerClient()
+  const supabase = createServiceClient()
   const { searchParams } = new URL(request.url)
 
   const patientId = searchParams.get("patient_id")
@@ -14,8 +14,7 @@ export async function GET(request: Request) {
     .select(`
       *,
       template:workflow_templates(id, name, category, description),
-      patient:patients(id, first_name, last_name),
-      started_by_staff:staff!started_by(id, first_name, last_name)
+      patient:patients(id, first_name, last_name)
     `)
     .order("created_at", { ascending: false })
 
@@ -38,7 +37,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const supabase = await createServerClient()
+  const supabase = createServiceClient()
   const body = await request.json()
 
   const { data, error } = await supabase.from("workflow_instances").insert([body]).select().single()

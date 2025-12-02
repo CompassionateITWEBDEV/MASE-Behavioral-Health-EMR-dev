@@ -1,951 +1,1242 @@
+// Find the existing state declarations and add these new ones
+
 "use client"
 
-import { useState } from "react"
-import { DashboardSidebar } from "@/components/dashboard-sidebar"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { useState, useEffect } from "react"
+import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Progress } from "@/components/ui/progress"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
-  QrCode,
-  MapPin,
-  Clock,
-  Shield,
-  AlertTriangle,
-  CheckCircle2,
-  XCircle,
-  Search,
-  Bell,
-  Camera,
-  Home,
-  Plane,
-  User,
-  Eye,
-  RefreshCw,
-  Download,
-  ChevronRight,
-  Activity,
-  Target,
-  TrendingUp,
-  BarChart3,
-} from "lucide-react"
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { toast } from "@/hooks/use-toast"
+import { CheckCircle, XCircle, RefreshCw, Eye, Send } from "lucide-react"
 
-// Mock data
-const complianceAlerts = [
-  {
-    id: 1,
-    patient: "John Doe",
-    patient_id: "P001",
-    alert_type: "missed_dose",
-    severity: "high",
-    title: "Missed Dose - Bottle #3",
-    description: "Patient did not scan dose by 11:00 AM",
-    time: "11:05 AM",
-    date: "2025-01-28",
-    status: "new",
-    callback_required: true,
-  },
-  {
-    id: 2,
-    patient: "Jane Smith",
-    patient_id: "P002",
-    alert_type: "location_violation",
-    severity: "critical",
-    title: "Location Violation",
-    description: "Dose scanned 2.3 miles from registered home",
-    time: "7:30 AM",
-    date: "2025-01-28",
-    status: "investigating",
-    callback_required: true,
-  },
-  {
-    id: 3,
-    patient: "Mike Johnson",
-    patient_id: "P003",
-    alert_type: "biometric_failure",
-    severity: "critical",
-    title: "Biometric Verification Failed",
-    description: "Facial recognition confidence: 42% (required: 85%)",
-    time: "8:15 AM",
-    date: "2025-01-28",
-    status: "new",
-    callback_required: true,
-  },
-  {
-    id: 4,
-    patient: "Sarah Wilson",
-    patient_id: "P004",
-    alert_type: "time_violation",
-    severity: "medium",
-    title: "Late Dose",
-    description: "Dose consumed 45 minutes after dosing window",
-    time: "11:45 AM",
-    date: "2025-01-28",
-    status: "resolved",
-    callback_required: false,
-  },
-]
+interface Alert {
+  id: string
+  patient_id: string
+  patient_name?: string
+  alert_type: string
+  severity: string
+  alert_title: string
+  alert_description: string
+  status: string
+  created_at: string
+  scheduled_date: string
+  callback_required: boolean
+  violation_details: any
+}
 
-const patientCompliance = [
-  {
-    id: "P001",
-    name: "John Doe",
-    takehome_level: 6,
-    total_doses: 42,
-    compliant_doses: 38,
-    location_violations: 1,
-    time_violations: 2,
-    biometric_failures: 1,
-    missed_doses: 0,
-    compliance_rate: 90.5,
-    risk_level: "moderate",
-    last_scan: "2025-01-27 7:15 AM",
-    home_verified: true,
-    biometric_enrolled: true,
-  },
-  {
-    id: "P002",
-    name: "Jane Smith",
-    takehome_level: 13,
-    total_doses: 91,
-    compliant_doses: 89,
-    location_violations: 0,
-    time_violations: 1,
-    biometric_failures: 1,
-    missed_doses: 0,
-    compliance_rate: 97.8,
-    risk_level: "low",
-    last_scan: "2025-01-28 6:45 AM",
-    home_verified: true,
-    biometric_enrolled: true,
-  },
-  {
-    id: "P003",
-    name: "Mike Johnson",
-    takehome_level: 6,
-    total_doses: 42,
-    compliant_doses: 35,
-    location_violations: 3,
-    time_violations: 2,
-    biometric_failures: 2,
-    missed_doses: 0,
-    compliance_rate: 83.3,
-    risk_level: "high",
-    last_scan: "2025-01-28 8:15 AM",
-    home_verified: true,
-    biometric_enrolled: true,
-  },
-]
+interface RiskScore {
+  id: string
+  patient_id: string
+  patient_name?: string
+  risk_level: string
+  compliance_score: number
+  location_compliance_rate: number
+  biometric_success_rate: number
+  missed_doses_30_days: number
+  assessment_date: string
+}
 
-const travelExceptions = [
-  {
-    id: 1,
-    patient: "Jane Smith",
-    type: "travel",
-    reason: "Family funeral in Ohio",
-    start_date: "2025-02-01",
-    end_date: "2025-02-05",
-    location: "Columbus, OH",
-    status: "approved",
-    approved_by: "Dr. Williams",
-  },
-  {
-    id: 2,
-    patient: "Robert Brown",
-    type: "work",
-    reason: "Business conference",
-    start_date: "2025-02-10",
-    end_date: "2025-02-12",
-    location: "Chicago, IL",
-    status: "pending",
-    approved_by: null,
-  },
-]
+interface LocationException {
+  id: string
+  patient_id: string
+  patient_name?: string
+  exception_type: string
+  reason: string
+  temporary_address: string
+  start_date: string
+  end_date: string
+  status: string
+  requested_at: string
+}
+
+interface ScanLog {
+  id: string
+  patient_id: string
+  patient_name?: string
+  scan_timestamp: string
+  verification_status: string
+  is_within_geofence: boolean
+  is_within_dosing_window: boolean
+  biometric_verified: boolean
+  distance_from_home_feet: number
+}
 
 export default function TakeHomeDiversionPage() {
   const [activeTab, setActiveTab] = useState("dashboard")
-  const [searchTerm, setSearchTerm] = useState("")
-  const [alertFilter, setAlertFilter] = useState("all")
+  const [loading, setLoading] = useState(true)
+  const [alerts, setAlerts] = useState<Alert[]>([])
+  const [riskScores, setRiskScores] = useState<RiskScore[]>([])
+  const [locationExceptions, setLocationExceptions] = useState<LocationException[]>([])
+  const [scanLogs, setScanLogs] = useState<ScanLog[]>([])
+  const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null)
+  const [alertDetailOpen, setAlertDetailOpen] = useState(false)
+  const [resolveDialogOpen, setResolveDialogOpen] = useState(false)
+  const [resolutionNotes, setResolutionNotes] = useState("")
+  const [exceptionDialogOpen, setExceptionDialogOpen] = useState(false)
+  const [scanLogFilter, setScanLogFilter] = useState("all")
+  const [syncing, setSyncing] = useState(false)
 
-  // Stats
-  const stats = {
-    total_active_bottles: 156,
-    scans_today: 42,
-    compliance_rate: 94.2,
-    active_alerts: 3,
-    pending_callbacks: 2,
-    travel_exceptions: 1,
-  }
+  // Settings state
+  const [geofenceRadius, setGeofenceRadius] = useState("500")
+  const [locationTolerance, setLocationTolerance] = useState("50")
+  const [gpsAccuracy, setGpsAccuracy] = useState("20")
+  const [dosingWindowStart, setDosingWindowStart] = useState("06:00")
+  const [dosingWindowEnd, setDosingWindowEnd] = useState("10:00")
+  const [weekendWindowEnd, setWeekendWindowEnd] = useState("12:00")
+  const [biometricThreshold, setBiometricThreshold] = useState("85")
+  const [maxBiometricAttempts, setMaxBiometricAttempts] = useState("3")
+  const [requireLiveness, setRequireLiveness] = useState("yes")
+  const [missedDoseDelay, setMissedDoseDelay] = useState("2")
+  const [autoCallbackDoses, setAutoCallbackDoses] = useState("2")
+  const [notifySponsor, setNotifySponsor] = useState("yes")
+  const [savingGeofence, setSavingGeofence] = useState(false)
+  const [savingDosing, setSavingDosing] = useState(false)
+  const [savingBiometric, setSavingBiometric] = useState(false)
+  const [savingAlert, setSavingAlert] = useState(false)
 
-  const filteredAlerts = complianceAlerts.filter((alert) => {
-    if (alertFilter === "all") return true
-    return alert.status === alertFilter
+  // New exception form state
+  const [newException, setNewException] = useState({
+    patientId: "",
+    exceptionType: "travel",
+    reason: "",
+    temporaryAddress: "",
+    startDate: "",
+    endDate: "",
   })
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case "critical":
-        return "bg-red-100 text-red-800 border-red-200"
-      case "high":
-        return "bg-orange-100 text-orange-800 border-orange-200"
-      case "medium":
-        return "bg-yellow-100 text-yellow-800 border-yellow-200"
-      case "low":
-        return "bg-green-100 text-green-800 border-green-200"
-      default:
-        return "bg-gray-100 text-gray-800 border-gray-200"
+  // Stats calculated from data
+  const [stats, setStats] = useState({
+    totalScans: 0,
+    compliantScans: 0,
+    locationViolations: 0,
+    biometricFailures: 0,
+    complianceRate: 0,
+  })
+
+  const supabase = createClient()
+
+  useEffect(() => {
+    fetchAllData()
+    fetchSettings()
+  }, [])
+
+  const fetchSettings = async () => {
+    try {
+      const response = await fetch("/api/takehome-diversion/settings")
+      if (response.ok) {
+        const data = await response.json()
+        if (data) {
+          setGeofenceRadius(data.default_geofence_radius_feet?.toString() || "500")
+          setDosingWindowStart(data.dosing_window_start || "06:00")
+          setDosingWindowEnd(data.dosing_window_end || "10:00")
+          setBiometricThreshold(data.biometric_confidence_threshold?.toString() || "85")
+          setRequireLiveness(data.require_biometric ? "yes" : "no")
+          setMissedDoseDelay((data.alert_delay_minutes / 60)?.toString() || "2")
+          setAutoCallbackDoses(data.callback_threshold_violations?.toString() || "2")
+          setNotifySponsor(data.notify_sponsor_on_violation ? "yes" : "no")
+        }
+      }
+    } catch (error) {
+      console.error("[v0] Error fetching settings:", error)
     }
   }
 
-  const getRiskColor = (risk: string) => {
-    switch (risk) {
+  const fetchAllData = async () => {
+    setLoading(true)
+    try {
+      // First fetch patients for name lookup
+      const { data: patientsData } = await supabase.from("patients").select("id, first_name, last_name")
+
+      const patientsMap = new Map((patientsData || []).map((p) => [p.id, `${p.first_name} ${p.last_name}`]))
+
+      // Fetch alerts
+      const { data: alertsData, error: alertsError } = await supabase
+        .from("takehome_compliance_alerts")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(100)
+
+      if (alertsError) {
+        console.error("[v0] Error fetching alerts:", alertsError)
+      } else {
+        const alertsWithNames = (alertsData || []).map((alert) => ({
+          ...alert,
+          patient_name: patientsMap.get(alert.patient_id) || "Unknown Patient",
+        }))
+        setAlerts(alertsWithNames)
+      }
+
+      // Fetch risk scores
+      const { data: riskData, error: riskError } = await supabase
+        .from("patient_diversion_risk_scores")
+        .select("*")
+        .order("assessment_date", { ascending: false })
+        .limit(100)
+
+      if (riskError) {
+        console.error("[v0] Error fetching risk scores:", riskError)
+      } else {
+        const riskWithNames = (riskData || []).map((risk) => ({
+          ...risk,
+          patient_name: patientsMap.get(risk.patient_id) || "Unknown Patient",
+        }))
+        setRiskScores(riskWithNames)
+      }
+
+      // Fetch location exceptions
+      const { data: exceptionsData, error: exceptionsError } = await supabase
+        .from("takehome_location_exceptions")
+        .select("*")
+        .order("requested_at", { ascending: false })
+        .limit(100)
+
+      if (exceptionsError) {
+        console.error("[v0] Error fetching exceptions:", exceptionsError)
+      } else {
+        const exceptionsWithNames = (exceptionsData || []).map((exc) => ({
+          ...exc,
+          patient_name: patientsMap.get(exc.patient_id) || "Unknown Patient",
+        }))
+        setLocationExceptions(exceptionsWithNames)
+      }
+
+      // Fetch scan logs
+      const { data: scanData, error: scanError } = await supabase
+        .from("takehome_scan_logs")
+        .select("*")
+        .order("scan_timestamp", { ascending: false })
+        .limit(200)
+
+      if (scanError) {
+        console.error("[v0] Error fetching scan logs:", scanError)
+      } else {
+        const scansWithNames = (scanData || []).map((scan) => ({
+          ...scan,
+          patient_name: patientsMap.get(scan.patient_id) || "Unknown Patient",
+        }))
+        setScanLogs(scansWithNames)
+
+        // Calculate stats from scan logs
+        const total = scansWithNames.length
+        const compliant = scansWithNames.filter((s) => s.verification_status === "passed").length
+        const locationViolations = scansWithNames.filter((s) => !s.is_within_geofence).length
+        const biometricFailures = scansWithNames.filter((s) => !s.biometric_verified).length
+
+        setStats({
+          totalScans: total,
+          compliantScans: compliant,
+          locationViolations,
+          biometricFailures,
+          complianceRate: total > 0 ? Math.round((compliant / total) * 100) : 0,
+        })
+      }
+    } catch (error) {
+      console.error("[v0] Error fetching data:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSaveGeofenceSettings = async () => {
+    setSavingGeofence(true)
+    try {
+      const response = await fetch("/api/takehome-diversion/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          settingType: "geofence",
+          geofenceRadius: Number.parseInt(geofenceRadius),
+          locationTolerance: Number.parseInt(locationTolerance),
+          gpsAccuracy: Number.parseInt(gpsAccuracy),
+        }),
+      })
+
+      if (response.ok) {
+        toast({ title: "Success", description: "Geofence settings saved successfully" })
+      } else {
+        const error = await response.json()
+        toast({ title: "Error", description: error.error || "Failed to save settings", variant: "destructive" })
+      }
+    } catch (error) {
+      console.error("[v0] Error saving geofence settings:", error)
+      toast({ title: "Error", description: "Failed to save settings", variant: "destructive" })
+    } finally {
+      setSavingGeofence(false)
+    }
+  }
+
+  const handleSaveDosingSettings = async () => {
+    setSavingDosing(true)
+    try {
+      const response = await fetch("/api/takehome-diversion/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          settingType: "dosing",
+          dosingWindowStart,
+          dosingWindowEnd,
+          weekendWindowEnd,
+        }),
+      })
+
+      if (response.ok) {
+        toast({ title: "Success", description: "Dosing window settings saved successfully" })
+      } else {
+        const error = await response.json()
+        toast({ title: "Error", description: error.error || "Failed to save settings", variant: "destructive" })
+      }
+    } catch (error) {
+      console.error("[v0] Error saving dosing settings:", error)
+      toast({ title: "Error", description: "Failed to save settings", variant: "destructive" })
+    } finally {
+      setSavingDosing(false)
+    }
+  }
+
+  const handleSaveBiometricSettings = async () => {
+    setSavingBiometric(true)
+    try {
+      const response = await fetch("/api/takehome-diversion/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          settingType: "biometric",
+          biometricThreshold: Number.parseInt(biometricThreshold),
+          maxBiometricAttempts: Number.parseInt(maxBiometricAttempts),
+          requireLiveness,
+        }),
+      })
+
+      if (response.ok) {
+        toast({ title: "Success", description: "Biometric settings saved successfully" })
+      } else {
+        const error = await response.json()
+        toast({ title: "Error", description: error.error || "Failed to save settings", variant: "destructive" })
+      }
+    } catch (error) {
+      console.error("[v0] Error saving biometric settings:", error)
+      toast({ title: "Error", description: "Failed to save settings", variant: "destructive" })
+    } finally {
+      setSavingBiometric(false)
+    }
+  }
+
+  const handleSaveAlertSettings = async () => {
+    setSavingAlert(true)
+    try {
+      const response = await fetch("/api/takehome-diversion/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          settingType: "alert",
+          missedDoseDelay: Number.parseInt(missedDoseDelay),
+          autoCallbackDoses: Number.parseInt(autoCallbackDoses),
+          notifySponsor,
+        }),
+      })
+
+      if (response.ok) {
+        toast({ title: "Success", description: "Alert settings saved successfully" })
+      } else {
+        const error = await response.json()
+        toast({ title: "Error", description: error.error || "Failed to save settings", variant: "destructive" })
+      }
+    } catch (error) {
+      console.error("[v0] Error saving alert settings:", error)
+      toast({ title: "Error", description: "Failed to save settings", variant: "destructive" })
+    } finally {
+      setSavingAlert(false)
+    }
+  }
+
+  const handleViewAlert = (alert: Alert) => {
+    setSelectedAlert(alert)
+    setAlertDetailOpen(true)
+  }
+
+  const handleResolveAlert = async () => {
+    if (!selectedAlert) return
+
+    try {
+      const { error } = await supabase
+        .from("takehome_compliance_alerts")
+        .update({
+          status: "resolved",
+          resolution_notes: resolutionNotes,
+          resolved_at: new Date().toISOString(),
+        })
+        .eq("id", selectedAlert.id)
+
+      if (error) throw error
+
+      toast({ title: "Success", description: "Alert resolved successfully" })
+      setResolveDialogOpen(false)
+      setResolutionNotes("")
+      fetchAllData()
+    } catch (error) {
+      console.error("[v0] Error resolving alert:", error)
+      toast({ title: "Error", description: "Failed to resolve alert", variant: "destructive" })
+    }
+  }
+
+  const handleSyncToDEA = async () => {
+    setSyncing(true)
+    try {
+      const response = await fetch("/api/dea/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ syncType: "full" }),
+      })
+
+      if (response.ok) {
+        toast({ title: "Success", description: "Data synced to DEA Portal successfully" })
+      } else {
+        toast({ title: "Error", description: "Failed to sync to DEA Portal", variant: "destructive" })
+      }
+    } catch (error) {
+      console.error("[v0] Error syncing to DEA:", error)
+      toast({ title: "Error", description: "Failed to sync to DEA Portal", variant: "destructive" })
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const handleApproveException = async (exceptionId: string) => {
+    try {
+      const { error } = await supabase
+        .from("takehome_location_exceptions")
+        .update({
+          status: "approved",
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq("id", exceptionId)
+
+      if (error) throw error
+
+      toast({ title: "Success", description: "Exception approved" })
+      fetchAllData()
+    } catch (error) {
+      console.error("[v0] Error approving exception:", error)
+      toast({ title: "Error", description: "Failed to approve exception", variant: "destructive" })
+    }
+  }
+
+  const handleDenyException = async (exceptionId: string) => {
+    try {
+      const { error } = await supabase
+        .from("takehome_location_exceptions")
+        .update({
+          status: "denied",
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq("id", exceptionId)
+
+      if (error) throw error
+
+      toast({ title: "Success", description: "Exception denied" })
+      fetchAllData()
+    } catch (error) {
+      console.error("[v0] Error denying exception:", error)
+      toast({ title: "Error", description: "Failed to deny exception", variant: "destructive" })
+    }
+  }
+
+  const handleCreateException = async () => {
+    try {
+      const { error } = await supabase.from("takehome_location_exceptions").insert({
+        patient_id: newException.patientId,
+        exception_type: newException.exceptionType,
+        reason: newException.reason,
+        temporary_address: newException.temporaryAddress,
+        start_date: newException.startDate,
+        end_date: newException.endDate,
+        status: "pending",
+        requested_at: new Date().toISOString(),
+      })
+
+      if (error) throw error
+
+      toast({ title: "Success", description: "Location exception created" })
+      setExceptionDialogOpen(false)
+      setNewException({
+        patientId: "",
+        exceptionType: "travel",
+        reason: "",
+        temporaryAddress: "",
+        startDate: "",
+        endDate: "",
+      })
+      fetchAllData()
+    } catch (error) {
+      console.error("[v0] Error creating exception:", error)
+      toast({ title: "Error", description: "Failed to create exception", variant: "destructive" })
+    }
+  }
+
+  const filteredScanLogs = scanLogs.filter((scan) => {
+    switch (scanLogFilter) {
+      case "passed":
+        return scan.verification_status === "passed"
+      case "failed":
+        return scan.verification_status === "failed"
+      case "location":
+        return !scan.is_within_geofence
+      case "biometric":
+        return !scan.biometric_verified
+      default:
+        return true
+    }
+  })
+
+  const getSeverityColor = (severity: string) => {
+    switch (severity?.toLowerCase()) {
       case "critical":
         return "bg-red-500"
       case "high":
         return "bg-orange-500"
-      case "moderate":
+      case "medium":
         return "bg-yellow-500"
-      case "low":
-        return "bg-green-500"
       default:
-        return "bg-gray-500"
+        return "bg-blue-500"
     }
   }
 
-  const getAlertIcon = (type: string) => {
-    switch (type) {
-      case "missed_dose":
-        return <Clock className="h-4 w-4" />
-      case "location_violation":
-        return <MapPin className="h-4 w-4" />
-      case "biometric_failure":
-        return <User className="h-4 w-4" />
-      case "time_violation":
-        return <Clock className="h-4 w-4" />
+  const getRiskColor = (level: string) => {
+    switch (level?.toLowerCase()) {
+      case "high":
+        return "text-red-600 bg-red-100"
+      case "medium":
+        return "text-yellow-600 bg-yellow-100"
       default:
-        return <AlertTriangle className="h-4 w-4" />
+        return "text-green-600 bg-green-100"
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
   }
 
   return (
-    <div className="flex min-h-screen" style={{ backgroundColor: "#f8fafc" }}>
-      <DashboardSidebar />
-
-      <main className="flex-1 ml-64 p-6">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-bold" style={{ color: "#1e293b" }}>
-              Take-Home Diversion Control
-            </h1>
-            <p style={{ color: "#64748b" }}>QR Code + GPS + Facial Biometrics Verification System</p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" className="gap-2 bg-transparent">
-              <RefreshCw className="h-4 w-4" />
-              Check Missed Doses
-            </Button>
-            <Button className="gap-2" style={{ backgroundColor: "#0891b2" }}>
-              <Download className="h-4 w-4" />
-              Export Report
-            </Button>
-          </div>
+    <div className="container mx-auto p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Take-Home Diversion Control</h1>
+          <p className="text-muted-foreground">QR Code + GPS + Facial Biometrics Verification System</p>
         </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-6 gap-4 mb-6">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg" style={{ backgroundColor: "#e0f2fe" }}>
-                  <QrCode className="h-5 w-5" style={{ color: "#0891b2" }} />
-                </div>
-                <div>
-                  <p className="text-sm" style={{ color: "#64748b" }}>
-                    Active Bottles
-                  </p>
-                  <p className="text-2xl font-bold" style={{ color: "#1e293b" }}>
-                    {stats.total_active_bottles}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg" style={{ backgroundColor: "#dcfce7" }}>
-                  <CheckCircle2 className="h-5 w-5" style={{ color: "#16a34a" }} />
-                </div>
-                <div>
-                  <p className="text-sm" style={{ color: "#64748b" }}>
-                    Scans Today
-                  </p>
-                  <p className="text-2xl font-bold" style={{ color: "#1e293b" }}>
-                    {stats.scans_today}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg" style={{ backgroundColor: "#e0f2fe" }}>
-                  <Target className="h-5 w-5" style={{ color: "#0891b2" }} />
-                </div>
-                <div>
-                  <p className="text-sm" style={{ color: "#64748b" }}>
-                    Compliance Rate
-                  </p>
-                  <p className="text-2xl font-bold" style={{ color: "#16a34a" }}>
-                    {stats.compliance_rate}%
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg" style={{ backgroundColor: "#fef3c7" }}>
-                  <AlertTriangle className="h-5 w-5" style={{ color: "#d97706" }} />
-                </div>
-                <div>
-                  <p className="text-sm" style={{ color: "#64748b" }}>
-                    Active Alerts
-                  </p>
-                  <p className="text-2xl font-bold" style={{ color: "#d97706" }}>
-                    {stats.active_alerts}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg" style={{ backgroundColor: "#fee2e2" }}>
-                  <Bell className="h-5 w-5" style={{ color: "#dc2626" }} />
-                </div>
-                <div>
-                  <p className="text-sm" style={{ color: "#64748b" }}>
-                    Pending Callbacks
-                  </p>
-                  <p className="text-2xl font-bold" style={{ color: "#dc2626" }}>
-                    {stats.pending_callbacks}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg" style={{ backgroundColor: "#f3e8ff" }}>
-                  <Plane className="h-5 w-5" style={{ color: "#9333ea" }} />
-                </div>
-                <div>
-                  <p className="text-sm" style={{ color: "#64748b" }}>
-                    Travel Exceptions
-                  </p>
-                  <p className="text-2xl font-bold" style={{ color: "#9333ea" }}>
-                    {stats.travel_exceptions}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={fetchAllData}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+          <Button onClick={handleSyncToDEA} disabled={syncing}>
+            <Send className="h-4 w-4 mr-2" />
+            {syncing ? "Syncing..." : "Sync to DEA Portal"}
+          </Button>
         </div>
+      </div>
 
-        {/* Main Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-4">
-            <TabsTrigger value="dashboard" className="gap-2">
-              <BarChart3 className="h-4 w-4" />
-              Dashboard
-            </TabsTrigger>
-            <TabsTrigger value="alerts" className="gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              Compliance Alerts
-              {stats.active_alerts > 0 && (
-                <Badge variant="destructive" className="ml-1">
-                  {stats.active_alerts}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="patients" className="gap-2">
-              <User className="h-4 w-4" />
-              Patient Compliance
-            </TabsTrigger>
-            <TabsTrigger value="travel" className="gap-2">
-              <Plane className="h-4 w-4" />
-              Travel Exceptions
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="gap-2">
-              <Shield className="h-4 w-4" />
-              Settings
-            </TabsTrigger>
-          </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid grid-cols-6 w-full">
+          <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+          <TabsTrigger value="alerts">Alerts ({alerts.filter((a) => a.status === "pending").length})</TabsTrigger>
+          <TabsTrigger value="compliance">Patient Compliance</TabsTrigger>
+          <TabsTrigger value="exceptions">Travel Exceptions</TabsTrigger>
+          <TabsTrigger value="scans">Scan Logs</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
+        </TabsList>
 
-          {/* Dashboard Tab */}
-          <TabsContent value="dashboard">
-            <div className="grid grid-cols-2 gap-6">
-              {/* Recent Scans */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Activity className="h-5 w-5" style={{ color: "#0891b2" }} />
-                    Real-Time Scan Activity
-                  </CardTitle>
-                  <CardDescription>Live monitoring of patient dose verifications</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {[
-                      {
-                        patient: "Jane Smith",
-                        time: "6:45 AM",
-                        status: "verified",
-                        location: true,
-                        time_ok: true,
-                        biometric: true,
-                      },
-                      {
-                        patient: "John Doe",
-                        time: "7:15 AM",
-                        status: "verified",
-                        location: true,
-                        time_ok: true,
-                        biometric: true,
-                      },
-                      {
-                        patient: "Mike Johnson",
-                        time: "8:15 AM",
-                        status: "failed",
-                        location: true,
-                        time_ok: true,
-                        biometric: false,
-                      },
-                      {
-                        patient: "Sarah Wilson",
-                        time: "11:45 AM",
-                        status: "warning",
-                        location: true,
-                        time_ok: false,
-                        biometric: true,
-                      },
-                    ].map((scan, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-3 rounded-lg border">
+        {/* Dashboard Tab */}
+        <TabsContent value="dashboard">
+          <div className="grid grid-cols-4 gap-4 mb-6">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Total Scans (30 Days)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{stats.totalScans}</div>
+                <p className="text-xs text-muted-foreground">Dose verifications</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Compliance Rate</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">{stats.complianceRate}%</div>
+                <p className="text-xs text-muted-foreground">{stats.compliantScans} compliant scans</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Location Violations</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-orange-600">{stats.locationViolations}</div>
+                <p className="text-xs text-muted-foreground">Outside geofence</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium">Biometric Failures</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-red-600">{stats.biometricFailures}</div>
+                <p className="text-xs text-muted-foreground">Failed verifications</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Scan Activity</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Patient</TableHead>
+                      <TableHead>Time</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {scanLogs.slice(0, 5).map((scan) => (
+                      <TableRow key={scan.id}>
+                        <TableCell className="font-medium">{scan.patient_name}</TableCell>
+                        <TableCell>{new Date(scan.scan_timestamp).toLocaleString()}</TableCell>
+                        <TableCell>
+                          <Badge variant={scan.verification_status === "passed" ? "default" : "destructive"}>
+                            {scan.verification_status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {scanLogs.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={3} className="text-center text-muted-foreground">
+                          No scan activity yet
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Active Alerts</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {alerts
+                    .filter((a) => a.status === "pending")
+                    .slice(0, 5)
+                    .map((alert) => (
+                      <div key={alert.id} className="flex items-center justify-between p-3 border rounded-lg">
                         <div className="flex items-center gap-3">
-                          {scan.status === "verified" ? (
-                            <CheckCircle2 className="h-5 w-5 text-green-500" />
-                          ) : scan.status === "failed" ? (
-                            <XCircle className="h-5 w-5 text-red-500" />
-                          ) : (
-                            <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                          )}
+                          <div className={`w-2 h-2 rounded-full ${getSeverityColor(alert.severity)}`} />
                           <div>
-                            <p className="font-medium">{scan.patient}</p>
-                            <p className="text-sm text-gray-500">{scan.time}</p>
+                            <p className="font-medium">{alert.patient_name}</p>
+                            <p className="text-sm text-muted-foreground">{alert.alert_type}</p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={scan.location ? "default" : "destructive"} className="text-xs">
-                            <MapPin className="h-3 w-3 mr-1" />
-                            GPS
-                          </Badge>
-                          <Badge variant={scan.time_ok ? "default" : "secondary"} className="text-xs">
-                            <Clock className="h-3 w-3 mr-1" />
-                            Time
-                          </Badge>
-                          <Badge variant={scan.biometric ? "default" : "destructive"} className="text-xs">
-                            <User className="h-3 w-3 mr-1" />
-                            Face
-                          </Badge>
-                        </div>
+                        <Button size="sm" variant="outline" onClick={() => handleViewAlert(alert)}>
+                          <Eye className="h-4 w-4" />
+                        </Button>
                       </div>
                     ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Compliance Overview */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Target className="h-5 w-5" style={{ color: "#0891b2" }} />
-                    Compliance Overview
-                  </CardTitle>
-                  <CardDescription>Weekly compliance metrics</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm font-medium">Location Compliance</span>
-                        <span className="text-sm font-medium text-green-600">96.5%</span>
-                      </div>
-                      <Progress value={96.5} className="h-2" />
-                    </div>
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm font-medium">Time Window Compliance</span>
-                        <span className="text-sm font-medium text-green-600">92.3%</span>
-                      </div>
-                      <Progress value={92.3} className="h-2" />
-                    </div>
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm font-medium">Biometric Verification</span>
-                        <span className="text-sm font-medium text-yellow-600">88.7%</span>
-                      </div>
-                      <Progress value={88.7} className="h-2" />
-                    </div>
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm font-medium">Overall Compliance</span>
-                        <span className="text-sm font-medium text-green-600">94.2%</span>
-                      </div>
-                      <Progress value={94.2} className="h-2" />
-                    </div>
-                  </div>
-
-                  <div className="mt-6 grid grid-cols-2 gap-4">
-                    <div className="p-3 rounded-lg bg-green-50 border border-green-200">
-                      <div className="flex items-center gap-2 text-green-700">
-                        <TrendingUp className="h-4 w-4" />
-                        <span className="text-sm font-medium">+2.3%</span>
-                      </div>
-                      <p className="text-xs text-green-600 mt-1">vs. last week</p>
-                    </div>
-                    <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
-                      <div className="flex items-center gap-2 text-blue-700">
-                        <Shield className="h-4 w-4" />
-                        <span className="text-sm font-medium">0 Diversions</span>
-                      </div>
-                      <p className="text-xs text-blue-600 mt-1">confirmed this month</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          {/* Alerts Tab */}
-          <TabsContent value="alerts">
-            <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <CardTitle>Compliance Alerts</CardTitle>
-                    <CardDescription>Real-time alerts for non-compliant doses</CardDescription>
-                  </div>
-                  <div className="flex gap-2">
-                    <Select value={alertFilter} onValueChange={setAlertFilter}>
-                      <SelectTrigger className="w-40">
-                        <SelectValue placeholder="Filter by status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Alerts</SelectItem>
-                        <SelectItem value="new">New</SelectItem>
-                        <SelectItem value="investigating">Investigating</SelectItem>
-                        <SelectItem value="resolved">Resolved</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  {alerts.filter((a) => a.status === "pending").length === 0 && (
+                    <p className="text-center text-muted-foreground py-4">No active alerts</p>
+                  )}
                 </div>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Alert</TableHead>
-                      <TableHead>Patient</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Severity</TableHead>
-                      <TableHead>Time</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredAlerts.map((alert) => (
-                      <TableRow key={alert.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {getAlertIcon(alert.alert_type)}
-                            <div>
-                              <p className="font-medium">{alert.title}</p>
-                              <p className="text-sm text-gray-500">{alert.description}</p>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">{alert.patient}</p>
-                            <p className="text-sm text-gray-500">{alert.patient_id}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="capitalize">
-                            {alert.alert_type.replace("_", " ")}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={getSeverityColor(alert.severity)}>{alert.severity}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">{alert.time}</p>
-                            <p className="text-sm text-gray-500">{alert.date}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              alert.status === "resolved"
-                                ? "default"
-                                : alert.status === "investigating"
-                                  ? "secondary"
-                                  : "destructive"
-                            }
-                          >
-                            {alert.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button size="sm" variant="outline">
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            {alert.callback_required && alert.status !== "resolved" && (
-                              <Button size="sm" variant="destructive">
-                                Callback
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
               </CardContent>
             </Card>
-          </TabsContent>
+          </div>
+        </TabsContent>
 
-          {/* Patient Compliance Tab */}
-          <TabsContent value="patients">
-            <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <CardTitle>Patient Compliance Tracking</CardTitle>
-                    <CardDescription>Monitor individual patient diversion risk scores</CardDescription>
-                  </div>
-                  <div className="relative w-64">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                    <Input
-                      placeholder="Search patients..."
-                      className="pl-10"
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Patient</TableHead>
-                      <TableHead>Take-Home Level</TableHead>
-                      <TableHead>Compliance Rate</TableHead>
-                      <TableHead>Location</TableHead>
-                      <TableHead>Time</TableHead>
-                      <TableHead>Biometric</TableHead>
-                      <TableHead>Risk Level</TableHead>
-                      <TableHead>Last Scan</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {patientCompliance.map((patient) => (
-                      <TableRow key={patient.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-                              <User className="h-4 w-4 text-gray-500" />
-                            </div>
-                            <div>
-                              <p className="font-medium">{patient.name}</p>
-                              <p className="text-sm text-gray-500">{patient.id}</p>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{patient.takehome_level} days</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Progress value={patient.compliance_rate} className="w-20 h-2" />
-                            <span
-                              className={`text-sm font-medium ${
-                                patient.compliance_rate >= 95
-                                  ? "text-green-600"
-                                  : patient.compliance_rate >= 85
-                                    ? "text-yellow-600"
-                                    : "text-red-600"
-                              }`}
-                            >
-                              {patient.compliance_rate}%
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <MapPin className="h-4 w-4 text-gray-400" />
-                            <span className={patient.location_violations > 0 ? "text-red-600" : "text-green-600"}>
-                              {patient.location_violations}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-4 w-4 text-gray-400" />
-                            <span className={patient.time_violations > 0 ? "text-yellow-600" : "text-green-600"}>
-                              {patient.time_violations}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Camera className="h-4 w-4 text-gray-400" />
-                            <span className={patient.biometric_failures > 0 ? "text-red-600" : "text-green-600"}>
-                              {patient.biometric_failures}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={`${getRiskColor(patient.risk_level)} text-white`}>
-                            {patient.risk_level}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <p className="text-sm">{patient.last_scan}</p>
-                        </TableCell>
-                        <TableCell>
-                          <Button size="sm" variant="outline" className="gap-1 bg-transparent">
-                            View <ChevronRight className="h-4 w-4" />
+        {/* Alerts Tab */}
+        <TabsContent value="alerts">
+          <Card>
+            <CardHeader>
+              <CardTitle>Compliance Alerts</CardTitle>
+              <CardDescription>Review and resolve patient compliance alerts</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Patient</TableHead>
+                    <TableHead>Alert Type</TableHead>
+                    <TableHead>Severity</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {alerts.map((alert) => (
+                    <TableRow key={alert.id}>
+                      <TableCell className="font-medium">{alert.patient_name}</TableCell>
+                      <TableCell>{alert.alert_type}</TableCell>
+                      <TableCell>
+                        <Badge className={getSeverityColor(alert.severity)}>{alert.severity}</Badge>
+                      </TableCell>
+                      <TableCell>{new Date(alert.created_at).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        <Badge variant={alert.status === "resolved" ? "outline" : "default"}>{alert.status}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" onClick={() => handleViewAlert(alert)}>
+                            <Eye className="h-4 w-4" />
                           </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
+                          {alert.status !== "resolved" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedAlert(alert)
+                                setResolveDialogOpen(true)
+                              }}
+                            >
+                              Resolve
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {alerts.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-muted-foreground">
+                        No alerts found
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-          {/* Travel Exceptions Tab */}
-          <TabsContent value="travel">
+        {/* Patient Compliance Tab */}
+        <TabsContent value="compliance">
+          <Card>
+            <CardHeader>
+              <CardTitle>Patient Risk Scores</CardTitle>
+              <CardDescription>Diversion risk assessment for all patients</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Patient</TableHead>
+                    <TableHead>Risk Level</TableHead>
+                    <TableHead>Compliance Score</TableHead>
+                    <TableHead>Location Compliance</TableHead>
+                    <TableHead>Biometric Success</TableHead>
+                    <TableHead>Missed Doses (30d)</TableHead>
+                    <TableHead>Assessment Date</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {riskScores.map((score) => (
+                    <TableRow key={score.id}>
+                      <TableCell className="font-medium">{score.patient_name}</TableCell>
+                      <TableCell>
+                        <Badge className={getRiskColor(score.risk_level)}>{score.risk_level}</Badge>
+                      </TableCell>
+                      <TableCell>{score.compliance_score?.toFixed(1)}%</TableCell>
+                      <TableCell>{score.location_compliance_rate?.toFixed(1)}%</TableCell>
+                      <TableCell>{score.biometric_success_rate?.toFixed(1)}%</TableCell>
+                      <TableCell>{score.missed_doses_30_days}</TableCell>
+                      <TableCell>{new Date(score.assessment_date).toLocaleDateString()}</TableCell>
+                    </TableRow>
+                  ))}
+                  {riskScores.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center text-muted-foreground">
+                        No risk assessments found
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Travel Exceptions Tab */}
+        <TabsContent value="exceptions">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Location Exceptions</CardTitle>
+                <CardDescription>Manage travel and temporary location exceptions</CardDescription>
+              </div>
+              <Button onClick={() => setExceptionDialogOpen(true)}>Add Exception</Button>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Patient</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Reason</TableHead>
+                    <TableHead>Dates</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {locationExceptions.map((exception) => (
+                    <TableRow key={exception.id}>
+                      <TableCell className="font-medium">{exception.patient_name}</TableCell>
+                      <TableCell className="capitalize">{exception.exception_type}</TableCell>
+                      <TableCell className="max-w-xs truncate">{exception.reason}</TableCell>
+                      <TableCell>
+                        {new Date(exception.start_date).toLocaleDateString()} -{" "}
+                        {new Date(exception.end_date).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            exception.status === "approved"
+                              ? "default"
+                              : exception.status === "denied"
+                                ? "destructive"
+                                : "outline"
+                          }
+                        >
+                          {exception.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {exception.status === "pending" && (
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline" onClick={() => handleApproveException(exception.id)}>
+                              <CheckCircle className="h-4 w-4" />
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => handleDenyException(exception.id)}>
+                              <XCircle className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {locationExceptions.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-muted-foreground">
+                        No location exceptions found
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Scan Logs Tab */}
+        <TabsContent value="scans">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Scan Logs</CardTitle>
+                <CardDescription>All dose verification scan history</CardDescription>
+              </div>
+              <Select value={scanLogFilter} onValueChange={setScanLogFilter}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Filter scans" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Scans</SelectItem>
+                  <SelectItem value="passed">Passed Only</SelectItem>
+                  <SelectItem value="failed">Failed Only</SelectItem>
+                  <SelectItem value="location">Location Violations</SelectItem>
+                  <SelectItem value="biometric">Biometric Failures</SelectItem>
+                </SelectContent>
+              </Select>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Patient</TableHead>
+                    <TableHead>Scan Time</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Location</TableHead>
+                    <TableHead>Dosing Window</TableHead>
+                    <TableHead>Biometric</TableHead>
+                    <TableHead>Distance (ft)</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredScanLogs.map((scan) => (
+                    <TableRow key={scan.id}>
+                      <TableCell className="font-medium">{scan.patient_name}</TableCell>
+                      <TableCell>{new Date(scan.scan_timestamp).toLocaleString()}</TableCell>
+                      <TableCell>
+                        <Badge variant={scan.verification_status === "passed" ? "default" : "destructive"}>
+                          {scan.verification_status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {scan.is_within_geofence ? (
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-red-600" />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {scan.is_within_dosing_window ? (
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-red-600" />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {scan.biometric_verified ? (
+                          <CheckCircle className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-red-600" />
+                        )}
+                      </TableCell>
+                      <TableCell>{scan.distance_from_home_feet?.toFixed(0) || "N/A"}</TableCell>
+                    </TableRow>
+                  ))}
+                  {filteredScanLogs.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center text-muted-foreground">
+                        No scan logs found
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Settings Tab */}
+        <TabsContent value="settings">
+          <div className="grid grid-cols-2 gap-6">
             <Card>
               <CardHeader>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <CardTitle>Travel & Location Exceptions</CardTitle>
-                    <CardDescription>Manage pre-approved location exceptions for patients</CardDescription>
-                  </div>
-                  <Button style={{ backgroundColor: "#0891b2" }}>+ New Exception</Button>
-                </div>
+                <CardTitle>Geofence Settings</CardTitle>
+                <CardDescription>Configure location verification parameters</CardDescription>
               </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Patient</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Reason</TableHead>
-                      <TableHead>Location</TableHead>
-                      <TableHead>Date Range</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Approved By</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {travelExceptions.map((exception) => (
-                      <TableRow key={exception.id}>
-                        <TableCell className="font-medium">{exception.patient}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="capitalize">
-                            {exception.type === "travel" ? (
-                              <>
-                                <Plane className="h-3 w-3 mr-1" /> Travel
-                              </>
-                            ) : (
-                              <>
-                                <Home className="h-3 w-3 mr-1" /> Work
-                              </>
-                            )}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{exception.reason}</TableCell>
-                        <TableCell>{exception.location}</TableCell>
-                        <TableCell>
-                          {exception.start_date} - {exception.end_date}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant={
-                              exception.status === "approved"
-                                ? "default"
-                                : exception.status === "pending"
-                                  ? "secondary"
-                                  : "destructive"
-                            }
-                          >
-                            {exception.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{exception.approved_by || "-"}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button size="sm" variant="outline">
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            {exception.status === "pending" && (
-                              <>
-                                <Button size="sm" variant="default">
-                                  Approve
-                                </Button>
-                                <Button size="sm" variant="destructive">
-                                  Deny
-                                </Button>
-                              </>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Default Geofence Radius (feet)</Label>
+                  <Input type="number" value={geofenceRadius} onChange={(e) => setGeofenceRadius(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Location Verification Tolerance</Label>
+                  <Input
+                    type="number"
+                    value={locationTolerance}
+                    onChange={(e) => setLocationTolerance(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>GPS Accuracy Requirement (meters)</Label>
+                  <Input type="number" value={gpsAccuracy} onChange={(e) => setGpsAccuracy(e.target.value)} />
+                </div>
+                <Button className="w-full" onClick={handleSaveGeofenceSettings} disabled={savingGeofence}>
+                  {savingGeofence ? "Saving..." : "Save Geofence Settings"}
+                </Button>
               </CardContent>
             </Card>
-          </TabsContent>
 
-          {/* Settings Tab */}
-          <TabsContent value="settings">
-            <div className="grid grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Clock className="h-5 w-5" style={{ color: "#0891b2" }} />
-                    Dosing Window Settings
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-medium">Weekday Start Time</label>
-                      <Input type="time" defaultValue="06:00" />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium">Weekday End Time</label>
-                      <Input type="time" defaultValue="11:00" />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-medium">Weekend Start Time</label>
-                      <Input type="time" defaultValue="06:00" />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium">Weekend End Time</label>
-                      <Input type="time" defaultValue="14:00" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Dosing Window Settings</CardTitle>
+                <CardDescription>Configure time-based compliance rules</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Default Dosing Window Start</Label>
+                  <Input type="time" value={dosingWindowStart} onChange={(e) => setDosingWindowStart(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Default Dosing Window End</Label>
+                  <Input type="time" value={dosingWindowEnd} onChange={(e) => setDosingWindowEnd(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Weekend Extended Window End</Label>
+                  <Input type="time" value={weekendWindowEnd} onChange={(e) => setWeekendWindowEnd(e.target.value)} />
+                </div>
+                <Button className="w-full" onClick={handleSaveDosingSettings} disabled={savingDosing}>
+                  {savingDosing ? "Saving..." : "Save Dosing Settings"}
+                </Button>
+              </CardContent>
+            </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <MapPin className="h-5 w-5" style={{ color: "#0891b2" }} />
-                    Geofencing Settings
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium">Default Geofence Radius (meters)</label>
-                    <Input type="number" defaultValue="150" />
-                    <p className="text-sm text-gray-500 mt-1">~500 feet - DEA recommended distance</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Location Violation Tolerance (meters)</label>
-                    <Input type="number" defaultValue="100" />
-                  </div>
-                </CardContent>
-              </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Biometric Settings</CardTitle>
+                <CardDescription>Configure facial recognition parameters</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Facial Match Confidence Threshold (%)</Label>
+                  <Input
+                    type="number"
+                    value={biometricThreshold}
+                    onChange={(e) => setBiometricThreshold(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Maximum Biometric Attempts</Label>
+                  <Input
+                    type="number"
+                    value={maxBiometricAttempts}
+                    onChange={(e) => setMaxBiometricAttempts(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Require Liveness Check</Label>
+                  <Select value={requireLiveness} onValueChange={setRequireLiveness}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="yes">Yes</SelectItem>
+                      <SelectItem value="no">No</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button className="w-full" onClick={handleSaveBiometricSettings} disabled={savingBiometric}>
+                  {savingBiometric ? "Saving..." : "Save Biometric Settings"}
+                </Button>
+              </CardContent>
+            </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Camera className="h-5 w-5" style={{ color: "#0891b2" }} />
-                    Biometric Settings
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium">Facial Match Threshold (%)</label>
-                    <Input type="number" defaultValue="85" min="50" max="100" />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Max Verification Attempts</label>
-                    <Input type="number" defaultValue="3" min="1" max="5" />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Require Liveness Check</span>
-                    <Badge variant="default">Enabled</Badge>
-                  </div>
-                </CardContent>
-              </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Alert Settings</CardTitle>
+                <CardDescription>Configure notification and callback rules</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Missed Dose Alert Delay (hours)</Label>
+                  <Input type="number" value={missedDoseDelay} onChange={(e) => setMissedDoseDelay(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Auto Callback After Missed Doses</Label>
+                  <Input
+                    type="number"
+                    value={autoCallbackDoses}
+                    onChange={(e) => setAutoCallbackDoses(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Notify Sponsor on Violation</Label>
+                  <Select value={notifySponsor} onValueChange={setNotifySponsor}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="yes">Yes</SelectItem>
+                      <SelectItem value="no">No</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button className="w-full" onClick={handleSaveAlertSettings} disabled={savingAlert}>
+                  {savingAlert ? "Saving..." : "Save Alert Settings"}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Bell className="h-5 w-5" style={{ color: "#0891b2" }} />
-                    Alert Settings
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium">Missed Dose Alert (hours after window)</label>
-                    <Input type="number" defaultValue="0" />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Auto Callback After Missed Doses</label>
-                    <Input type="number" defaultValue="2" />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium">Patient Reminder (minutes before window ends)</label>
-                    <Input type="number" defaultValue="30" />
-                  </div>
-                </CardContent>
-              </Card>
+      {/* Alert Detail Dialog */}
+      <Dialog open={alertDetailOpen} onOpenChange={setAlertDetailOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Alert Details</DialogTitle>
+          </DialogHeader>
+          {selectedAlert && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-muted-foreground">Patient</Label>
+                  <p className="font-medium">{selectedAlert.patient_name}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Alert Type</Label>
+                  <p className="font-medium">{selectedAlert.alert_type}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Severity</Label>
+                  <Badge className={getSeverityColor(selectedAlert.severity)}>{selectedAlert.severity}</Badge>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Status</Label>
+                  <Badge variant={selectedAlert.status === "resolved" ? "outline" : "default"}>
+                    {selectedAlert.status}
+                  </Badge>
+                </div>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Title</Label>
+                <p className="font-medium">{selectedAlert.alert_title}</p>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Description</Label>
+                <p>{selectedAlert.alert_description}</p>
+              </div>
+              <div>
+                <Label className="text-muted-foreground">Created</Label>
+                <p>{new Date(selectedAlert.created_at).toLocaleString()}</p>
+              </div>
             </div>
-          </TabsContent>
-        </Tabs>
-      </main>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAlertDetailOpen(false)}>
+              Close
+            </Button>
+            {selectedAlert?.status !== "resolved" && (
+              <Button
+                onClick={() => {
+                  setAlertDetailOpen(false)
+                  setResolveDialogOpen(true)
+                }}
+              >
+                Resolve Alert
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Resolve Alert Dialog */}
+      <Dialog open={resolveDialogOpen} onOpenChange={setResolveDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Resolve Alert</DialogTitle>
+            <DialogDescription>Provide resolution notes for this alert</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Resolution Notes</Label>
+              <Textarea
+                value={resolutionNotes}
+                onChange={(e) => setResolutionNotes(e.target.value)}
+                placeholder="Enter notes about how this alert was resolved..."
+                rows={4}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setResolveDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleResolveAlert}>Resolve Alert</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Exception Dialog */}
+      <Dialog open={exceptionDialogOpen} onOpenChange={setExceptionDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create Location Exception</DialogTitle>
+            <DialogDescription>Add a temporary location exception for a patient</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Patient ID</Label>
+              <Input
+                value={newException.patientId}
+                onChange={(e) => setNewException({ ...newException, patientId: e.target.value })}
+                placeholder="Enter patient ID"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Exception Type</Label>
+              <Select
+                value={newException.exceptionType}
+                onValueChange={(value) => setNewException({ ...newException, exceptionType: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="travel">Travel</SelectItem>
+                  <SelectItem value="work">Work</SelectItem>
+                  <SelectItem value="medical">Medical</SelectItem>
+                  <SelectItem value="family">Family Emergency</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Reason</Label>
+              <Textarea
+                value={newException.reason}
+                onChange={(e) => setNewException({ ...newException, reason: e.target.value })}
+                placeholder="Reason for exception..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Temporary Address</Label>
+              <Input
+                value={newException.temporaryAddress}
+                onChange={(e) => setNewException({ ...newException, temporaryAddress: e.target.value })}
+                placeholder="Enter temporary address"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Start Date</Label>
+                <Input
+                  type="date"
+                  value={newException.startDate}
+                  onChange={(e) => setNewException({ ...newException, startDate: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>End Date</Label>
+                <Input
+                  type="date"
+                  value={newException.endDate}
+                  onChange={(e) => setNewException({ ...newException, endDate: e.target.value })}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExceptionDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateException}>Create Exception</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

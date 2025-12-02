@@ -106,8 +106,11 @@ interface PDMPPrescription {
 
 export default function PMPPage() {
   const { data, error, isLoading, mutate } = useSWR<PMPData>("/api/pmp", fetcher)
+  const { data: patientsData } = useSWR("/api/patients?limit=100", fetcher)
   const { toast } = useToast()
   const supabase = createBrowserClient()
+
+  const patients = patientsData?.patients || []
 
   // State for patient search
   const [searchParams, setSearchParams] = useState({
@@ -132,7 +135,6 @@ export default function PMPPage() {
   const [isSavingConfig, setIsSavingConfig] = useState(false)
 
   // State for patient selection
-  const [patients, setPatients] = useState<Patient[]>([])
   const [selectedPatient, setSelectedPatient] = useState<string>("")
 
   // State for history
@@ -144,7 +146,6 @@ export default function PMPPage() {
   // Load configuration and patients on mount
   useEffect(() => {
     loadConfig()
-    loadPatients()
     loadPDMPHistory()
   }, [])
 
@@ -161,18 +162,6 @@ export default function PMPPage() {
         pdmp_endpoint: data.pdmp_endpoint || "https://michigan.pmpaware.net/api/v2",
         auto_check_controlled_rx: data.auto_check_controlled_rx ?? true,
       })
-    }
-  }
-
-  const loadPatients = async () => {
-    const { data } = await supabase
-      .from("patients")
-      .select("id, first_name, last_name, date_of_birth")
-      .order("last_name")
-      .limit(100)
-
-    if (data) {
-      setPatients(data)
     }
   }
 

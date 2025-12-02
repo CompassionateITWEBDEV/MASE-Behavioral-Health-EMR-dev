@@ -28,6 +28,8 @@ import {
   Plus,
   RefreshCw,
   Loader2,
+  Check,
+  Copy,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
@@ -81,6 +83,13 @@ export default function RegulatoryDashboardPage() {
     notes: "",
     expires_days: 7,
   })
+
+  const [generatedCredentials, setGeneratedCredentials] = useState<{
+    agentId: string
+    tempPassword: string
+  } | null>(null)
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [copiedField, setCopiedField] = useState<string | null>(null)
 
   const fetchRegulatoryData = useCallback(async () => {
     setIsLoading(true)
@@ -140,22 +149,67 @@ export default function RegulatoryDashboardPage() {
     fetchRegulatoryData()
   }, [fetchRegulatoryData])
 
+  const generatePassword = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%"
+    let password = ""
+    for (let i = 0; i < 12; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    return password
+  }
+
+  const generateAgentId = (org: string) => {
+    const prefixes: Record<string, string> = {
+      DEA: "DEA",
+      "Joint Commission": "JC",
+      "State Health Department": "SHD",
+      OASAS: "OAS",
+      CMS: "CMS",
+    }
+    const prefix = prefixes[org] || "REG"
+    const num = Math.floor(100000 + Math.random() * 900000)
+    return `${prefix}-${num}`
+  }
+
+  const copyToClipboard = async (text: string, field: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopiedField(field)
+      setTimeout(() => setCopiedField(null), 2000)
+    } catch {
+      const textArea = document.createElement("textarea")
+      textArea.value = text
+      textArea.style.position = "fixed"
+      textArea.style.left = "-999999px"
+      document.body.appendChild(textArea)
+      textArea.select()
+      document.execCommand("copy")
+      document.body.removeChild(textArea)
+      setCopiedField(field)
+      setTimeout(() => setCopiedField(null), 2000)
+    }
+  }
+
   const handleGrantAccess = async () => {
-    if (!newAccess.inspector_name || !newAccess.inspector_id) {
-      toast({ title: "Error", description: "Please fill in all required fields", variant: "destructive" })
+    if (!newAccess.inspector_name) {
+      toast({ title: "Error", description: "Please enter agent name", variant: "destructive" })
       return
     }
 
+    setIsGenerating(true)
+
     try {
+      const agentId = generateAgentId(newAccess.organization)
+      const tempPassword = generatePassword()
       const expiresAt = new Date()
       expiresAt.setDate(expiresAt.getDate() + newAccess.expires_days)
 
       const { error } = await supabase.from("regulatory_access").insert({
         inspector_name: newAccess.inspector_name,
-        inspector_id: newAccess.inspector_id,
+        inspector_id: agentId,
         organization: newAccess.organization,
         role: newAccess.role,
-        notes: newAccess.notes,
+        notes: `${newAccess.notes}\n\nTemporary password: ${tempPassword} (change on first login)`,
         is_active: true,
         access_granted_at: new Date().toISOString(),
         access_expires_at: expiresAt.toISOString(),
@@ -163,19 +217,17 @@ export default function RegulatoryDashboardPage() {
 
       if (error) throw error
 
-      toast({ title: "Success", description: "Inspector access granted successfully" })
-      setIsGrantAccessOpen(false)
-      setNewAccess({
-        inspector_name: "",
-        inspector_id: "",
-        organization: "DEA",
-        role: "dea_inspector",
-        notes: "",
-        expires_days: 7,
+      setGeneratedCredentials({
+        agentId,
+        tempPassword,
       })
-      fetchRegulatoryData()
+
+      toast({ title: "Success", description: "Agent credentials created successfully" })
     } catch (error) {
+      console.error("Error granting access:", error)
       toast({ title: "Error", description: "Failed to grant access", variant: "destructive" })
+    } finally {
+      setIsGenerating(false)
     }
   }
 
@@ -428,9 +480,12 @@ export default function RegulatoryDashboardPage() {
                             <div key={alert.id} className="flex items-start gap-3 p-3 border rounded-lg">
                               {getSeverityIcon(alert.severity)}
                               <div className="flex-1">
-                                <p className="font-medium text-sm">{alert.alert_type}</p>
+                                <p className="font-medium">{alert.alert_type}</p>
                                 <p className="text-sm text-muted-foreground">{alert.alert_message}</p>
                               </div>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {new Date(alert.created_at).toLocaleDateString()}
+                              </p>
                             </div>
                           ))}
                       </div>
@@ -599,79 +654,152 @@ export default function RegulatoryDashboardPage() {
       </div>
 
       {/* Grant Access Dialog */}
-      <Dialog open={isGrantAccessOpen} onOpenChange={setIsGrantAccessOpen}>
-        <DialogContent>
+      <Dialog
+        open={isGrantAccessOpen}
+        onOpenChange={(open) => {
+          setIsGrantAccessOpen(open)
+          if (!open) setGeneratedCredentials(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Grant Inspector Access</DialogTitle>
-            <DialogDescription>Provide temporary access to regulatory inspectors</DialogDescription>
+            <DialogTitle>Create DEA Grant / Agent Access</DialogTitle>
+            <DialogDescription>Generate temporary login credentials for regulatory agents</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Inspector Name *</Label>
-              <Input
-                placeholder="Full name"
-                value={newAccess.inspector_name}
-                onChange={(e) => setNewAccess({ ...newAccess, inspector_name: e.target.value })}
-              />
+
+          {!generatedCredentials ? (
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Agent Name *</Label>
+                <Input
+                  placeholder="Full name"
+                  value={newAccess.inspector_name}
+                  onChange={(e) => setNewAccess({ ...newAccess, inspector_name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Organization</Label>
+                <Select
+                  value={newAccess.organization}
+                  onValueChange={(v) => setNewAccess({ ...newAccess, organization: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="DEA">Drug Enforcement Administration (DEA)</SelectItem>
+                    <SelectItem value="Joint Commission">Joint Commission</SelectItem>
+                    <SelectItem value="State Health Department">State Health Department</SelectItem>
+                    <SelectItem value="OASAS">OASAS</SelectItem>
+                    <SelectItem value="CMS">CMS</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Access Level</Label>
+                <Select value={newAccess.role} onValueChange={(v) => setNewAccess({ ...newAccess, role: v })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="viewer">Read Only (View Reports)</SelectItem>
+                    <SelectItem value="inspector">Full Access (Inspection Mode)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Access Duration</Label>
+                <Select
+                  value={String(newAccess.expires_days)}
+                  onValueChange={(v) => setNewAccess({ ...newAccess, expires_days: Number.parseInt(v) })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1 Day</SelectItem>
+                    <SelectItem value="3">3 Days</SelectItem>
+                    <SelectItem value="7">7 Days</SelectItem>
+                    <SelectItem value="14">14 Days</SelectItem>
+                    <SelectItem value="30">30 Days</SelectItem>
+                    <SelectItem value="90">90 Days</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Notes (Optional)</Label>
+                <Textarea
+                  placeholder="Purpose of access..."
+                  value={newAccess.notes}
+                  onChange={(e) => setNewAccess({ ...newAccess, notes: e.target.value })}
+                />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Inspector ID *</Label>
-              <Input
-                placeholder="Badge/ID number"
-                value={newAccess.inspector_id}
-                onChange={(e) => setNewAccess({ ...newAccess, inspector_id: e.target.value })}
-              />
+          ) : (
+            <div className="space-y-4 py-4">
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <p className="text-sm text-green-800 font-medium mb-3">
+                  Credentials created successfully! Share these with the agent:
+                </p>
+
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-xs text-green-700">Agent ID</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Input value={generatedCredentials.agentId} readOnly className="font-mono bg-white" />
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        onClick={() => copyToClipboard(generatedCredentials.agentId, "id")}
+                      >
+                        {copiedField === "id" ? (
+                          <Check className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs text-green-700">Temporary Password</Label>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Input value={generatedCredentials.tempPassword} readOnly className="font-mono bg-white" />
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        onClick={() => copyToClipboard(generatedCredentials.tempPassword, "password")}
+                      >
+                        {copiedField === "password" ? (
+                          <Check className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                <p className="text-xs text-green-600 mt-3">
+                  Agent should change password on first login. Access expires in {newAccess.expires_days} days.
+                </p>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>Organization</Label>
-              <Select
-                value={newAccess.organization}
-                onValueChange={(v) => setNewAccess({ ...newAccess, organization: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="DEA">DEA</SelectItem>
-                  <SelectItem value="Joint Commission">Joint Commission</SelectItem>
-                  <SelectItem value="State Health Department">State Health Department</SelectItem>
-                  <SelectItem value="OASAS">OASAS</SelectItem>
-                  <SelectItem value="CMS">CMS</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Access Duration</Label>
-              <Select
-                value={String(newAccess.expires_days)}
-                onValueChange={(v) => setNewAccess({ ...newAccess, expires_days: Number.parseInt(v) })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">1 Day</SelectItem>
-                  <SelectItem value="3">3 Days</SelectItem>
-                  <SelectItem value="7">7 Days</SelectItem>
-                  <SelectItem value="14">14 Days</SelectItem>
-                  <SelectItem value="30">30 Days</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Notes</Label>
-              <Textarea
-                placeholder="Purpose of inspection..."
-                value={newAccess.notes}
-                onChange={(e) => setNewAccess({ ...newAccess, notes: e.target.value })}
-              />
-            </div>
-          </div>
+          )}
+
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setIsGrantAccessOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleGrantAccess}>Grant Access</Button>
+            {!generatedCredentials ? (
+              <>
+                <Button variant="outline" onClick={() => setIsGrantAccessOpen(false)}>
+                  Cancel
+                </Button>
+                <Button onClick={handleGrantAccess} disabled={isGenerating}>
+                  {isGenerating ? "Generating..." : "Generate Credentials"}
+                </Button>
+              </>
+            ) : (
+              <Button onClick={() => setIsGrantAccessOpen(false)}>Done</Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>

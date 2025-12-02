@@ -109,11 +109,9 @@ export default function DiversionControlPage() {
   const fetchAllData = async () => {
     setIsLoading(true)
     try {
-      // Fetch patients with take-home privileges
-      const { data: patientsData } = await supabase
-        .from("patients")
-        .select("id, first_name, last_name, date_of_birth, phone")
-        .order("last_name")
+      const patientsResponse = await fetch("/api/patients?limit=200")
+      const patientsResult = await patientsResponse.json()
+      const patientsData = patientsResult.patients || []
 
       // Fetch compliance alerts
       const { data: alertsData } = await supabase
@@ -147,7 +145,7 @@ export default function DiversionControlPage() {
       // Fetch home addresses
       const { data: addressData } = await supabase.from("patient_home_addresses").select("*").eq("is_primary", true)
 
-      setPatients(patientsData || [])
+      setPatients(patientsData)
       setAlerts(alertsData || [])
       setExceptions(exceptionsData || [])
       setScanLogs(scansData || [])
@@ -169,7 +167,7 @@ export default function DiversionControlPage() {
       const complianceRate = totalScans > 0 ? Math.round((successfulScans / totalScans) * 100) : 100
 
       setStats({
-        totalPatients: (patientsData || []).length,
+        totalPatients: patientsData.length,
         enrolledBiometrics,
         activeAlerts,
         complianceRate,
