@@ -44,9 +44,10 @@ interface Patient {
 interface PatientListProps {
   patients: Patient[]
   currentProviderId: string
+  showFilters?: boolean
 }
 
-export function PatientList({ patients, currentProviderId }: PatientListProps) {
+export function PatientList({ patients, currentProviderId, showFilters = true }: PatientListProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [riskFilter, setRiskFilter] = useState("all")
@@ -121,39 +122,40 @@ export function PatientList({ patients, currentProviderId }: PatientListProps) {
 
   return (
     <div className="space-y-4">
-      {/* Search and Filter Controls */}
-      <div className="flex gap-4 items-center">
-        <div className="flex-1">
-          <Input
-            placeholder="Search patients by name, ID, or phone..."
-            className="max-w-md"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+      {showFilters && (
+        <div className="flex gap-4 items-center">
+          <div className="flex-1">
+            <Input
+              placeholder="Search patients by name, ID, or phone..."
+              className="max-w-md"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Patients</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="high-risk">High Risk</SelectItem>
+              <SelectItem value="assessment-due">Assessment Due</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={riskFilter} onValueChange={setRiskFilter}>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Risk Levels</SelectItem>
+              <SelectItem value="low">Low Risk</SelectItem>
+              <SelectItem value="medium">Medium Risk</SelectItem>
+              <SelectItem value="high">High Risk</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Patients</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="high-risk">High Risk</SelectItem>
-            <SelectItem value="assessment-due">Assessment Due</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={riskFilter} onValueChange={setRiskFilter}>
-          <SelectTrigger className="w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Risk Levels</SelectItem>
-            <SelectItem value="low">Low Risk</SelectItem>
-            <SelectItem value="medium">Medium Risk</SelectItem>
-            <SelectItem value="high">High Risk</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      )}
 
       {/* Patient List */}
       <Card>

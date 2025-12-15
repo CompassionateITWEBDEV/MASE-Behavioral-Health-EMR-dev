@@ -202,7 +202,6 @@ export default function PatientIntake() {
     }
   }
 
-  // Create new patient
   const createNewPatient = async () => {
     if (!newPatient.first_name || !newPatient.last_name || !newPatient.date_of_birth) {
       toast({
@@ -215,9 +214,18 @@ export default function PatientIntake() {
 
     setSaving(true)
     try {
-      const { data, error } = await supabase.from("patients").insert([newPatient]).select().single()
+      const response = await fetch("/api/patients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newPatient),
+      })
 
-      if (error) throw error
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || "Failed to create patient")
+      }
+
+      const data = await response.json()
 
       setSelectedPatient(data)
       setShowNewPatientForm(false)
@@ -243,7 +251,7 @@ export default function PatientIntake() {
       console.error("Error creating patient:", err)
       toast({
         title: "Error",
-        description: "Failed to create patient. Please try again.",
+        description: err instanceof Error ? err.message : "Failed to create patient. Please try again.",
         variant: "destructive",
       })
     } finally {

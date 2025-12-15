@@ -1,4 +1,7 @@
-import { createClient } from "@/lib/supabase/server"
+"use client"
+
+import { useEffect, useState } from "react"
+import { createClient } from "@/lib/supabase/client"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardSidebar } from "@/components/dashboard-sidebar"
 import { PatientList } from "@/components/patient-list"
@@ -17,89 +20,73 @@ const DEFAULT_PROVIDER = {
   role: "physician",
 }
 
-export default async function PatientsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
-}) {
-  const supabase = await createClient()
-  const params = await searchParams
+export default function PatientsPage() {
+  const [patients, setPatients] = useState<any[]>([])
+  const [stats, setStats] = useState({ total: 0, active: 0, highRisk: 0, recentAppointments: 0 })
+  const [loading, setLoading] = useState(true)
+  const [showFilters, setShowFilters] = useState(false)
+  const [provider, setProvider] = useState(DEFAULT_PROVIDER)
 
-  let provider = DEFAULT_PROVIDER
-  try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-    if (user) {
-      const { data: providerData } = await supabase.from("providers").select("*").eq("id", user.id).single()
-      if (providerData) {
-        provider = providerData
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  const fetchData = async () => {
+    setLoading(true)
+    const supabase = createClient()
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (user) {
+        const { data: providerData } = await supabase.from("providers").select("*").eq("id", user.id).single()
+        if (providerData) {
+          setProvider(providerData)
+        }
       }
+    } catch (error) {
+      console.log("[v0] Auth check failed, using default provider")
     }
-  } catch (error) {
-    console.log("[v0] Auth check failed, using default provider")
-  }
 
-  // Get search and filter parameters
-  const search = typeof params.search === "string" ? params.search : ""
-  const status = typeof params.status === "string" ? params.status : "all"
-  const riskLevel = typeof params.risk === "string" ? params.risk : "all"
+    const { count: totalCount } = await supabase.from("patients").select("*", { count: "exact", head: true })
 
-  // Build query for patients
-  let query = supabase
-    .from("patients")
-    .select(`
-      *,
-      appointments(
-        id,
-        appointment_date,
-        status,
-        provider_id
-      ),
-      assessments(
-        id,
-        assessment_type,
-        risk_assessment,
-        created_at
-      ),
-      medications(
-        id,
-        medication_name,
-        dosage,
-        status
-      )
-    `)
-    .order("created_at", { ascending: false })
+    const { count: activeCount } = await supabase.from("patients").select("*", { count: "exact", head: true })
 
-  // Apply search filter
-  if (search) {
-    query = query.or(`first_name.ilike.%${search}%,last_name.ilike.%${search}%,phone.ilike.%${search}%`)
-  }
+    const { count: recentCount } = await supabase
+      .from("appointments")
+      .select("*", { count: "exact", head: true })
+      .gte("appointment_date", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
 
-  const { data: patients, error: patientsError } = await query
+    const { data: patientsData } = await supabase
+      .from("patients")
+      .select(`
+        *,
+        appointments(
+          id,
+          appointment_date,
+          status,
+          provider_id
+        ),
+        assessments(
+          id,
+          assessment_type,
+          risk_assessment,
+          created_at
+        ),
+        medications(
+          id,
+          medication_name,
+          dosage,
+          status
+        )
+      `)
+      .order("created_at", { ascending: false })
 
-  if (patientsError) {
-    console.error("Error fetching patients:", patientsError)
-  }
+    console.log("[v0] Fetched patients:", patientsData?.length || 0)
 
-  // Get patient statistics
-  const { data: totalPatients } = await supabase.from("patients").select("id", { count: "exact" })
-
-  const { data: activePatients } = await supabase
-    .from("patients")
-    .select("id", { count: "exact" })
-    .not("id", "is", null)
-
-  const { data: recentAppointments } = await supabase
-    .from("appointments")
-    .select("id", { count: "exact" })
-    .gte("appointment_date", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-
-  const stats = {
-    total: totalPatients?.length || 0,
-    active: activePatients?.length || 0,
-    highRisk:
-      patients?.filter((p) =>
+    const highRiskCount =
+      patientsData?.filter((p) =>
         p.assessments?.some(
           (a: { risk_assessment?: { level?: string } }) =>
             a.risk_assessment &&
@@ -107,8 +94,34 @@ export default async function PatientsPage({
             "level" in a.risk_assessment &&
             a.risk_assessment.level === "high",
         ),
-      ).length || 0,
-    recentAppointments: recentAppointments?.length || 0,
+      ).length || 0
+
+    setPatients(patientsData || [])
+    setStats({
+      total: totalCount || 0,
+      active: activeCount || 0,
+      highRisk: highRiskCount,
+      recentAppointments: recentCount || 0,
+    })
+    setLoading(false)
+  }
+
+  const handlePatientAdded = () => {
+    fetchData()
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <DashboardSidebar />
+        <div className="pl-64">
+          <DashboardHeader />
+          <main className="p-6">
+            <div className="text-center py-12">Loading patients...</div>
+          </main>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -125,11 +138,11 @@ export default async function PatientsPage({
               <p className="text-muted-foreground">Comprehensive patient database and records</p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)}>
                 <Filter className="mr-2 h-4 w-4" />
                 Filter
               </Button>
-              <AddPatientDialog providerId={provider.id}>
+              <AddPatientDialog providerId={provider.id} onSuccess={handlePatientAdded}>
                 <Button size="sm">
                   <Plus className="mr-2 h-4 w-4" />
                   Add Patient
@@ -147,7 +160,7 @@ export default async function PatientsPage({
             </TabsList>
 
             <TabsContent value="list" className="space-y-4">
-              <PatientList patients={patients || []} currentProviderId={provider.id} />
+              <PatientList patients={patients} currentProviderId={provider.id} showFilters={showFilters} />
             </TabsContent>
 
             <TabsContent value="dashboard" className="space-y-6">

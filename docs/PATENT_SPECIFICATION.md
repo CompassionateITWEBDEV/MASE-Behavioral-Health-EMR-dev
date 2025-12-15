@@ -157,7 +157,7 @@ The client application employs dynamic module loading (430) to instantiate only 
 
 #### Example Implementation
 
-\`\`\`
+```
 ALGORITHM: Specialty Feature Resolution
 
 INPUT: user_id, organization_id, requested_feature
@@ -173,7 +173,7 @@ OUTPUT: feature_enabled (boolean), feature_configuration (object)
       i. RETURN (TRUE, feature_definition.configuration)
 
 3. RETURN (FALSE, NULL)
-\`\`\`
+```
 
 ### Consent-Based Health Information Exchange (Claim 2)
 
@@ -221,7 +221,7 @@ For organizations treating substance use disorders, the system implements additi
 
 #### Example Query Flow
 
-\`\`\`
+```
 SEQUENCE: Inter-Clinic Data Request
 
 1. Clinic B submits query for Patient X to HIE Network
@@ -235,7 +235,7 @@ SEQUENCE: Inter-Clinic Data Request
 6. Clinic A returns permitted data elements
 7. HIE Network logs transaction with consent reference
 8. Data returned to Clinic B
-\`\`\`
+```
 
 ### AI Clinical Assistant (Claim 3)
 

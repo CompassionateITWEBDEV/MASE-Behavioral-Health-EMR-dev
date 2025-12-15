@@ -161,7 +161,7 @@ The `discharge_summaries` table includes:
 Fetches all discharge summaries with patient and provider information.
 
 **Response:**
-\`\`\`json
+```json
 [
   {
     "id": "uuid",
@@ -176,13 +176,13 @@ Fetches all discharge summaries with patient and provider information.
     ...
   }
 ]
-\`\`\`
+```
 
 ### POST `/api/discharge-summary`
 Creates a new discharge summary.
 
 **Request Body:**
-\`\`\`json
+```json
 {
   "patient_id": "uuid",
   "provider_id": "uuid",
@@ -193,7 +193,7 @@ Creates a new discharge summary.
   "status": "draft",
   ...
 }
-\`\`\`
+```
 
 ### GET `/api/discharge-summary/[id]`
 Fetches a specific discharge summary by ID.

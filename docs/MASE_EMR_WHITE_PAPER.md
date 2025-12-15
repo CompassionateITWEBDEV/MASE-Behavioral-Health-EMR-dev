@@ -82,7 +82,7 @@ MASE EMR specifically targets underserved segments:
 
 ### 2.2 Competitive Landscape
 
-\`\`\`
+```
                     HIGH COST
                         │
          Epic ●         │         ● Cerner
@@ -95,7 +95,7 @@ MASE EMR specifically targets underserved segments:
     athenahealth ●      │
                         │
                     LOW COST
-\`\`\`
+```
 
 ### 2.3 MASE EMR Positioning
 
@@ -114,7 +114,7 @@ MASE EMR specifically targets underserved segments:
 
 Traditional EMRs hardcode specialty-specific workflows. MASE introduces a novel approach:
 
-\`\`\`
+```
 ┌─────────────────────────────────────────────────────────────┐
 │                    MASE CORE ENGINE                         │
 │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐           │
@@ -136,7 +136,7 @@ Traditional EMRs hardcode specialty-specific workflows. MASE introduces a novel 
     │ • COWS/CIWA  │ │ • Preventive │ │ • Functional │
     │ • 42 CFR Pt2 │ │ • Chronic Dx │ │ • Outcomes   │
     └──────────────┘ └──────────────┘ └──────────────┘
-\`\`\`
+```
 
 **Innovation:** Clinics activate/deactivate specialties via subscription without code changes or data migration.
 
@@ -144,7 +144,7 @@ Traditional EMRs hardcode specialty-specific workflows. MASE introduces a novel 
 
 **Patent Claim #2: Consent-Based Inter-Clinic Data Network**
 
-\`\`\`
+```
 ┌─────────────────────────────────────────────────────────────────┐
 │                     MASE HIE NETWORK                            │
 │                                                                 │
@@ -165,7 +165,7 @@ Traditional EMRs hardcode specialty-specific workflows. MASE introduces a novel 
 │         │ Engine │ │  Engine  │ │ Mgmt   │                    │
 │         └────────┘ └──────────┘ └────────┘                    │
 └─────────────────────────────────────────────────────────────────┘
-\`\`\`
+```
 
 **Innovation:** 
 - Patient grants granular consent (which clinics, which data types, time limits)
@@ -177,7 +177,7 @@ Traditional EMRs hardcode specialty-specific workflows. MASE introduces a novel 
 
 **Patent Claim #3: Multi-Modal AI Clinical Assistant**
 
-\`\`\`
+```
 ┌─────────────────────────────────────────────────────────────┐
 │                  MASE AI ENGINE                              │
 │                                                              │
@@ -200,7 +200,7 @@ Traditional EMRs hardcode specialty-specific workflows. MASE introduces a novel 
 │  │ • Gap Analysis │    │  • Guidelines  │                   │
 │  └────────────────┘    └────────────────┘                   │
 └─────────────────────────────────────────────────────────────┘
-\`\`\`
+```
 
 **Innovation:**
 - Real-time voice-to-structured-data conversion
@@ -213,7 +213,7 @@ Traditional EMRs hardcode specialty-specific workflows. MASE introduces a novel 
 
 **Patent Claim #4: Automated RTM Billing Capture System**
 
-\`\`\`
+```
 ┌─────────────────────────────────────────────────────────────┐
 │              HOME EXERCISE PROGRAM (HEP) SYSTEM             │
 │                                                              │
@@ -233,7 +233,7 @@ Traditional EMRs hardcode specialty-specific workflows. MASE introduces a novel 
 │                                 │ • Auto-submit│            │
 │                                 └──────────────┘            │
 └─────────────────────────────────────────────────────────────┘
-\`\`\`
+```
 
 **Innovation:**
 - Automatic tracking of patient engagement with exercise programs
@@ -247,7 +247,7 @@ Traditional EMRs hardcode specialty-specific workflows. MASE introduces a novel 
 
 ### 4.1 Multi-Tenant SaaS Architecture
 
-\`\`\`
+```
 ┌─────────────────────────────────────────────────────────────────┐
 │                        MASE CLOUD                               │
 │                                                                 │
@@ -276,13 +276,13 @@ Traditional EMRs hardcode specialty-specific workflows. MASE introduces a novel 
 │  │ Postgres │        │  Cache   │        │ Storage  │         │
 │  └──────────┘        └──────────┘        └──────────┘         │
 └─────────────────────────────────────────────────────────────────┘
-\`\`\`
+```
 
 ### 4.2 Data Model Overview
 
 **Core Entities:** 243 Tables across functional domains
 
-\`\`\`
+```
 PATIENT DOMAIN          CLINICAL DOMAIN         OPERATIONAL DOMAIN
 ───────────────         ───────────────         ──────────────────
 patients                clinical_notes          appointments
@@ -298,7 +298,7 @@ otp_admissions          claims                  fax_messages
 rehab_evaluations       payments                sms_messages
 wic_enrollments         prior_auths             pdmp_requests
 hep_programs            era_remittances         hie_data_requests
-\`\`\`
+```
 
 ### 4.3 Technology Stack
 
@@ -424,7 +424,7 @@ hep_programs            era_remittances         hie_data_requests
 
 ### 8.2 Security Architecture
 
-\`\`\`
+```
 ┌─────────────────────────────────────────────────────────────┐
 │                    SECURITY LAYERS                          │
 │                                                             │
@@ -444,7 +444,7 @@ hep_programs            era_remittances         hie_data_requests
 │  │ AUDIT: Comprehensive Logging, SIEM Integration       │ │
 │  └───────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────┘
-\`\`\`
+```
 
 ### 8.3 Access Control Model
 

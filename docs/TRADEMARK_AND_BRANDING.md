@@ -80,22 +80,22 @@
 
 ### Software Copyright
 
-\`\`\`
+```
 Copyright © 2025 MASE Health Technologies. All Rights Reserved.
 
 This software and associated documentation files (the "Software") are 
 proprietary and confidential. Unauthorized copying, modification, 
 distribution, or use of this Software, via any medium, is strictly 
 prohibited without express written permission from MASE Health Technologies.
-\`\`\`
+```
 
 ### Documentation Copyright
 
-\`\`\`
+```
 © 2025 MASE Health Technologies. All rights reserved. No part of this 
 publication may be reproduced, distributed, or transmitted in any form 
 without prior written permission.
-\`\`\`
+```
 
 ---
 

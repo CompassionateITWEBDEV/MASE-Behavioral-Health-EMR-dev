@@ -17,6 +17,7 @@ import {
   HeartPulse,
   Building,
   Syringe,
+  Dumbbell,
 } from "lucide-react"
 import Link from "next/link"
 
@@ -53,6 +54,22 @@ export default function LandingPage() {
       href: "/auth/staff-login",
       color: "bg-purple-500",
       textColor: "text-purple-600",
+    },
+    {
+      title: "Primary Care Portal",
+      description: "Primary care providers - Family medicine, internal medicine",
+      icon: HeartPulse,
+      href: "/auth/primary-care-login",
+      color: "bg-indigo-500",
+      textColor: "text-indigo-600",
+    },
+    {
+      title: "Physical Therapy & OT",
+      description: "PT, OT, Speech therapists - Rehabilitation services",
+      icon: Dumbbell,
+      href: "/auth/pt-ot-login",
+      color: "bg-amber-500",
+      textColor: "text-amber-600",
     },
     {
       title: "Patient Portal",

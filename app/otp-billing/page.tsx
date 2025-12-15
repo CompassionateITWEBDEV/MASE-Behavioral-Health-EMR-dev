@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import useSWR from "swr"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardSidebar } from "@/components/dashboard-sidebar"
@@ -120,6 +120,13 @@ interface OTPBillingData {
   }>
 }
 
+interface Patient {
+  id: string
+  first_name: string
+  last_name: string
+  date_of_birth?: string
+}
+
 export default function OTPBillingPage() {
   const { toast } = useToast()
 
@@ -157,6 +164,39 @@ export default function OTPBillingPage() {
     primaryPayer: "",
     secondaryPayer: "",
     notes: "",
+  })
+
+  const [patients, setPatients] = useState<Patient[]>([])
+  const [patientsLoading, setPatientsLoading] = useState(true)
+  const [patientSearch, setPatientSearch] = useState("")
+
+  useEffect(() => {
+    const fetchPatients = async () => {
+      try {
+        setPatientsLoading(true)
+        console.log("[v0] Fetching patients for OTP billing...")
+        const response = await fetch("/api/patients")
+        if (response.ok) {
+          const data = await response.json()
+          console.log("[v0] Patients API response:", data)
+          const patientList = Array.isArray(data) ? data : data.patients || []
+          console.log("[v0] Setting patients:", patientList.length)
+          setPatients(patientList)
+        } else {
+          console.error("[v0] Failed to fetch patients:", response.status)
+        }
+      } catch (error) {
+        console.error("[v0] Error fetching patients:", error)
+      } finally {
+        setPatientsLoading(false)
+      }
+    }
+    fetchPatients()
+  }, [])
+
+  const filteredPatients = patients.filter((patient) => {
+    const fullName = `${patient.first_name} ${patient.last_name}`.toLowerCase()
+    return fullName.includes(patientSearch.toLowerCase())
   })
 
   const handleProcessCrossover = async (claimId: string) => {
@@ -411,7 +451,7 @@ export default function OTPBillingPage() {
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Dual Eligibles</CardTitle>
+                <CardTitle className="text-sm font-medium">Dualeligibles</CardTitle>
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
@@ -1079,14 +1119,45 @@ export default function OTPBillingPage() {
             <DialogDescription>Create a new OTP bundle claim for billing</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {/* Replace the Patient ID input */}
             <div className="space-y-2">
-              <Label>Patient ID</Label>
-              <Input
-                placeholder="Enter patient ID"
+              <Label>Patient *</Label>
+              <Select
                 value={newClaim.patientId}
-                onChange={(e) => setNewClaim((prev) => ({ ...prev, patientId: e.target.value }))}
-              />
+                onValueChange={(value) => setNewClaim((prev) => ({ ...prev, patientId: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={patientsLoading ? "Loading patients..." : "Select patient"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <div className="p-2">
+                    <Input
+                      placeholder="Search patients..."
+                      value={patientSearch}
+                      onChange={(e) => setPatientSearch(e.target.value)}
+                      className="mb-2"
+                    />
+                  </div>
+                  {filteredPatients.length === 0 ? (
+                    <div className="p-2 text-sm text-muted-foreground text-center">
+                      {patientsLoading ? "Loading..." : "No patients found"}
+                    </div>
+                  ) : (
+                    filteredPatients.map((patient) => (
+                      <SelectItem key={patient.id} value={patient.id}>
+                        {patient.first_name} {patient.last_name}
+                        {patient.date_of_birth && (
+                          <span className="text-muted-foreground ml-2">
+                            (DOB: {new Date(patient.date_of_birth).toLocaleDateString()})
+                          </span>
+                        )}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
             </div>
+
             <div className="space-y-2">
               <Label>Service Date</Label>
               <Input

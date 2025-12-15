@@ -3,7 +3,6 @@
 import type React from "react"
 
 import { useState } from "react"
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -24,9 +23,10 @@ import { toast } from "sonner"
 interface AddPatientDialogProps {
   children: React.ReactNode
   providerId: string
+  onSuccess?: () => void // Added optional onSuccess callback
 }
 
-export function AddPatientDialog({ children, providerId }: AddPatientDialogProps) {
+export function AddPatientDialog({ children, providerId, onSuccess }: AddPatientDialogProps) {
   const [open, setOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
@@ -54,11 +54,12 @@ export function AddPatientDialog({ children, providerId }: AddPatientDialogProps
     setIsLoading(true)
 
     try {
-      const supabase = createClient()
-
-      const { data, error } = await supabase
-        .from("patients")
-        .insert({
+      const response = await fetch("/api/patients", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
           first_name: formData.firstName,
           last_name: formData.lastName,
           date_of_birth: formData.dateOfBirth,
@@ -70,12 +71,14 @@ export function AddPatientDialog({ children, providerId }: AddPatientDialogProps
           emergency_contact_phone: formData.emergencyContactPhone || null,
           insurance_provider: formData.insuranceProvider || null,
           insurance_id: formData.insuranceId || null,
-          created_by: providerId,
-        })
-        .select()
-        .single()
+        }),
+      })
 
-      if (error) throw error
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to add patient")
+      }
 
       toast.success("Patient added successfully")
       setOpen(false)
@@ -92,10 +95,15 @@ export function AddPatientDialog({ children, providerId }: AddPatientDialogProps
         insuranceProvider: "",
         insuranceId: "",
       })
+
+      if (onSuccess) {
+        onSuccess()
+      }
+
       router.refresh()
     } catch (error) {
       console.error("Error adding patient:", error)
-      toast.error("Failed to add patient")
+      toast.error(error instanceof Error ? error.message : "Failed to add patient")
     } finally {
       setIsLoading(false)
     }
