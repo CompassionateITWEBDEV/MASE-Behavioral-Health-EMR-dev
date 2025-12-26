@@ -137,8 +137,8 @@ export default function PatientChartPage({ params }: { params: Promise<{ id: str
   return (
     <ErrorBoundary fallback={<PatientErrorFallback />}>
       <div className="min-h-screen bg-background">
-      <DashboardSidebar />
-      <div className="pl-64">
+        <DashboardSidebar />
+        <div className="pl-64">
         <DashboardHeader />
         <main className="p-6 space-y-6">
           <div className="flex justify-between items-start">
@@ -817,6 +817,7 @@ export default function PatientChartPage({ params }: { params: Promise<{ id: str
           </Tabs>
         </main>
       </div>
+    </div>
     </ErrorBoundary>
   )
 }
