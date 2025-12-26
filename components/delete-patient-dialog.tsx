@@ -3,8 +3,8 @@
 import type React from "react"
 
 import { useState } from "react"
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
+import { useDeletePatient } from "@/hooks/use-patient-mutations"
 import {
   Dialog,
   DialogContent,
@@ -26,28 +26,16 @@ interface DeletePatientDialogProps {
 
 export function DeletePatientDialog({ children, patientId, patientName }: DeletePatientDialogProps) {
   const [open, setOpen] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const deletePatient = useDeletePatient()
 
   const handleDelete = async () => {
-    setIsLoading(true)
-
-    try {
-      const supabase = createClient()
-
-      const { error } = await supabase.from("patients").delete().eq("id", patientId)
-
-      if (error) throw error
-
-      toast.success("Patient deleted successfully")
-      setOpen(false)
-      router.refresh()
-    } catch (error) {
-      console.error("Error deleting patient:", error)
-      toast.error("Failed to delete patient")
-    } finally {
-      setIsLoading(false)
-    }
+    deletePatient.mutate(patientId, {
+      onSuccess: () => {
+        setOpen(false)
+        router.refresh()
+      },
+    })
   }
 
   return (
@@ -68,8 +56,8 @@ export function DeletePatientDialog({ children, patientId, patientName }: Delete
           <Button type="button" variant="outline" onClick={() => setOpen(false)}>
             Cancel
           </Button>
-          <Button type="button" variant="destructive" onClick={handleDelete} disabled={isLoading}>
-            {isLoading ? "Deleting..." : "Delete Patient"}
+          <Button type="button" variant="destructive" onClick={handleDelete} disabled={deletePatient.isPending}>
+            {deletePatient.isPending ? "Deleting..." : "Delete Patient"}
           </Button>
         </DialogFooter>
       </DialogContent>

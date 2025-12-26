@@ -1,3 +1,6 @@
+"use client"
+
+import React from "react"
 import { DashboardHeader } from "@/components/dashboard-header"
 import { DashboardSidebar } from "@/components/dashboard-sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,64 +12,131 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AlertTriangle, Calendar, FileText, Phone, CreditCard, Pill, Brain, Plus, Edit, X } from "lucide-react"
+import { usePatient } from "@/hooks/use-patient"
+import { ErrorBoundary } from "@/components/error-boundary"
+import { PatientErrorFallback } from "@/components/patient-error-fallback"
+import { Skeleton } from "@/components/ui/skeleton"
 
-// Mock patient data - in real app this would come from database
-const patientData = {
-  id: "PT-2024-001",
-  name: "Sarah Johnson",
-  age: 34,
-  dateOfBirth: "1989-03-15",
-  gender: "Female",
-  phone: "(555) 123-4567",
-  email: "sarah.johnson@email.com",
-  address: "123 Main St, Rochester, NY 14604",
-  emergencyContact: {
-    name: "John Johnson",
-    relationship: "Spouse",
-    phone: "(555) 123-4568",
-  },
-  insurance: {
-    primary: "Medicaid",
-    memberId: "MCD123456789",
-    groupNumber: "GRP001",
-    effectiveDate: "2024-01-01",
-    copay: "$0",
-  },
-  program: {
-    type: "Methadone",
-    startDate: "2023-06-15",
-    currentDose: "80mg",
-    frequency: "Daily",
-    provider: "Dr. Smith",
-    pharmacy: "MASE Pharmacy",
-  },
-  asam: {
-    currentLevel: "2.1",
-    assessmentDate: "2024-01-01",
-    nextAssessment: "2024-07-01",
-    criteria: {
-      dimension1: "Moderate",
-      dimension2: "Low",
-      dimension3: "Moderate",
-      dimension4: "Low",
-      dimension5: "Moderate",
-      dimension6: "Low",
-    },
-  },
-  riskLevel: "Low",
-  status: "Active",
-  alerts: ["Appointment Due"],
-  tags: ["Stable", "Compliant"],
-  customFields: [
-    { label: "Housing Status", value: "Stable Housing" },
-    { label: "Employment", value: "Part-time" },
-    { label: "Transportation", value: "Own Vehicle" },
-  ],
+// Helper function to calculate age
+function calculateAge(dateOfBirth: string): number {
+  const today = new Date()
+  const birthDate = new Date(dateOfBirth)
+  let age = today.getFullYear() - birthDate.getFullYear()
+  const monthDiff = today.getMonth() - birthDate.getMonth()
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age--
+  }
+  return age
 }
 
-export default function PatientChartPage({ params }: { params: { id: string } }) {
+// Helper function to get risk level
+function getRiskLevel(assessments?: any[]): string {
+  if (!assessments || assessments.length === 0) return "Low"
+  const latestAssessment = assessments[0]
+  if (
+    latestAssessment?.risk_assessment &&
+    typeof latestAssessment.risk_assessment === "object" &&
+    "level" in latestAssessment.risk_assessment
+  ) {
+    return latestAssessment.risk_assessment.level || "Low"
+  }
+  return "Low"
+}
+
+export default function PatientChartPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = React.use(params)
+  const { data, isLoading, error } = usePatient(resolvedParams.id)
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <DashboardSidebar />
+        <div className="pl-64">
+          <DashboardHeader />
+          <main className="p-6 space-y-6">
+            <Skeleton className="h-16 w-full" />
+            <Skeleton className="h-64 w-full" />
+          </main>
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !data?.patient) {
+    return (
+      <div className="min-h-screen bg-background">
+        <DashboardSidebar />
+        <div className="pl-64">
+          <DashboardHeader />
+          <main className="p-6">
+            <PatientErrorFallback error={error as Error} />
+          </main>
+        </div>
+      </div>
+    )
+  }
+
+  const patient = data.patient
+  const age = calculateAge(patient.date_of_birth)
+  const riskLevel = getRiskLevel(patient.assessments)
+  const fullName = `${patient.first_name} ${patient.last_name}`
+  const initials = `${patient.first_name[0]}${patient.last_name[0]}`
+
+  // Mock data structure for backward compatibility (can be replaced with real data)
+  const patientData = {
+    id: patient.id,
+    name: fullName,
+    age,
+    dateOfBirth: patient.date_of_birth,
+    gender: patient.gender || "N/A",
+    phone: patient.phone || "N/A",
+    email: patient.email || "N/A",
+    address: patient.address || "N/A",
+    emergencyContact: {
+      name: patient.emergency_contact_name || "N/A",
+      relationship: "Emergency Contact",
+      phone: patient.emergency_contact_phone || "N/A",
+    },
+    insurance: {
+      primary: patient.insurance_provider || "N/A",
+      memberId: patient.insurance_id || "N/A",
+      groupNumber: patient.patient_insurance?.[0]?.group_number || "N/A",
+      effectiveDate: patient.patient_insurance?.[0]?.effective_date || "N/A",
+      copay: patient.patient_insurance?.[0]?.copay_amount
+        ? `$${patient.patient_insurance[0].copay_amount}`
+        : "N/A",
+    },
+    program: {
+      type: patient.medications?.[0]?.medication_name || "N/A",
+      startDate: patient.medications?.[0]?.start_date || "N/A",
+      currentDose: patient.medications?.[0]?.dosage || "N/A",
+      frequency: patient.medications?.[0]?.frequency || "N/A",
+      provider: "N/A",
+      pharmacy: "N/A",
+    },
+    asam: {
+      currentLevel: patient.assessments?.[0]?.assessment_type || "N/A",
+      assessmentDate: patient.assessments?.[0]?.assessment_date || "N/A",
+      nextAssessment: "N/A",
+      criteria: {
+        dimension1: "N/A",
+        dimension2: "N/A",
+        dimension3: "N/A",
+        dimension4: "N/A",
+        dimension5: "N/A",
+        dimension6: "N/A",
+      },
+    },
+    riskLevel: riskLevel.charAt(0).toUpperCase() + riskLevel.slice(1),
+    status: "Active",
+    alerts: patient.appointments?.some((apt) => apt.status === "scheduled") ? ["Appointment Scheduled"] : [],
+    tags: [],
+    customFields: [],
+  }
+
   return (
-    <div className="min-h-screen bg-background">
+    <ErrorBoundary fallback={<PatientErrorFallback />}>
+      <div className="min-h-screen bg-background">
       <DashboardSidebar />
       <div className="pl-64">
         <DashboardHeader />
@@ -74,12 +144,7 @@ export default function PatientChartPage({ params }: { params: { id: string } })
           <div className="flex justify-between items-start">
             <div className="flex items-start space-x-4">
               <Avatar className="h-16 w-16">
-                <AvatarFallback className="text-lg">
-                  {patientData.name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")}
-                </AvatarFallback>
+                <AvatarFallback className="text-lg">{initials}</AvatarFallback>
               </Avatar>
               <div>
                 <h1 className="text-3xl font-bold text-foreground font-[family-name:var(--font-work-sans)]">
@@ -752,6 +817,6 @@ export default function PatientChartPage({ params }: { params: { id: string } })
           </Tabs>
         </main>
       </div>
-    </div>
+    </ErrorBoundary>
   )
 }

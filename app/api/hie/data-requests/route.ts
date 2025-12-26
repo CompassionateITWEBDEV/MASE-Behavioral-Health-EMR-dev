@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 
 export async function GET(request: Request) {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { searchParams } = new URL(request.url)
   const status = searchParams.get("status")
 
@@ -30,7 +30,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   try {
     const body = await request.json()

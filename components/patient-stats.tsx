@@ -1,13 +1,9 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Users, UserCheck, AlertTriangle, Clock } from "lucide-react"
+import type { PatientStats } from "@/types/patient"
 
 interface PatientStatsProps {
-  stats: {
-    total: number
-    active: number
-    highRisk: number
-    recentAppointments: number
-  }
+  stats: PatientStats
 }
 
 export function PatientStats({ stats }: PatientStatsProps) {

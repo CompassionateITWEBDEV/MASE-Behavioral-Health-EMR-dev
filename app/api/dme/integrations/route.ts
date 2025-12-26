@@ -2,7 +2,7 @@ import { createServerClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 
 export async function GET() {
-  const supabase = createServerClient()
+  const supabase = await createServerClient()
 
   try {
     // Fetch integration providers
@@ -55,7 +55,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const supabase = createServerClient()
+  const supabase = await createServerClient()
 
   try {
     const body = await request.json()

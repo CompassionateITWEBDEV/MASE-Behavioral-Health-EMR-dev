@@ -19,6 +19,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
+import type { PatientFormData } from "@/types/patient"
+import { useCreatePatient } from "@/hooks/use-patient-mutations"
 
 interface AddPatientDialogProps {
   children: React.ReactNode
@@ -28,10 +30,10 @@ interface AddPatientDialogProps {
 
 export function AddPatientDialog({ children, providerId, onSuccess }: AddPatientDialogProps) {
   const [open, setOpen] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const createPatient = useCreatePatient()
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<PatientFormData>({
     firstName: "",
     lastName: "",
     dateOfBirth: "",
@@ -51,62 +53,31 @@ export function AddPatientDialog({ children, providerId, onSuccess }: AddPatient
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsLoading(true)
 
-    try {
-      const response = await fetch("/api/patients", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          date_of_birth: formData.dateOfBirth,
-          gender: formData.gender,
-          phone: formData.phone,
-          email: formData.email || null,
-          address: formData.address || null,
-          emergency_contact_name: formData.emergencyContactName || null,
-          emergency_contact_phone: formData.emergencyContactPhone || null,
-          insurance_provider: formData.insuranceProvider || null,
-          insurance_id: formData.insuranceId || null,
-        }),
-      })
+    createPatient.mutate(formData, {
+      onSuccess: () => {
+        setOpen(false)
+        setFormData({
+          firstName: "",
+          lastName: "",
+          dateOfBirth: "",
+          gender: "",
+          phone: "",
+          email: "",
+          address: "",
+          emergencyContactName: "",
+          emergencyContactPhone: "",
+          insuranceProvider: "",
+          insuranceId: "",
+        })
 
-      const data = await response.json()
+        if (onSuccess) {
+          onSuccess()
+        }
 
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to add patient")
-      }
-
-      toast.success("Patient added successfully")
-      setOpen(false)
-      setFormData({
-        firstName: "",
-        lastName: "",
-        dateOfBirth: "",
-        gender: "",
-        phone: "",
-        email: "",
-        address: "",
-        emergencyContactName: "",
-        emergencyContactPhone: "",
-        insuranceProvider: "",
-        insuranceId: "",
-      })
-
-      if (onSuccess) {
-        onSuccess()
-      }
-
-      router.refresh()
-    } catch (error) {
-      console.error("Error adding patient:", error)
-      toast.error(error instanceof Error ? error.message : "Failed to add patient")
-    } finally {
-      setIsLoading(false)
-    }
+        router.refresh()
+      },
+    })
   }
 
   return (
@@ -258,8 +229,8 @@ export function AddPatientDialog({ children, providerId, onSuccess }: AddPatient
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? "Adding..." : "Add Patient"}
+            <Button type="submit" disabled={createPatient.isPending}>
+              {createPatient.isPending ? "Adding..." : "Add Patient"}
             </Button>
           </DialogFooter>
         </form>

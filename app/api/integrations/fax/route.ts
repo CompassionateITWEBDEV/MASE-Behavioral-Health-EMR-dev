@@ -9,27 +9,35 @@ export async function GET(request: NextRequest) {
     const direction = searchParams.get("direction") || "inbound"
     const status = searchParams.get("status")
 
-    let query = `
-      SELECT 
-        fm.*,
-        p.first_name,
-        p.last_name,
-        p.date_of_birth,
-        (SELECT COUNT(*) FROM fax_attachments WHERE fax_message_id = fm.id) as attachment_count
-      FROM fax_messages fm
-      LEFT JOIN patients p ON fm.patient_id = p.id
-      WHERE fm.direction = $1
-    `
-    const params: any[] = [direction]
-
+    let messages
     if (status) {
-      query += ` AND fm.status = $${params.length + 1}`
-      params.push(status)
+      messages = await sql`
+        SELECT 
+          fm.*,
+          p.first_name,
+          p.last_name,
+          p.date_of_birth,
+          (SELECT COUNT(*) FROM fax_attachments WHERE fax_message_id = fm.id) as attachment_count
+        FROM fax_messages fm
+        LEFT JOIN patients p ON fm.patient_id = p.id
+        WHERE fm.direction = ${direction}
+          AND fm.status = ${status}
+        ORDER BY fm.created_at DESC LIMIT 100
+      `
+    } else {
+      messages = await sql`
+        SELECT 
+          fm.*,
+          p.first_name,
+          p.last_name,
+          p.date_of_birth,
+          (SELECT COUNT(*) FROM fax_attachments WHERE fax_message_id = fm.id) as attachment_count
+        FROM fax_messages fm
+        LEFT JOIN patients p ON fm.patient_id = p.id
+        WHERE fm.direction = ${direction}
+        ORDER BY fm.created_at DESC LIMIT 100
+      `
     }
-
-    query += ` ORDER BY fm.created_at DESC LIMIT 100`
-
-    const messages = await sql(query, params)
 
     return NextResponse.json({
       success: true,

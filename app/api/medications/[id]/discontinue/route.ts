@@ -1,8 +1,9 @@
 import { createServerClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 
-export async function POST(request: Request, { params }: { params: { id: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const supabase = await createServerClient()
+  const { id } = await params
   const body = await request.json()
   const { reason, discontinued_by } = body
 
@@ -15,7 +16,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       discontinued_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
-    .eq("id", params.id)
+    .eq("id", id)
     .select()
     .single()
 

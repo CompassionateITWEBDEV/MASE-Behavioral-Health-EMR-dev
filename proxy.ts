@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server"
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   // return await updateSession(request)
 
   // Allow all requests to pass through without authentication
@@ -20,3 +20,4 @@ export const config = {
     "/((?!_next/static|_next/image|favicon.ico|.*.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 }
+

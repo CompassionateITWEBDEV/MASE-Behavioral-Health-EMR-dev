@@ -8,23 +8,31 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const patientId = searchParams.get("patientId")
 
-    let query = `
-      SELECT 
-        sm.*,
-        p.first_name,
-        p.last_name
-      FROM sms_messages sm
-      LEFT JOIN patients p ON sm.patient_id = p.id
-    `
-
+    let messages
     if (patientId) {
-      query += ` WHERE sm.patient_id = $1`
-      const messages = await sql(query, [patientId])
-      return NextResponse.json({ success: true, messages })
+      const result = await sql`
+        SELECT 
+          sm.*,
+          p.first_name,
+          p.last_name
+        FROM sms_messages sm
+        LEFT JOIN patients p ON sm.patient_id = p.id
+        WHERE sm.patient_id = ${patientId}
+        ORDER BY sm.created_at DESC LIMIT 100
+      `
+      messages = result
+    } else {
+      const result = await sql`
+        SELECT 
+          sm.*,
+          p.first_name,
+          p.last_name
+        FROM sms_messages sm
+        LEFT JOIN patients p ON sm.patient_id = p.id
+        ORDER BY sm.created_at DESC LIMIT 100
+      `
+      messages = result
     }
-
-    query += ` ORDER BY sm.created_at DESC LIMIT 100`
-    const messages = await sql(query)
 
     return NextResponse.json({ success: true, messages })
   } catch (error: any) {

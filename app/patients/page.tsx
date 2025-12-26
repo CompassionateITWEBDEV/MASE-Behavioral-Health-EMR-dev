@@ -11,6 +11,11 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Users, Filter, Plus, AlertTriangle, FileText } from "lucide-react"
+import { usePatients } from "@/hooks/use-patients"
+import { usePatientStats } from "@/hooks/use-patient-stats"
+import { ErrorBoundary } from "@/components/error-boundary"
+import { PatientErrorFallback } from "@/components/patient-error-fallback"
+import type { PatientWithRelations } from "@/types/patient"
 
 const DEFAULT_PROVIDER = {
   id: "00000000-0000-0000-0000-000000000001",
@@ -21,93 +26,45 @@ const DEFAULT_PROVIDER = {
 }
 
 export default function PatientsPage() {
-  const [patients, setPatients] = useState<any[]>([])
-  const [stats, setStats] = useState({ total: 0, active: 0, highRisk: 0, recentAppointments: 0 })
-  const [loading, setLoading] = useState(true)
   const [showFilters, setShowFilters] = useState(false)
   const [provider, setProvider] = useState(DEFAULT_PROVIDER)
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 20
 
+  // Use React Query hooks for data fetching
+  const { data: patientsData, isLoading: patientsLoading, refetch: refetchPatients } = usePatients({
+    pagination: { page: currentPage, pageSize },
+  })
+  const { data: statsData, isLoading: statsLoading } = usePatientStats()
+
+  const patients = patientsData?.patients || []
+  const stats = statsData?.stats || { total: 0, active: 0, highRisk: 0, recentAppointments: 0 }
+  const loading = patientsLoading || statsLoading
+  const pagination = patientsData?.meta
+
+  // Fetch provider info on mount
   useEffect(() => {
-    fetchData()
+    const fetchProvider = async () => {
+      const supabase = createClient()
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (user) {
+          const { data: providerData } = await supabase.from("providers").select("*").eq("id", user.id).single()
+          if (providerData) {
+            setProvider(providerData)
+          }
+        }
+      } catch (error) {
+        console.log("[v0] Auth check failed, using default provider")
+      }
+    }
+    fetchProvider()
   }, [])
 
-  const fetchData = async () => {
-    setLoading(true)
-    const supabase = createClient()
-
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (user) {
-        const { data: providerData } = await supabase.from("providers").select("*").eq("id", user.id).single()
-        if (providerData) {
-          setProvider(providerData)
-        }
-      }
-    } catch (error) {
-      console.log("[v0] Auth check failed, using default provider")
-    }
-
-    const { count: totalCount } = await supabase.from("patients").select("*", { count: "exact", head: true })
-
-    const { count: activeCount } = await supabase.from("patients").select("*", { count: "exact", head: true })
-
-    const { count: recentCount } = await supabase
-      .from("appointments")
-      .select("*", { count: "exact", head: true })
-      .gte("appointment_date", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-
-    const { data: patientsData } = await supabase
-      .from("patients")
-      .select(`
-        *,
-        appointments(
-          id,
-          appointment_date,
-          status,
-          provider_id
-        ),
-        assessments(
-          id,
-          assessment_type,
-          risk_assessment,
-          created_at
-        ),
-        medications(
-          id,
-          medication_name,
-          dosage,
-          status
-        )
-      `)
-      .order("created_at", { ascending: false })
-
-    console.log("[v0] Fetched patients:", patientsData?.length || 0)
-
-    const highRiskCount =
-      patientsData?.filter((p) =>
-        p.assessments?.some(
-          (a: { risk_assessment?: { level?: string } }) =>
-            a.risk_assessment &&
-            typeof a.risk_assessment === "object" &&
-            "level" in a.risk_assessment &&
-            a.risk_assessment.level === "high",
-        ),
-      ).length || 0
-
-    setPatients(patientsData || [])
-    setStats({
-      total: totalCount || 0,
-      active: activeCount || 0,
-      highRisk: highRiskCount,
-      recentAppointments: recentCount || 0,
-    })
-    setLoading(false)
-  }
-
   const handlePatientAdded = () => {
-    fetchData()
+    refetchPatients()
   }
 
   if (loading) {
@@ -125,11 +82,12 @@ export default function PatientsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <DashboardSidebar />
-      <div className="pl-64">
-        <DashboardHeader />
-        <main className="p-6 space-y-6">
+    <ErrorBoundary fallback={<PatientErrorFallback />}>
+      <div className="min-h-screen bg-background">
+        <DashboardSidebar />
+        <div className="pl-64">
+          <DashboardHeader />
+          <main className="p-6 space-y-6">
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-3xl font-bold text-foreground font-[family-name:var(--font-work-sans)]">
@@ -160,7 +118,14 @@ export default function PatientsPage() {
             </TabsList>
 
             <TabsContent value="list" className="space-y-4">
-              <PatientList patients={patients} currentProviderId={provider.id} showFilters={showFilters} />
+              <PatientList
+                patients={patients}
+                currentProviderId={provider.id}
+                showFilters={showFilters}
+                pagination={pagination}
+                onPageChange={setCurrentPage}
+                isLoading={loading}
+              />
             </TabsContent>
 
             <TabsContent value="dashboard" className="space-y-6">
@@ -216,8 +181,9 @@ export default function PatientsPage() {
               </div>
             </TabsContent>
           </Tabs>
-        </main>
+          </main>
+        </div>
       </div>
-    </div>
+    </ErrorBoundary>
   )
 }

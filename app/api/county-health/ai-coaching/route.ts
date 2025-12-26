@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server"
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { message, programArea } = await request.json()
 
     // Fetch relevant AI coaching scenarios based on program area
@@ -175,7 +175,7 @@ What area would you like help with?`
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { searchParams } = new URL(request.url)
     const programArea = searchParams.get("programArea")
 
