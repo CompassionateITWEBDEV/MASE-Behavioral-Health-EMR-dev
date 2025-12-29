@@ -51,5 +51,9 @@ EXCEPTION
         RAISE NOTICE 'Could not add index: %', SQLERRM;
 END $$;
 
-RAISE NOTICE 'Specialty constraints migration complete';
+-- Final completion notice
+DO $$
+BEGIN
+    RAISE NOTICE 'Specialty constraints migration complete';
+END $$;
 
