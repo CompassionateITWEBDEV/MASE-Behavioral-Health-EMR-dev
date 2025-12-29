@@ -64,6 +64,14 @@ export default function LandingPage() {
       textColor: "text-indigo-600",
     },
     {
+      title: "OTP Clinic Portal",
+      description: "Opioid Treatment Programs - MAT, methadone, buprenorphine dosing",
+      icon: Syringe,
+      href: "/auth/otp-login",
+      color: "bg-rose-500",
+      textColor: "text-rose-600",
+    },
+    {
       title: "Physical Therapy & OT",
       description: "PT, OT, Speech therapists - Rehabilitation services",
       icon: Dumbbell,

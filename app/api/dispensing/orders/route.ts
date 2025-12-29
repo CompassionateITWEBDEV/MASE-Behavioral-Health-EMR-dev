@@ -34,25 +34,19 @@ export async function GET(request: Request) {
       return NextResponse.json(getMockDoseOrders())
     }
 
-    const formattedOrders = (orders || []).map((order) => {
-      const patient = Array.isArray(order.patient_dispensing) 
-        ? order.patient_dispensing[0] 
-        : order.patient_dispensing
-      
-      return {
-        id: order.id,
-        patient_id: order.patient_id,
-        patient_name: patient?.name || "Unknown Patient",
-        mrn: patient?.mrn || `MRN${String(order.patient_id).padStart(6, "0")}`,
-        daily_dose_mg: order.daily_dose_mg,
-        max_takehome: order.max_takehome,
-        prescriber_id: order.prescriber_id,
-        status: order.status,
-        start_date: order.start_date,
-        stop_date: order.stop_date,
-        dob: patient?.dob,
-      }
-    })
+    const formattedOrders = (orders || []).map((order) => ({
+      id: order.id,
+      patient_id: order.patient_id,
+      patient_name: order.patient_dispensing?.name || "Unknown Patient",
+      mrn: order.patient_dispensing?.mrn || `MRN${String(order.patient_id).padStart(6, "0")}`,
+      daily_dose_mg: order.daily_dose_mg,
+      max_takehome: order.max_takehome,
+      prescriber_id: order.prescriber_id,
+      status: order.status,
+      start_date: order.start_date,
+      stop_date: order.stop_date,
+      dob: order.patient_dispensing?.dob,
+    }))
 
     return NextResponse.json(formattedOrders.length > 0 ? formattedOrders : getMockDoseOrders())
   } catch (error) {

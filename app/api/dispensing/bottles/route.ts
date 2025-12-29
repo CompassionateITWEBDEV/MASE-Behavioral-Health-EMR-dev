@@ -38,24 +38,19 @@ export async function GET(request: Request) {
     }
 
     // Transform to expected format
-    const formattedBottles = (bottles || []).map((bottle) => {
-      const lotBatch = Array.isArray(bottle.lot_batch) ? bottle.lot_batch[0] : bottle.lot_batch
-      const medication = Array.isArray(lotBatch?.medication) ? lotBatch.medication[0] : lotBatch?.medication
-      
-      return {
-        id: bottle.id,
-        lot_id: bottle.lot_id,
-        start_volume_ml: bottle.start_volume_ml,
-        current_volume_ml: bottle.current_volume_ml,
-        opened_at: bottle.opened_at,
-        status: bottle.status,
-        serial_no: bottle.serial_no,
-        medication_name: medication?.name || "Methadone HCl Oral Solution",
-        concentration: medication?.conc_mg_per_ml || 10.0,
-        lot_number: lotBatch?.lot || "LOT2024001",
-        exp_date: lotBatch?.exp_date || "2025-12-31",
-      }
-    })
+    const formattedBottles = (bottles || []).map((bottle) => ({
+      id: bottle.id,
+      lot_id: bottle.lot_id,
+      start_volume_ml: bottle.start_volume_ml,
+      current_volume_ml: bottle.current_volume_ml,
+      opened_at: bottle.opened_at,
+      status: bottle.status,
+      serial_no: bottle.serial_no,
+      medication_name: bottle.lot_batch?.medication?.name || "Methadone HCl Oral Solution",
+      concentration: bottle.lot_batch?.medication?.conc_mg_per_ml || 10.0,
+      lot_number: bottle.lot_batch?.lot || "LOT2024001",
+      exp_date: bottle.lot_batch?.exp_date || "2025-12-31",
+    }))
 
     return NextResponse.json(formattedBottles.length > 0 ? formattedBottles : getMockBottles())
   } catch (error) {

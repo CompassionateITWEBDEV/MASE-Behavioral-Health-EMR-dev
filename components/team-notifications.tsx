@@ -66,7 +66,7 @@ export function TeamNotifications({ providerId, showHeader = true, maxItems }: T
         .limit(50)
 
       if (providerId) {
-        query = query.or(`recipient_id.eq.${providerId},is_broadcast.eq.true`)
+        query = query.eq("recipient_id", providerId)
       }
 
       const { data, error } = await query

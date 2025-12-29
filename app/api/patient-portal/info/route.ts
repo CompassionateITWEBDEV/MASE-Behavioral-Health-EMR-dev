@@ -21,7 +21,6 @@ export async function GET(request: Request) {
         phone,
         email,
         status,
-        created_at,
         prescriptions(
           id,
           medication_name,
@@ -63,14 +62,11 @@ export async function GET(request: Request) {
       nextAppointment: upcomingAppointment
         ? `${new Date(upcomingAppointment.appointment_date).toLocaleDateString()} at ${upcomingAppointment.appointment_time}`
         : "No upcoming appointments",
-      counselor: (() => {
-        const provider = Array.isArray(upcomingAppointment?.providers) 
-          ? upcomingAppointment.providers[0] 
-          : upcomingAppointment?.providers
-        return provider ? `Dr. ${provider.last_name}` : "Assigned Counselor"
-      })(),
+      counselor: upcomingAppointment?.providers
+        ? `Dr. ${upcomingAppointment.providers.last_name}`
+        : "Assigned Counselor",
       counselorPhone: "(555) 123-4567",
-      recoveryDays: calculateRecoveryDays((patient as any).created_at || new Date().toISOString()),
+      recoveryDays: calculateRecoveryDays(patient.created_at),
     })
   } catch (error) {
     console.error("[v0] Patient portal info error:", error)

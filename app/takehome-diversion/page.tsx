@@ -23,6 +23,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/hooks/use-toast"
 import { CheckCircle, XCircle, RefreshCw, Eye, Send } from "lucide-react"
+import { DashboardSidebar } from "@/components/dashboard-sidebar"
 
 interface Alert {
   id: string
@@ -529,19 +530,27 @@ export default function TakeHomeDiversionPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="min-h-screen bg-background">
+        <DashboardSidebar />
+        <div className="lg:pl-64">
+          <div className="flex items-center justify-center min-h-screen">
+            <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Take-Home Diversion Control</h1>
-          <p className="text-muted-foreground">QR Code + GPS + Facial Biometrics Verification System</p>
-        </div>
+    <div className="min-h-screen bg-background">
+      <DashboardSidebar />
+      <div className="lg:pl-64">
+        <div className="container mx-auto p-6 space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold">Take-Home Diversion Control</h1>
+              <p className="text-muted-foreground">QR Code + GPS + Facial Biometrics Verification System</p>
+            </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={fetchAllData}>
             <RefreshCw className="h-4 w-4 mr-2" />
@@ -1237,6 +1246,8 @@ export default function TakeHomeDiversionPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </div>
+      </div>
     </div>
   )
 }

@@ -107,6 +107,7 @@ const getNavigationCategories = (isSuperAdmin: boolean): NavCategory[] => {
       defaultOpen: true,
       items: [
         { icon: Users, label: "All Patients", href: "/patients", count: 247 },
+        { icon: FileText, label: "Patient Chart", href: "/patient-chart" },
         { icon: UserPlus, label: "Intake Queue", href: "/intake-queue", count: 5 },
         { icon: ClipboardCheck, label: "Patient Intake", href: "/intake", count: 3 },
         { icon: Users, label: "Patient Portal", href: "/patient-portal" },
@@ -310,7 +311,7 @@ export function DashboardSidebar() {
 
   return (
     <aside
-      className="fixed left-0 top-0 h-full w-64 border-r overflow-y-auto"
+      className="fixed left-0 top-0 h-full w-64 border-r overflow-y-auto z-50"
       style={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0" }}
     >
       <div className="p-4">
@@ -368,7 +369,12 @@ export function DashboardSidebar() {
                 {isExpanded && (
                   <div className="ml-4 mt-1 space-y-0.5 border-l pl-2" style={{ borderColor: "#e2e8f0" }}>
                     {category.items.map((item) => {
-                      const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
+                      // Check for exact match first, then check if pathname starts with href + "/"
+                      // But only use startsWith if no other item in the category has an exact match
+                      const hasExactMatch = category.items.some((otherItem) => pathname === otherItem.href)
+                      const isActive =
+                        pathname === item.href ||
+                        (!hasExactMatch && pathname.startsWith(item.href + "/"))
                       const isAlert = item.highlight === "alert" && item.count
                       const isPremium = item.highlight === "premium"
 

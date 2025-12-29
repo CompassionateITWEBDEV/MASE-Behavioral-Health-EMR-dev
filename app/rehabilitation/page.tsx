@@ -337,7 +337,7 @@ export default function RehabilitationPage() {
     <div className="flex h-screen overflow-hidden bg-background">
       <DashboardSidebar />
 
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto pl-64">
         <div className="p-8">
           <div className="mb-6 flex items-center justify-between">
             <div>
