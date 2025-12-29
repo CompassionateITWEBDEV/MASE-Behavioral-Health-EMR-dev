@@ -3,7 +3,6 @@ import type { Metadata } from "next"
 import { Inter, JetBrains_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { Suspense } from "react"
-import { ReactQueryProvider } from "@/lib/react-query/provider"
 import "./globals.css"
 
 const inter = Inter({
@@ -41,10 +40,8 @@ export default function RootLayout({
           padding: 0,
         }}
       >
-        <ReactQueryProvider>
-          <Suspense fallback={<div style={{ padding: "20px", color: "#0a0a0a" }}>Loading...</div>}>{children}</Suspense>
-          <Analytics />
-        </ReactQueryProvider>
+        <Suspense fallback={<div style={{ padding: "20px", color: "#0a0a0a" }}>Loading...</div>}>{children}</Suspense>
+        <Analytics />
       </body>
     </html>
   )

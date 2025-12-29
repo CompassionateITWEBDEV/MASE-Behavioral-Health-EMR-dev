@@ -633,7 +633,7 @@ export default function TakeHomeBottlesPage() {
                           <TableCell>
                             <div>
                               <p className="font-medium">{patient.name}</p>
-                              <p className="text-sm text-gray-500">{patient.id.slice(0, 8)}...</p>
+                              <p className="text-sm text-gray-500">{patient.id?.slice(0, 8) || 'N/A'}...</p>
                             </div>
                           </TableCell>
                           <TableCell>
