@@ -1,0 +1,260 @@
+/**
+ * Tests for Primary Care Dashboard Page
+ * Tests the refactored component that uses React Query hooks
+ */
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { screen, waitFor, render } from "@testing-library/react";
+import { createTestQueryClient } from "../../utils/test-utils";
+import { QueryClientProvider } from "@tanstack/react-query";
+import React from "react";
+
+// Mock next/navigation
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+  }),
+  usePathname: () => "/primary-care-dashboard",
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+// Mock the hooks
+vi.mock("@/hooks/use-appointments", () => ({
+  useAppointments: vi.fn(),
+  useScheduleSummary: vi.fn(),
+}));
+
+vi.mock("@/hooks/use-clinical-alerts", () => ({
+  useClinicalAlerts: vi.fn(),
+}));
+
+vi.mock("@/hooks/use-ai-assistant", () => ({
+  useRequestAIAnalysis: vi.fn(),
+}));
+
+// Import mocked hooks
+import { useAppointments, useScheduleSummary } from "@/hooks/use-appointments";
+import { useClinicalAlerts } from "@/hooks/use-clinical-alerts";
+import { useRequestAIAnalysis } from "@/hooks/use-ai-assistant";
+
+// Import component after mocks
+import PrimaryCareDashboardPage from "@/app/primary-care-dashboard/page";
+
+// Mock data
+const mockAppointments = {
+  appointments: [
+    {
+      id: "apt-1",
+      patient_id: "pat-1",
+      appointment_date: new Date().toISOString(),
+      appointment_type: "Follow-up",
+      status: "scheduled",
+      duration_minutes: 30,
+      patients: { first_name: "John", last_name: "Smith" },
+    },
+    {
+      id: "apt-2",
+      patient_id: "pat-2",
+      appointment_date: new Date().toISOString(),
+      appointment_type: "New Patient",
+      status: "checked_in",
+      duration_minutes: 60,
+      patients: { first_name: "Jane", last_name: "Doe" },
+    },
+  ],
+  total: 2,
+};
+
+const mockAlerts = {
+  alerts: [
+    {
+      patient: "John Smith",
+      patientId: "pat-1",
+      message: "Critical lab result",
+      priority: "high",
+      time: "5 min ago",
+      type: "destructive",
+      isAcknowledged: false,
+    },
+  ],
+  total: 1,
+};
+
+const mockSummary = {
+  summary: {
+    total: 12,
+    completed: 5,
+    cancelled: 1,
+    by_type: { "Follow-up": 8, "New Patient": 4 },
+  },
+};
+
+// Wrapper component with QueryClient
+function TestWrapper({ children }: { children: React.ReactNode }) {
+  const queryClient = createTestQueryClient();
+  return (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+}
+
+describe("PrimaryCareDashboardPage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    // Default mock implementations
+    (useAppointments as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: mockAppointments,
+      isLoading: false,
+      error: null,
+      isSuccess: true,
+    });
+
+    (useScheduleSummary as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: mockSummary,
+      isLoading: false,
+    });
+
+    (useClinicalAlerts as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: mockAlerts,
+      isLoading: false,
+      error: null,
+      isSuccess: true,
+    });
+
+    (useRequestAIAnalysis as ReturnType<typeof vi.fn>).mockReturnValue({
+      mutate: vi.fn(),
+      isPending: false,
+      data: null,
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("should render the dashboard with title", async () => {
+    render(<PrimaryCareDashboardPage />, { wrapper: TestWrapper });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Primary Care Dashboard/i)).toBeInTheDocument();
+    });
+  });
+
+  it("should display loading state for appointments", async () => {
+    (useAppointments as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      error: null,
+      isSuccess: false,
+    });
+
+    render(<PrimaryCareDashboardPage />, { wrapper: TestWrapper });
+
+    await waitFor(() => {
+      expect(screen.getByText("Loading schedule...")).toBeInTheDocument();
+    });
+  });
+
+  it("should display appointments when loaded", async () => {
+    render(<PrimaryCareDashboardPage />, { wrapper: TestWrapper });
+
+    await waitFor(() => {
+      // Use getAllByText since patient names may appear multiple times
+      const johnSmithElements = screen.getAllByText("John Smith");
+      expect(johnSmithElements.length).toBeGreaterThan(0);
+      const janeDoeElements = screen.getAllByText("Jane Doe");
+      expect(janeDoeElements.length).toBeGreaterThan(0);
+    });
+  });
+
+  it("should display error state when appointments fail to load", async () => {
+    (useAppointments as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: new Error("Failed to fetch"),
+      isSuccess: false,
+    });
+
+    render(<PrimaryCareDashboardPage />, { wrapper: TestWrapper });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to load schedule/i)).toBeInTheDocument();
+    });
+  });
+
+  it("should display empty state when no appointments", async () => {
+    (useAppointments as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: { appointments: [], total: 0 },
+      isLoading: false,
+      error: null,
+      isSuccess: true,
+    });
+
+    render(<PrimaryCareDashboardPage />, { wrapper: TestWrapper });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/No appointments scheduled for today/i)
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("should display clinical alerts", async () => {
+    render(<PrimaryCareDashboardPage />, { wrapper: TestWrapper });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Critical lab result/i)).toBeInTheDocument();
+    });
+  });
+
+  it("should display loading state for clinical alerts", async () => {
+    (useClinicalAlerts as ReturnType<typeof vi.fn>).mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      error: null,
+      isSuccess: false,
+    });
+
+    render(<PrimaryCareDashboardPage />, { wrapper: TestWrapper });
+
+    await waitFor(() => {
+      expect(screen.getByText("Loading alerts...")).toBeInTheDocument();
+    });
+  });
+
+  it("should display stats from schedule summary", async () => {
+    render(<PrimaryCareDashboardPage />, { wrapper: TestWrapper });
+
+    await waitFor(() => {
+      // The summary total should be displayed somewhere
+      expect(screen.getByText("12")).toBeInTheDocument();
+    });
+  });
+
+  it("should call useAppointments with today's date filter", () => {
+    render(<PrimaryCareDashboardPage />, { wrapper: TestWrapper });
+
+    expect(useAppointments).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filters: expect.objectContaining({
+          date: expect.any(String),
+        }),
+        enabled: true,
+      })
+    );
+  });
+
+  it("should call useClinicalAlerts with unacknowledged filter", () => {
+    render(<PrimaryCareDashboardPage />, { wrapper: TestWrapper });
+
+    expect(useClinicalAlerts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filters: expect.objectContaining({
+          acknowledged: false,
+          limit: 10,
+        }),
+      })
+    );
+  });
+});

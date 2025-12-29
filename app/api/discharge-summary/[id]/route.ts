@@ -5,18 +5,19 @@ const sql = neon(process.env.NEON_DATABASE_URL!);
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const result = await sql`
-      SELECT 
+      SELECT
         ds.*,
         p.first_name || ' ' || p.last_name as patient_name,
         pr.first_name || ' ' || pr.last_name as provider_name
       FROM discharge_summaries ds
       LEFT JOIN patients p ON ds.patient_id = p.id
       LEFT JOIN providers pr ON ds.provider_id = pr.id
-      WHERE ds.id = ${params.id}
+      WHERE ds.id = ${id}
     `;
 
     if (result.length === 0) {
@@ -38,9 +39,10 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await request.json();
 
     const result = await sql`
@@ -80,7 +82,7 @@ export async function PUT(
         )},
         status = ${body.status || "draft"},
         updated_at = NOW()
-      WHERE id = ${params.id}
+      WHERE id = ${id}
       RETURNING *
     `;
 
@@ -102,13 +104,14 @@ export async function PUT(
 }
 
 export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     await sql`
       DELETE FROM discharge_summaries
-      WHERE id = ${params.id}
+      WHERE id = ${id}
     `;
 
     return NextResponse.json({ success: true });

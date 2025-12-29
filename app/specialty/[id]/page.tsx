@@ -1,6 +1,10 @@
 "use client";
 
+// Force dynamic rendering since this page uses React Query hooks
+export const dynamic = "force-dynamic";
+
 import { useParams } from "next/navigation";
+import { useMemo } from "react";
 import { DashboardHeader } from "@/components/dashboard-header";
 import { DashboardSidebar } from "@/components/dashboard-sidebar";
 import {
@@ -13,6 +17,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
 import {
   Pill,
   Stethoscope,
@@ -26,22 +31,16 @@ import {
   FileText,
   Play,
   CheckCircle,
+  Loader2,
+  AlertCircle,
+  TrendingUp,
 } from "lucide-react";
+import type { SpecialtyConfigMap } from "@/types/specialty";
+import { useSpecialtyConfig } from "@/hooks/use-specialty-config";
+import { useQualityMeasures } from "@/hooks/use-quality-measures";
 
-// Specialty configurations
-const specialtyConfigs: Record<
-  string,
-  {
-    name: string;
-    icon: any;
-    description: string;
-    color: string;
-    features: string[];
-    workflows: { name: string; description: string }[];
-    templates: { name: string; type: string }[];
-    billingCodes: { code: string; description: string; fee: string }[];
-  }
-> = {
+// Specialty configurations with proper typing
+const specialtyConfigs: SpecialtyConfigMap = {
   "behavioral-health": {
     name: "Behavioral Health / OTP/MAT",
     icon: Pill,
@@ -672,7 +671,100 @@ export default function SpecialtyPage() {
   const params = useParams();
   const specialtyId = params.id as string;
 
+  // Fetch specialty configuration from API to check enabled status
+  const {
+    data: specialtyConfigData,
+    isLoading: isLoadingConfig,
+    error: configError,
+  } = useSpecialtyConfig({ specialtyId });
+
+  // Fetch quality measures for this specialty
+  const {
+    data: qualityMeasuresData,
+    isLoading: isLoadingMeasures,
+    error: measuresError,
+  } = useQualityMeasures({
+    filters: { specialty: specialtyId },
+  });
+
+  // Get static specialty config (for icons, colors, etc.)
   const specialty = specialtyConfigs[specialtyId];
+
+  // Check if specialty is enabled in the clinic configuration
+  const isSpecialtyEnabled = useMemo(() => {
+    if (!specialtyConfigData?.specialties) return true; // Default to enabled if no data
+    const configuredSpecialty = specialtyConfigData.specialties.find(
+      (s) => s.specialty_id === specialtyId
+    );
+    return configuredSpecialty?.enabled ?? true;
+  }, [specialtyConfigData, specialtyId]);
+
+  // Get features from API (if available) or fall back to static config
+  const specialtyFeatures = useMemo(() => {
+    if (
+      specialtyConfigData?.features &&
+      specialtyConfigData.features.length > 0
+    ) {
+      return specialtyConfigData.features
+        .filter((f) => f.specialty_id === specialtyId)
+        .map((f) => f.feature_name);
+    }
+    return specialty?.features || [];
+  }, [specialtyConfigData, specialtyId, specialty]);
+
+  // Get quality measures for display
+  const qualityMeasures = useMemo(() => {
+    return qualityMeasuresData?.measures || [];
+  }, [qualityMeasuresData]);
+
+  // Show loading state while checking specialty configuration
+  if (isLoadingConfig) {
+    return (
+      <div className="flex min-h-screen bg-gray-50">
+        <DashboardSidebar />
+        <div className="flex-1 ml-64">
+          <DashboardHeader />
+          <main className="p-6">
+            <Card>
+              <CardContent className="p-12 text-center">
+                <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+                <p className="text-muted-foreground">
+                  Loading specialty configuration...
+                </p>
+              </CardContent>
+            </Card>
+          </main>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state if API failed
+  if (configError) {
+    return (
+      <div className="flex min-h-screen bg-gray-50">
+        <DashboardSidebar />
+        <div className="flex-1 ml-64">
+          <DashboardHeader />
+          <main className="p-6">
+            <Card>
+              <CardContent className="p-12 text-center">
+                <AlertCircle className="h-8 w-8 mx-auto mb-4 text-destructive" />
+                <h2 className="text-xl font-semibold mb-2">
+                  Error Loading Specialty
+                </h2>
+                <p className="text-muted-foreground">
+                  {configError instanceof Error
+                    ? configError.message
+                    : "Failed to load specialty configuration"}
+                </p>
+              </CardContent>
+            </Card>
+          </main>
+        </div>
+      </div>
+    );
+  }
 
   if (!specialty) {
     return (
@@ -720,19 +812,25 @@ export default function SpecialtyPage() {
             </div>
             <div className="flex gap-2 mt-4">
               <Badge
-                variant="outline"
-                style={{
-                  borderColor: specialty.color,
-                  color: specialty.color,
-                }}>
-                Active Specialty
+                variant={isSpecialtyEnabled ? "outline" : "secondary"}
+                style={
+                  isSpecialtyEnabled
+                    ? { borderColor: specialty.color, color: specialty.color }
+                    : undefined
+                }>
+                {isSpecialtyEnabled ? "Active Specialty" : "Inactive Specialty"}
               </Badge>
               <Badge variant="secondary">
-                {specialty.features.length} Features
+                {specialtyFeatures.length} Features
               </Badge>
               <Badge variant="secondary">
                 {specialty.templates.length} Templates
               </Badge>
+              {qualityMeasures.length > 0 && (
+                <Badge variant="secondary">
+                  {qualityMeasures.length} Quality Measures
+                </Badge>
+              )}
             </div>
           </div>
 
@@ -742,6 +840,7 @@ export default function SpecialtyPage() {
               <TabsTrigger value="workflows">Workflows</TabsTrigger>
               <TabsTrigger value="templates">Templates</TabsTrigger>
               <TabsTrigger value="billing">Billing Codes</TabsTrigger>
+              <TabsTrigger value="quality">Quality Measures</TabsTrigger>
             </TabsList>
 
             <TabsContent value="features">
@@ -753,19 +852,25 @@ export default function SpecialtyPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {specialty.features.map((feature, idx) => (
-                      <div
-                        key={idx}
-                        className="flex items-center gap-3 p-3 rounded-lg bg-gray-50">
-                        <CheckCircle
-                          className="h-5 w-5"
-                          style={{ color: specialty.color }}
-                        />
-                        <span>{feature}</span>
-                      </div>
-                    ))}
-                  </div>
+                  {specialtyFeatures.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No features configured for this specialty
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {specialtyFeatures.map((feature, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center gap-3 p-3 rounded-lg bg-gray-50">
+                          <CheckCircle
+                            className="h-5 w-5"
+                            style={{ color: specialty.color }}
+                          />
+                          <span>{feature}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -850,6 +955,92 @@ export default function SpecialtyPage() {
                       </div>
                     ))}
                   </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="quality">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Quality Measures</CardTitle>
+                  <CardDescription>
+                    Performance metrics and quality indicators for this
+                    specialty
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {isLoadingMeasures ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-primary mr-2" />
+                      <span className="text-muted-foreground">
+                        Loading quality measures...
+                      </span>
+                    </div>
+                  ) : measuresError ? (
+                    <div className="flex items-center justify-center py-8 text-destructive">
+                      <AlertCircle className="h-5 w-5 mr-2" />
+                      <span>Failed to load quality measures</span>
+                    </div>
+                  ) : qualityMeasures.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <TrendingUp className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p>No quality measures configured for this specialty</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {qualityMeasures.map((measure) => {
+                        const targetRate = measure.target_rate ?? 80;
+                        const meetsTarget =
+                          measure.performance_rate >= targetRate;
+                        return (
+                          <div
+                            key={measure.id}
+                            className="p-4 rounded-lg border">
+                            <div className="flex items-center justify-between mb-2">
+                              <div>
+                                <h4 className="font-medium">
+                                  {measure.measure_name}
+                                </h4>
+                                <p className="text-sm text-muted-foreground">
+                                  {measure.measure_id}
+                                </p>
+                              </div>
+                              <Badge
+                                variant={meetsTarget ? "default" : "secondary"}
+                                style={
+                                  meetsTarget
+                                    ? { backgroundColor: specialty.color }
+                                    : undefined
+                                }>
+                                {measure.performance_rate.toFixed(1)}%
+                              </Badge>
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-sm">
+                                <span>
+                                  {measure.numerator} / {measure.denominator}{" "}
+                                  patients
+                                </span>
+                                <span>Target: {targetRate}%</span>
+                              </div>
+                              <Progress
+                                value={Math.min(
+                                  (measure.performance_rate / targetRate) * 100,
+                                  100
+                                )}
+                                className="h-2"
+                              />
+                            </div>
+                            {measure.description && (
+                              <p className="text-sm text-muted-foreground mt-2">
+                                {measure.description}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
