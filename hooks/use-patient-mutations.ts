@@ -2,18 +2,18 @@
  * Custom hooks for patient mutations (create, update, delete)
  */
 
-import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { toast } from "sonner"
-import type { Patient, PatientFormData } from "@/types/patient"
-import type { MutationResponse, PatientDetailResponse } from "@/types/api"
-import { patientKeys } from "@/lib/utils/query-keys"
-import { formDataToPatient } from "@/types/patient"
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import type { Patient, PatientFormData } from "@/types/patient";
+import type { MutationResponse, PatientDetailResponse } from "@/types/api";
+import { patientKeys } from "@/lib/utils/query-keys";
+import { formDataToPatient } from "@/types/patient";
 
 /**
  * Create a new patient
  */
 export function useCreatePatient() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation<MutationResponse<Patient>, Error, PatientFormData>({
     mutationFn: async (formData: PatientFormData) => {
@@ -23,40 +23,40 @@ export function useCreatePatient() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(formDataToPatient(formData)),
-      })
+      });
 
-      const data = await response.json()
+      const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to create patient")
+        throw new Error(data.error || "Failed to create patient");
       }
 
-      return { success: true, data: data.patient }
+      return { success: true, data: data.patient };
     },
     onSuccess: () => {
       // Invalidate patient lists to refetch
-      queryClient.invalidateQueries({ queryKey: patientKeys.lists() })
-      queryClient.invalidateQueries({ queryKey: patientKeys.stats() })
-      toast.success("Patient created successfully")
+      queryClient.invalidateQueries({ queryKey: patientKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: patientKeys.stats() });
+      toast.success("Patient created successfully");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to create patient")
+      toast.error(error.message || "Failed to create patient");
     },
-  })
+  });
 }
 
 /**
  * Update an existing patient
  */
 export function useUpdatePatient() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation<
     MutationResponse<Patient>,
     Error,
     { id: string; data: PatientFormData }
   >({
-    mutationFn: async ({ id, data }) => {
+    mutationFn: async ({ id, data }: { id: string; data: PatientFormData }) => {
       const response = await fetch(`/api/patients/${id}`, {
         method: "PUT",
         headers: {
@@ -66,59 +66,63 @@ export function useUpdatePatient() {
           ...formDataToPatient(data, id),
           updated_at: new Date().toISOString(),
         }),
-      })
+      });
 
-      const result = await response.json()
+      const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || "Failed to update patient")
+        throw new Error(result.error || "Failed to update patient");
       }
 
-      return { success: true, data: result.patient }
+      return { success: true, data: result.patient };
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (
+      _: MutationResponse<Patient>,
+      variables: { id: string; data: PatientFormData }
+    ) => {
       // Invalidate specific patient and lists
-      queryClient.invalidateQueries({ queryKey: patientKeys.detail(variables.id) })
-      queryClient.invalidateQueries({ queryKey: patientKeys.lists() })
-      queryClient.invalidateQueries({ queryKey: patientKeys.stats() })
-      toast.success("Patient updated successfully")
+      queryClient.invalidateQueries({
+        queryKey: patientKeys.detail(variables.id),
+      });
+      queryClient.invalidateQueries({ queryKey: patientKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: patientKeys.stats() });
+      toast.success("Patient updated successfully");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to update patient")
+      toast.error(error.message || "Failed to update patient");
     },
-  })
+  });
 }
 
 /**
  * Delete a patient
  */
 export function useDeletePatient() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation<MutationResponse, Error, string>({
     mutationFn: async (patientId: string) => {
       const response = await fetch(`/api/patients/${patientId}`, {
         method: "DELETE",
-      })
+      });
 
-      const result = await response.json()
+      const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || "Failed to delete patient")
+        throw new Error(result.error || "Failed to delete patient");
       }
 
-      return { success: true, message: "Patient deleted successfully" }
+      return { success: true, message: "Patient deleted successfully" };
     },
-    onSuccess: (_, patientId) => {
+    onSuccess: (_: MutationResponse, patientId: string) => {
       // Remove from cache and invalidate lists
-      queryClient.removeQueries({ queryKey: patientKeys.detail(patientId) })
-      queryClient.invalidateQueries({ queryKey: patientKeys.lists() })
-      queryClient.invalidateQueries({ queryKey: patientKeys.stats() })
-      toast.success("Patient deleted successfully")
+      queryClient.removeQueries({ queryKey: patientKeys.detail(patientId) });
+      queryClient.invalidateQueries({ queryKey: patientKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: patientKeys.stats() });
+      toast.success("Patient deleted successfully");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to delete patient")
+      toast.error(error.message || "Failed to delete patient");
     },
-  })
+  });
 }
-

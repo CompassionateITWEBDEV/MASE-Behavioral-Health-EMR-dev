@@ -1,7 +1,7 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { neon } from "@neondatabase/serverless"
+import { type NextRequest, NextResponse } from "next/server";
+import { neon } from "@neondatabase/serverless";
 
-const sql = neon(process.env.NEON_NEON_DATABASE_URL!)
+const sql = neon(process.env.NEON_DATABASE_URL!);
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,18 +14,21 @@ export async function GET(request: NextRequest) {
       LEFT JOIN patients p ON ds.patient_id = p.id
       LEFT JOIN providers pr ON ds.provider_id = pr.id
       ORDER BY ds.created_at DESC
-    `
+    `;
 
-    return NextResponse.json(summaries)
+    return NextResponse.json(summaries);
   } catch (error) {
-    console.error("[v0] Error fetching discharge summaries:", error)
-    return NextResponse.json({ error: "Failed to fetch discharge summaries" }, { status: 500 })
+    console.error("[v0] Error fetching discharge summaries:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch discharge summaries" },
+      { status: 500 }
+    );
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    const body = await request.json();
 
     const result = await sql`
       INSERT INTO discharge_summaries (
@@ -98,11 +101,14 @@ export async function POST(request: NextRequest) {
         NOW()
       )
       RETURNING *
-    `
+    `;
 
-    return NextResponse.json(result[0], { status: 201 })
+    return NextResponse.json(result[0], { status: 201 });
   } catch (error) {
-    console.error("[v0] Error creating discharge summary:", error)
-    return NextResponse.json({ error: "Failed to create discharge summary" }, { status: 500 })
+    console.error("[v0] Error creating discharge summary:", error);
+    return NextResponse.json(
+      { error: "Failed to create discharge summary" },
+      { status: 500 }
+    );
   }
 }
