@@ -490,7 +490,7 @@ export default function FacilityManagement() {
           )}
 
           <Tabs defaultValue="hva" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-6">
               <TabsTrigger value="hva" className="flex items-center gap-2">
                 <Shield className="h-4 w-4" />
                 Risk Assessment
@@ -503,8 +503,16 @@ export default function FacilityManagement() {
                 <Users className="h-4 w-4" />
                 Staff Training
               </TabsTrigger>
-              <TabsTrigger value="compliance" className="flex items-center gap-2">
+              <TabsTrigger value="newsletters" className="flex items-center gap-2">
                 <FileText className="h-4 w-4" />
+                Newsletters
+              </TabsTrigger>
+              <TabsTrigger value="meetings" className="flex items-center gap-2">
+                <Clock className="h-4 w-4" />
+                Gov Meetings
+              </TabsTrigger>
+              <TabsTrigger value="compliance" className="flex items-center gap-2">
+                <ClipboardCheck className="h-4 w-4" />
                 Compliance
               </TabsTrigger>
             </TabsList>
@@ -1028,6 +1036,501 @@ export default function FacilityManagement() {
                       ))}
                     </div>
                   )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="newsletters" className="space-y-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-lg font-semibold">Facility Newsletters</h3>
+                  <p className="text-sm text-muted-foreground">Share updates, announcements, and news with staff</p>
+                </div>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Create Newsletter
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Create Staff Newsletter</DialogTitle>
+                      <DialogDescription>Compose and publish a newsletter for all facility staff</DialogDescription>
+                    </DialogHeader>
+                    <form className="space-y-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="newsletter-title">Newsletter Title</Label>
+                        <Input id="newsletter-title" placeholder="e.g., Monthly Updates - December 2024" />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="newsletter-category">Category</Label>
+                        <Select defaultValue="general">
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="general">General Announcement</SelectItem>
+                            <SelectItem value="policy">Policy Update</SelectItem>
+                            <SelectItem value="training">Training Notification</SelectItem>
+                            <SelectItem value="compliance">Compliance Alert</SelectItem>
+                            <SelectItem value="celebration">Staff Recognition</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="newsletter-content">Content</Label>
+                        <Textarea
+                          id="newsletter-content"
+                          placeholder="Write your newsletter content here..."
+                          className="min-h-[200px]"
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="newsletter-attachments">Attachments (optional)</Label>
+                        <Input id="newsletter-attachments" type="file" multiple />
+                      </div>
+                      <DialogFooter>
+                        <Button type="button" variant="outline">
+                          Save Draft
+                        </Button>
+                        <Button type="submit">Publish Newsletter</Button>
+                      </DialogFooter>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              </div>
+
+              <div className="grid gap-4">
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle>Monthly Safety Update - December 2024</CardTitle>
+                        <CardDescription>Published on Dec 15, 2024 by Administrator</CardDescription>
+                      </div>
+                      <Badge>General</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Dear Team, This month we've made significant improvements to our facility safety protocols...
+                    </p>
+                    <div className="flex items-center gap-4">
+                      <Button variant="outline" size="sm">
+                        <Eye className="mr-2 h-4 w-4" />
+                        View Full Newsletter
+                      </Button>
+                      <Button variant="outline" size="sm">
+                        <Download className="mr-2 h-4 w-4" />
+                        Download PDF
+                      </Button>
+                      <span className="text-xs text-muted-foreground ml-auto">243 staff members read</span>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle>New DEA Compliance Training Requirements</CardTitle>
+                        <CardDescription>Published on Dec 10, 2024 by Compliance Officer</CardDescription>
+                      </div>
+                      <Badge variant="secondary">Training</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      All clinical staff must complete the updated DEA compliance training module by December 31st...
+                    </p>
+                    <div className="flex items-center gap-4">
+                      <Button variant="outline" size="sm">
+                        <Eye className="mr-2 h-4 w-4" />
+                        View Full Newsletter
+                      </Button>
+                      <Button variant="outline" size="sm">
+                        <Download className="mr-2 h-4 w-4" />
+                        Download PDF
+                      </Button>
+                      <span className="text-xs text-muted-foreground ml-auto">189 staff members read</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="meetings" className="space-y-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h3 className="text-lg font-semibold">Government Body Meetings & Regulatory Updates</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Track regulatory meetings, updates, and compliance deadlines
+                  </p>
+                </div>
+                <Dialog>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Post Meeting/Update
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                      <DialogTitle>Post Government Body Meeting or Regulatory Update</DialogTitle>
+                      <DialogDescription>Share important regulatory information with the facility</DialogDescription>
+                    </DialogHeader>
+                    <form className="space-y-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="meeting-type">Update Type</Label>
+                        <Select defaultValue="meeting">
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="meeting">Government Body Meeting</SelectItem>
+                            <SelectItem value="samhsa">SAMHSA Update</SelectItem>
+                            <SelectItem value="dea">DEA Announcement</SelectItem>
+                            <SelectItem value="state">State Regulatory Update</SelectItem>
+                            <SelectItem value="obot">OBOT Guidance</SelectItem>
+                            <SelectItem value="42cfr">42 CFR Part 2 Change</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="meeting-title">Title</Label>
+                        <Input id="meeting-title" placeholder="e.g., SAMHSA OTP Guidelines 2025" />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="meeting-date">Meeting/Effective Date</Label>
+                        <Input id="meeting-date" type="date" />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="meeting-agency">Regulatory Agency</Label>
+                        <Input id="meeting-agency" placeholder="e.g., SAMHSA, DEA, State Opioid Authority" />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="meeting-summary">Summary</Label>
+                        <Textarea
+                          id="meeting-summary"
+                          placeholder="Provide a summary of the meeting or regulatory update..."
+                          className="min-h-[150px]"
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="meeting-action">Action Items</Label>
+                        <Textarea
+                          id="meeting-action"
+                          placeholder="List any action items or compliance requirements..."
+                          className="min-h-[100px]"
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="meeting-deadline">Compliance Deadline (if applicable)</Label>
+                        <Input id="meeting-deadline" type="date" />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="meeting-attachments">Meeting Minutes / Documentation</Label>
+                        <Input id="meeting-attachments" type="file" multiple />
+                      </div>
+                      <DialogFooter>
+                        <Button type="button" variant="outline">
+                          Save Draft
+                        </Button>
+                        <Button type="submit">Post Update</Button>
+                      </DialogFooter>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              </div>
+
+              <div className="grid gap-4">
+                <Card className="border-l-4 border-l-red-500">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle>DEA Form 222 Ordering Changes - Effective Jan 1, 2025</CardTitle>
+                        <CardDescription>Posted on Dec 18, 2024 • Compliance Deadline: January 1, 2025</CardDescription>
+                      </div>
+                      <Badge variant="destructive">Action Required</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <h4 className="font-semibold text-sm mb-2">Summary:</h4>
+                      <p className="text-sm text-muted-foreground">
+                        New DEA regulations require electronic submission of Form 222 for Schedule II medications
+                        effective January 1, 2025. All facilities must register for CSOS (Controlled Substance Ordering
+                        System) by December 31, 2024.
+                      </p>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-sm mb-2">Action Items:</h4>
+                      <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
+                        <li>Register for CSOS account at DEA.gov</li>
+                        <li>Complete staff training on electronic Form 222</li>
+                        <li>Update inventory management procedures</li>
+                        <li>Contact medication suppliers to confirm CSOS capability</li>
+                      </ul>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm">
+                        <Eye className="mr-2 h-4 w-4" />
+                        View Full Document
+                      </Button>
+                      <Button variant="outline" size="sm">
+                        <Download className="mr-2 h-4 w-4" />
+                        Download Meeting Minutes
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-l-4 border-l-yellow-500">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle>SAMHSA OTP Guidelines Update - Take-Home Dosing Flexibility</CardTitle>
+                        <CardDescription>Posted on Dec 12, 2024 • Informational</CardDescription>
+                      </div>
+                      <Badge variant="secondary">Informational</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <h4 className="font-semibold text-sm mb-2">Summary:</h4>
+                      <p className="text-sm text-muted-foreground">
+                        SAMHSA has issued updated guidance on take-home medication dosing for stable OTP patients. The
+                        new guidelines provide increased flexibility for physicians to authorize up to 14 days of
+                        take-home doses for patients who meet stability criteria.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm">
+                        <Eye className="mr-2 h-4 w-4" />
+                        View Full Document
+                      </Button>
+                      <Button variant="outline" size="sm">
+                        <Download className="mr-2 h-4 w-4" />
+                        Download Guidelines
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-l-4 border-l-blue-500">
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle>State OAT Advisory Board Meeting Summary</CardTitle>
+                        <CardDescription>Meeting Date: December 8, 2024</CardDescription>
+                      </div>
+                      <Badge variant="outline">Meeting</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <h4 className="font-semibold text-sm mb-2">Key Discussion Points:</h4>
+                      <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
+                        <li>Buprenorphine prescribing updates and X-waiver elimination review</li>
+                        <li>State Medicaid reimbursement rate adjustments for 2025</li>
+                        <li>Peer recovery specialist certification requirements</li>
+                        <li>Integration of behavioral health services with primary care</li>
+                      </ul>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm">
+                        <Eye className="mr-2 h-4 w-4" />
+                        View Meeting Minutes
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="training" className="space-y-6">
+              {/* ... existing training content ... */}
+
+              <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="h-5 w-5" />
+                    Admin & Opioid Sponsor Comments on Training
+                  </CardTitle>
+                  <CardDescription>
+                    Administrators and opioid treatment program sponsors can provide feedback and guidance on staff
+                    training
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Training Comment
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl">
+                      <DialogHeader>
+                        <DialogTitle>Add Training Comment or Guidance</DialogTitle>
+                        <DialogDescription>
+                          Provide feedback, guidance, or requirements for staff training programs
+                        </DialogDescription>
+                      </DialogHeader>
+                      <form className="space-y-4">
+                        <div className="grid gap-2">
+                          <Label htmlFor="comment-author-role">Your Role</Label>
+                          <Select defaultValue="admin">
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select your role" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="admin">Facility Administrator</SelectItem>
+                              <SelectItem value="opioid-sponsor">Opioid Treatment Program Sponsor</SelectItem>
+                              <SelectItem value="medical-director">Medical Director</SelectItem>
+                              <SelectItem value="compliance-officer">Compliance Officer</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="comment-training">Related Training Module</Label>
+                          <Select>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select training module" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="dea">DEA Compliance Training</SelectItem>
+                              <SelectItem value="42cfr">42 CFR Part 2 Training</SelectItem>
+                              <SelectItem value="hipaa">HIPAA Security Training</SelectItem>
+                              <SelectItem value="infectious">Infectious Disease Control</SelectItem>
+                              <SelectItem value="all">All Training Modules</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="comment-type">Comment Type</Label>
+                          <Select defaultValue="guidance">
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select comment type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="guidance">Training Guidance</SelectItem>
+                              <SelectItem value="requirement">New Requirement</SelectItem>
+                              <SelectItem value="feedback">Staff Feedback</SelectItem>
+                              <SelectItem value="improvement">Improvement Suggestion</SelectItem>
+                              <SelectItem value="concern">Concern</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="comment-content">Comment</Label>
+                          <Textarea
+                            id="comment-content"
+                            placeholder="Provide your training comment or guidance..."
+                            className="min-h-[150px]"
+                          />
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="comment-priority">Priority Level</Label>
+                          <Select defaultValue="medium">
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select priority" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="high">High - Immediate Action Required</SelectItem>
+                              <SelectItem value="medium">Medium - Plan for Implementation</SelectItem>
+                              <SelectItem value="low">Low - For Consideration</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <DialogFooter>
+                          <Button type="button" variant="outline">
+                            Cancel
+                          </Button>
+                          <Button type="submit">Post Comment</Button>
+                        </DialogFooter>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+
+                  <div className="space-y-4">
+                    <Card className="border-l-4 border-l-red-500">
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="text-base">DEA Compliance Training - Enhanced Requirements</CardTitle>
+                            <CardDescription>Posted by Medical Director on Dec 17, 2024</CardDescription>
+                          </div>
+                          <Badge variant="destructive">High Priority</Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm text-muted-foreground mb-3">
+                          All nursing staff involved in medication dispensing must complete the enhanced DEA compliance
+                          training module by December 31st. This is a new requirement from our program sponsor and is
+                          mandatory for continued operation. The module covers updated Form 222 procedures, inventory
+                          reconciliation, and diversion prevention protocols.
+                        </p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>Related: DEA Compliance Training</span>
+                          <span>•</span>
+                          <span>Type: New Requirement</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="border-l-4 border-l-yellow-500">
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="text-base">
+                              42 CFR Part 2 Training - Additional Resources Needed
+                            </CardTitle>
+                            <CardDescription>Posted by OTP Sponsor on Dec 14, 2024</CardDescription>
+                          </div>
+                          <Badge variant="secondary">Medium Priority</Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm text-muted-foreground mb-3">
+                          The current 42 CFR Part 2 training module should include more practical case studies and
+                          scenarios. Staff have reported difficulty applying the concepts to real-world situations. I
+                          recommend adding interactive case-based learning modules and role-playing exercises to improve
+                          comprehension and retention.
+                        </p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>Related: 42 CFR Part 2 Training</span>
+                          <span>•</span>
+                          <span>Type: Improvement Suggestion</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="border-l-4 border-l-green-500">
+                      <CardHeader>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <CardTitle className="text-base">Excellent Completion Rate on HIPAA Training</CardTitle>
+                            <CardDescription>Posted by Facility Administrator on Dec 10, 2024</CardDescription>
+                          </div>
+                          <Badge variant="outline">Positive Feedback</Badge>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm text-muted-foreground mb-3">
+                          I want to commend all staff for achieving a 98% completion rate on the annual HIPAA Security
+                          Training. This demonstrates our commitment to patient privacy and data security. The training
+                          coordinator has done an excellent job making the content accessible and engaging.
+                        </p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>Related: HIPAA Security Training</span>
+                          <span>•</span>
+                          <span>Type: Staff Feedback</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>

@@ -54,6 +54,7 @@ import {
   Eye,
   UserCircle,
   FileCheck2,
+  ArrowRight,
   type LucideIcon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -115,6 +116,11 @@ const getNavigationCategories = (isSuperAdmin: boolean): NavCategory[] => {
         { icon: Baby, label: "Pregnant Women (Priority)", href: "/pregnant-women", count: 8, highlight: "alert" },
         { icon: Users, label: "Patient Portal", href: "/patient-portal" },
         { icon: Users, label: "Care Teams", href: "/care-teams", count: 8 },
+        { icon: Package, label: "Property Tracking", href: "/patient-property", count: 7, highlight: "alert" },
+        { icon: Truck, label: "Transportation", href: "/transportation-requests", count: 18 },
+        { icon: AlertTriangle, label: "AWOL/Runaway", href: "/awol-tracking", count: 7, highlight: "alert" },
+        { icon: ArrowRight, label: "Caseload Transfer", href: "/caseload-transfer" },
+        { icon: Send, label: "Patient Transfer", href: "/patient-transfer" },
       ],
     },
     {

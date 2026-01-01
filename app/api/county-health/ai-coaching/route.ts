@@ -1,26 +1,23 @@
-import { type NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { type NextRequest, NextResponse } from "next/server"
+import { createClient } from "@/lib/supabase/server"
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { message, programArea } = await request.json();
+    const supabase = createClient()
+    const { message, programArea } = await request.json()
 
     // Fetch relevant AI coaching scenarios based on program area
     const { data: scenarios } = await supabase
       .from("county_health_ai_coaching_scenarios")
       .select("*")
       .eq("is_active", true)
-      .eq("program_area", programArea);
+      .eq("program_area", programArea)
 
     // In production, this would call an LLM with the scenarios as context
     // For now, return structured guidance based on keywords
-    let response = "";
+    let response = ""
 
-    if (
-      message.toLowerCase().includes("wic") ||
-      message.toLowerCase().includes("eligibility")
-    ) {
+    if (message.toLowerCase().includes("wic") || message.toLowerCase().includes("eligibility")) {
       response = `**WIC Eligibility Determination**
 
 To determine WIC eligibility, check these three criteria:
@@ -44,11 +41,8 @@ To determine WIC eligibility, check these three criteria:
 
 **Pro Tip:** Always ask about Medicaid/SNAP first - this provides adjunctive eligibility and speeds up the process!
 
-**Call to Action:** Would you like me to explain how to document nutritional risk or help with a specific case?`;
-    } else if (
-      message.toLowerCase().includes("immun") ||
-      message.toLowerCase().includes("vaccin")
-    ) {
+**Call to Action:** Would you like me to explain how to document nutritional risk or help with a specific case?`
+    } else if (message.toLowerCase().includes("immun") || message.toLowerCase().includes("vaccin")) {
       response = `**Immunization Walk-In Clinic Guidance**
 
 For Oakland County's walk-in immunization clinics (North & South locations, Mon-Fri 8:30 AM - 5:00 PM):
@@ -76,7 +70,7 @@ For Oakland County's walk-in immunization clinics (North & South locations, Mon-
 
 **Minimum Intervals:** Most vaccines need 4 weeks between doses. Live vaccines must be given same day or 28 days apart.
 
-Would you like help with a specific vaccine schedule or adverse event management?`;
+Would you like help with a specific vaccine schedule or adverse event management?`
     } else if (
       message.toLowerCase().includes("std") ||
       message.toLowerCase().includes("sti") ||
@@ -110,7 +104,7 @@ Oakland County offers comprehensive STI testing and treatment:
 
 **Important:** Michigan has Good Samaritan protections - patients and partners cannot be prosecuted for drug use when seeking STI care.
 
-Need help with a specific case or treatment protocol?`;
+Need help with a specific case or treatment protocol?`
     } else if (
       message.toLowerCase().includes("maternal") ||
       message.toLowerCase().includes("prenatal") ||
@@ -153,7 +147,7 @@ MCH home visiting provides comprehensive support for pregnant women and families
 - Community Mental Health
 - DHS for SNAP/TANF
 
-Would you like guidance on EPDS interpretation or early intervention referrals?`;
+Would you like guidance on EPDS interpretation or early intervention referrals?`
     } else {
       response = `I'm your AI County Health Coach! I can help with:
 
@@ -165,48 +159,39 @@ Would you like guidance on EPDS interpretation or early intervention referrals?`
 - **Communicable Disease:** Reporting, surveillance, outbreak investigation
 - **Environmental Health:** Food safety, water quality, septic inspections
 
-What area would you like help with?`;
+What area would you like help with?`
     }
 
     return NextResponse.json({
       response,
       scenarios: scenarios || [],
       programArea,
-    });
+    })
   } catch (error) {
-    console.error("[v0] Error in county health AI coaching:", error);
-    return NextResponse.json(
-      { error: "Failed to process AI coaching request" },
-      { status: 500 }
-    );
+    console.error("[v0] Error in county health AI coaching:", error)
+    return NextResponse.json({ error: "Failed to process AI coaching request" }, { status: 500 })
   }
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const { searchParams } = new URL(request.url);
-    const programArea = searchParams.get("programArea");
+    const supabase = createClient()
+    const { searchParams } = new URL(request.url)
+    const programArea = searchParams.get("programArea")
 
-    const query = supabase
-      .from("county_health_ai_coaching_scenarios")
-      .select("*")
-      .eq("is_active", true);
+    const query = supabase.from("county_health_ai_coaching_scenarios").select("*").eq("is_active", true)
 
     if (programArea) {
-      query.eq("program_area", programArea);
+      query.eq("program_area", programArea)
     }
 
-    const { data, error } = await query;
+    const { data, error } = await query
 
-    if (error) throw error;
+    if (error) throw error
 
-    return NextResponse.json({ scenarios: data || [] });
+    return NextResponse.json({ scenarios: data || [] })
   } catch (error) {
-    console.error("[v0] Error fetching AI scenarios:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch AI coaching scenarios" },
-      { status: 500 }
-    );
+    console.error("[v0] Error fetching AI scenarios:", error)
+    return NextResponse.json({ error: "Failed to fetch AI coaching scenarios" }, { status: 500 })
   }
 }

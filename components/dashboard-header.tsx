@@ -1,7 +1,8 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect } from "react"
-import type { FC } from "react"
 import { useRouter } from "next/navigation"
 import {
   Bell,
@@ -43,11 +44,7 @@ interface Notification {
   created_at: string
 }
 
-export interface DashboardHeaderProps {
-  title?: string
-}
-
-export const DashboardHeader: FC<DashboardHeaderProps> = ({ title }) => {
+export function DashboardHeader() {
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
   const [notifications, setNotifications] = useState<Notification[]>([])
@@ -152,7 +149,7 @@ export const DashboardHeader: FC<DashboardHeaderProps> = ({ title }) => {
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
           <h1 className="text-2xl font-bold" style={{ color: "#1e293b" }}>
-            {title || "MASE Behavioral Health EMR"}
+            MASE Behavioral Health EMR
           </h1>
           <Badge variant="secondary" style={{ backgroundColor: "#f1f5f9", color: "#1e293b" }}>
             AI-Assisted

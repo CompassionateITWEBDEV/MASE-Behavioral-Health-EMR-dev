@@ -231,6 +231,11 @@ export default function DosingWindowPage() {
   const [combinedDosing, setCombinedDosing] = useState(false)
   const [observedDoseAmount, setObservedDoseAmount] = useState(0)
 
+  const [showRedoseDialog, setShowRedoseDialog] = useState(false)
+  const [redoseReason, setRedoseReason] = useState<"pump_malfunction" | "spill" | "guest_dosing">("pump_malfunction")
+  const [redoseNotes, setRedoseNotes] = useState("")
+  const [originalDoseId, setOriginalDoseId] = useState<string | null>(null)
+
   // Search patients
   const searchPatients = useCallback(async (query: string) => {
     if (query.length < 2) {
@@ -1161,6 +1166,70 @@ export default function DosingWindowPage() {
     toast({ title: "Pump stopped", description: "Pump is ready for next step." })
   }
 
+  const performRedose = async () => {
+    if (!selectedPatient || !originalDoseId) {
+      toast({
+        title: "Cannot Redose",
+        description: "Patient and original dose must be selected",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      const doseAmountNum = Number.parseFloat(doseAmount)
+
+      const redoseLog = {
+        patient_id: selectedPatient.id,
+        dose_date: new Date().toISOString().split("T")[0],
+        dose_time: new Date().toTimeString().split(" ")[0],
+        medication: selectedMedication,
+        dose_amount: doseAmountNum,
+        dispensed_by: "current_nurse_id",
+        notes: `REDOSE - ${redoseReason.replace("_", " ").toUpperCase()}: ${redoseNotes}`,
+        patient_response: behaviorNotes || null,
+        bottle_number: bottleSerial,
+      }
+
+      const { error } = await supabase.from("dosing_log").insert(redoseLog)
+
+      if (error) throw error
+
+      // Update bottle volume
+      const currentVol = Number.parseFloat(bottleCurrentVolume)
+      const newVolume = currentVol - doseAmountNum
+      setBottleCurrentVolume(newVolume.toString())
+      setPumpStatus((prev) => ({ ...prev, currentVolume: newVolume.toString() }))
+
+      toast({
+        title: "Redose Completed",
+        description: `Redose of ${doseAmount}mg ${selectedMedication} recorded`,
+      })
+
+      setShowRedoseDialog(false)
+      setRedoseNotes("")
+      setOriginalDoseId(null)
+
+      // Reload recent doses
+      const { data: dosesData } = await supabase
+        .from("dosing_log")
+        .select("*")
+        .eq("patient_id", selectedPatient.id)
+        .order("dose_date", { ascending: false })
+        .order("dose_time", { ascending: false })
+        .limit(7)
+
+      setRecentDoses(dosesData || [])
+    } catch (error) {
+      console.error("Error performing redose:", error)
+      toast({
+        title: "Redose Error",
+        description: "Failed to record redose. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       <DashboardSidebar />
@@ -1755,6 +1824,15 @@ export default function DosingWindowPage() {
                               Insufficient volume in bottle for the selected dose.
                             </p>
                           )}
+                        <Button
+                          variant="outline"
+                          onClick={() => setShowRedoseDialog(true)}
+                          disabled={!selectedPatient}
+                          className="w-full"
+                        >
+                          <AlertTriangle className="h-4 w-4 mr-2" />
+                          Redose (Malfunction/Spill/Guest)
+                        </Button>
                       </CardContent>
                     </Card>
                   </TabsContent>
@@ -2545,6 +2623,65 @@ export default function DosingWindowPage() {
               </div>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showRedoseDialog} onOpenChange={setShowRedoseDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Redose Medication</DialogTitle>
+            <DialogDescription>
+              Document reason for redosing {selectedPatient?.first_name} {selectedPatient?.last_name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Reason for Redose</Label>
+              <Select value={redoseReason} onValueChange={(v: any) => setRedoseReason(v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pump_malfunction">Pump Malfunction</SelectItem>
+                  <SelectItem value="spill">Medication Spill</SelectItem>
+                  <SelectItem value="guest_dosing">Guest Dosing (From Another Facility)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Redose Documentation</Label>
+              <Textarea
+                value={redoseNotes}
+                onChange={(e) => setRedoseNotes(e.target.value)}
+                placeholder="Enter detailed notes about the redose incident..."
+                rows={4}
+              />
+            </div>
+            {redoseReason === "pump_malfunction" && (
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Pump Malfunction</AlertTitle>
+                <AlertDescription>Equipment issue will be logged. Maintenance will be notified.</AlertDescription>
+              </Alert>
+            )}
+            {redoseReason === "guest_dosing" && (
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Guest Dosing</AlertTitle>
+                <AlertDescription>
+                  Verify patient identity and authorization from home facility before dispensing.
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRedoseDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={performRedose} disabled={!redoseNotes.trim()}>
+              Record Redose
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

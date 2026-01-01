@@ -1,25 +1,13 @@
-"use client";
+"use client"
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -27,60 +15,49 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Save,
-  ArrowLeft,
-  Plus,
-  X,
-  PenTool,
-  AlertTriangle,
-  CheckCircle,
-} from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
-import { toast } from "sonner";
-import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
+} from "@/components/ui/dialog"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Save, ArrowLeft, Plus, X, PenTool, AlertTriangle, CheckCircle } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
+import { toast } from "sonner"
+import Link from "next/link"
+import { Badge } from "@/components/ui/badge"
 
 interface Medication {
-  name: string;
-  dosage: string;
-  frequency: string;
-  instructions: string;
+  name: string
+  dosage: string
+  frequency: string
+  instructions: string
 }
 
 interface FollowUpAppointment {
-  provider: string;
-  date: string;
-  type: string;
+  provider: string
+  date: string
+  type: string
 }
 
 interface DischargeSummaryFormProps {
-  existingSummary?: any;
-  isEditing?: boolean;
+  existingSummary?: any
+  isEditing?: boolean
 }
 
-export function DischargeSummaryForm({
-  existingSummary,
-  isEditing = false,
-}: DischargeSummaryFormProps) {
-  const router = useRouter();
-  const [patients, setPatients] = useState<any[]>([]);
-  const [providers, setProviders] = useState<any[]>([]);
-  const [currentProvider, setCurrentProvider] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(false);
+export function DischargeSummaryForm({ existingSummary, isEditing = false }: DischargeSummaryFormProps) {
+  const router = useRouter()
+  const [patients, setPatients] = useState<any[]>([])
+  const [providers, setProviders] = useState<any[]>([])
+  const [currentProvider, setCurrentProvider] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(false)
   const [medications, setMedications] = useState<Medication[]>(
-    existingSummary?.medications_at_discharge?.medications || []
-  );
+    existingSummary?.medications_at_discharge?.medications || [],
+  )
   const [followUps, setFollowUps] = useState<FollowUpAppointment[]>(
-    existingSummary?.follow_up_appointments?.appointments || []
-  );
+    existingSummary?.follow_up_appointments?.appointments || [],
+  )
 
-  const [showSignatureDialog, setShowSignatureDialog] = useState(false);
-  const [signaturePin, setSignaturePin] = useState("");
-  const [signatureConfirmed, setSignatureConfirmed] = useState(false);
-  const [signatureError, setSignatureError] = useState("");
+  const [showSignatureDialog, setShowSignatureDialog] = useState(false)
+  const [signaturePin, setSignaturePin] = useState("")
+  const [signatureConfirmed, setSignatureConfirmed] = useState(false)
+  const [signatureError, setSignatureError] = useState("")
 
   const [formData, setFormData] = useState({
     patient_id: existingSummary?.patient_id || "",
@@ -109,84 +86,74 @@ export function DischargeSummaryForm({
     barriers_to_discharge: existingSummary?.barriers_to_discharge || "",
     family_involvement: existingSummary?.family_involvement || "",
     support_system_notes: existingSummary?.support_system_notes || "",
-    patient_education_provided:
-      existingSummary?.patient_education_provided || "",
+    patient_education_provided: existingSummary?.patient_education_provided || "",
     emergency_contact_info: existingSummary?.emergency_contact_info || "",
     status: existingSummary?.status || "draft",
-  });
+  })
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        const supabase = createClient();
+        const supabase = createClient()
 
         // Fetch patients
         const { data: patientsData } = await supabase
           .from("patients")
           .select("id, first_name, last_name, date_of_birth")
-          .order("last_name");
+          .order("last_name")
 
-        if (patientsData) setPatients(patientsData);
+        if (patientsData) setPatients(patientsData)
 
         // Fetch providers
         const { data: providersData } = await supabase
           .from("providers")
-          .select("id, first_name, last_name, specialization, license_type")
-          .order("last_name");
+          .select("id, first_name, last_name, specialty, credentials")
+          .eq("is_active", true)
+          .order("last_name")
 
-        if (providersData) setProviders(providersData);
+        if (providersData) setProviders(providersData)
 
         // Get current user/provider
         const {
           data: { user },
-        } = await supabase.auth.getUser();
+        } = await supabase.auth.getUser()
         if (user) {
-          const { data: providerData } = await supabase
-            .from("providers")
-            .select("*")
-            .eq("user_id", user.id)
-            .single();
+          const { data: providerData } = await supabase.from("providers").select("*").eq("user_id", user.id).single()
 
           if (providerData) {
-            setCurrentProvider(providerData);
+            setCurrentProvider(providerData)
             if (!formData.provider_id) {
-              setFormData((prev) => ({
-                ...prev,
-                provider_id: providerData.id,
-              }));
+              setFormData((prev) => ({ ...prev, provider_id: providerData.id }))
             }
           }
         }
       } catch (error) {
-        console.error("Error loading data:", error);
+        console.error("Error loading data:", error)
       }
-    };
+    }
 
-    loadData();
-  }, []);
+    loadData()
+  }, [])
 
   const handleSubmit = async (isDraft: boolean) => {
     if (!isDraft) {
       // Open signature dialog for finalization
-      setShowSignatureDialog(true);
-      return;
+      setShowSignatureDialog(true)
+      return
     }
 
-    await saveDischarge("draft");
-  };
+    await saveDischarge("draft")
+  }
 
   const saveDischarge = async (status: string) => {
-    setIsLoading(true);
+    setIsLoading(true)
     try {
-      const supabase = createClient();
+      const supabase = createClient()
 
       // Calculate length of stay
-      const admissionDate = new Date(formData.admission_date);
-      const dischargeDate = new Date(formData.discharge_date);
-      const lengthOfStay = Math.ceil(
-        (dischargeDate.getTime() - admissionDate.getTime()) /
-          (1000 * 60 * 60 * 24)
-      );
+      const admissionDate = new Date(formData.admission_date)
+      const dischargeDate = new Date(formData.discharge_date)
+      const lengthOfStay = Math.ceil((dischargeDate.getTime() - admissionDate.getTime()) / (1000 * 60 * 60 * 24))
 
       const submitData = {
         ...formData,
@@ -195,113 +162,80 @@ export function DischargeSummaryForm({
         length_of_stay: lengthOfStay,
         status: status,
         finalized_at: status === "finalized" ? new Date().toISOString() : null,
-        finalized_by:
-          status === "finalized"
-            ? currentProvider?.id || formData.provider_id
-            : null,
-      };
+        finalized_by: status === "finalized" ? currentProvider?.id || formData.provider_id : null,
+      }
 
       if (isEditing && existingSummary) {
-        const { error } = await supabase
-          .from("discharge_summaries")
-          .update(submitData)
-          .eq("id", existingSummary.id);
+        const { error } = await supabase.from("discharge_summaries").update(submitData).eq("id", existingSummary.id)
 
-        if (error) throw error;
-        toast.success(
-          status === "finalized"
-            ? "Discharge summary finalized and signed"
-            : "Discharge summary updated"
-        );
-        router.push(`/discharge-summary/${existingSummary.id}`);
+        if (error) throw error
+        toast.success(status === "finalized" ? "Discharge summary finalized and signed" : "Discharge summary updated")
+        router.push(`/discharge-summary/${existingSummary.id}`)
       } else {
-        const { data, error } = await supabase
-          .from("discharge_summaries")
-          .insert([submitData])
-          .select()
-          .single();
+        const { data, error } = await supabase.from("discharge_summaries").insert([submitData]).select().single()
 
-        if (error) throw error;
-        toast.success(
-          status === "finalized"
-            ? "Discharge summary created and signed"
-            : "Discharge summary created"
-        );
-        router.push(`/discharge-summary/${data.id}`);
+        if (error) throw error
+        toast.success(status === "finalized" ? "Discharge summary created and signed" : "Discharge summary created")
+        router.push(`/discharge-summary/${data.id}`)
       }
     } catch (error) {
-      console.error("Error saving discharge summary:", error);
-      toast.error("Failed to save discharge summary");
+      console.error("Error saving discharge summary:", error)
+      toast.error("Failed to save discharge summary")
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   const handleFinalizeAndSign = async () => {
     // Validate signature PIN (in production, verify against provider's stored PIN)
     if (signaturePin.length < 4) {
-      setSignatureError("Please enter your signature PIN (minimum 4 digits)");
-      return;
+      setSignatureError("Please enter your signature PIN (minimum 4 digits)")
+      return
     }
 
     if (!signatureConfirmed) {
-      setSignatureError("You must confirm the attestation to sign");
-      return;
+      setSignatureError("You must confirm the attestation to sign")
+      return
     }
 
     // Validate required fields
-    if (
-      !formData.patient_id ||
-      !formData.discharge_diagnosis ||
-      !formData.discharge_date
-    ) {
-      setSignatureError("Please complete all required fields before signing");
-      return;
+    if (!formData.patient_id || !formData.discharge_diagnosis || !formData.discharge_date) {
+      setSignatureError("Please complete all required fields before signing")
+      return
     }
 
-    setSignatureError("");
-    setShowSignatureDialog(false);
-    await saveDischarge("finalized");
-  };
+    setSignatureError("")
+    setShowSignatureDialog(false)
+    await saveDischarge("finalized")
+  }
 
   const addMedication = () => {
-    setMedications([
-      ...medications,
-      { name: "", dosage: "", frequency: "", instructions: "" },
-    ]);
-  };
+    setMedications([...medications, { name: "", dosage: "", frequency: "", instructions: "" }])
+  }
 
   const removeMedication = (index: number) => {
-    setMedications(medications.filter((_, i) => i !== index));
-  };
+    setMedications(medications.filter((_, i) => i !== index))
+  }
 
-  const updateMedication = (
-    index: number,
-    field: keyof Medication,
-    value: string
-  ) => {
-    const updated = [...medications];
-    updated[index][field] = value;
-    setMedications(updated);
-  };
+  const updateMedication = (index: number, field: keyof Medication, value: string) => {
+    const updated = [...medications]
+    updated[index][field] = value
+    setMedications(updated)
+  }
 
   const addFollowUp = () => {
-    setFollowUps([...followUps, { provider: "", date: "", type: "" }]);
-  };
+    setFollowUps([...followUps, { provider: "", date: "", type: "" }])
+  }
 
   const removeFollowUp = (index: number) => {
-    setFollowUps(followUps.filter((_, i) => i !== index));
-  };
+    setFollowUps(followUps.filter((_, i) => i !== index))
+  }
 
-  const updateFollowUp = (
-    index: number,
-    field: keyof FollowUpAppointment,
-    value: string
-  ) => {
-    const updated = [...followUps];
-    updated[index][field] = value;
-    setFollowUps(updated);
-  };
+  const updateFollowUp = (index: number, field: keyof FollowUpAppointment, value: string) => {
+    const updated = [...followUps]
+    updated[index][field] = value
+    setFollowUps(updated)
+  }
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -313,8 +247,7 @@ export function DischargeSummaryForm({
               Electronic Signature Required
             </DialogTitle>
             <DialogDescription>
-              By signing this document, you attest that all information is
-              accurate and complete.
+              By signing this document, you attest that all information is accurate and complete.
             </DialogDescription>
           </DialogHeader>
 
@@ -324,22 +257,12 @@ export function DischargeSummaryForm({
               <p className="text-sm font-medium">Signing Provider:</p>
               <p className="text-sm text-muted-foreground">
                 {currentProvider
-                  ? `${currentProvider.first_name} ${
-                      currentProvider.last_name
-                    }, ${currentProvider.license_type || "MD"}`
+                  ? `${currentProvider.first_name} ${currentProvider.last_name}, ${currentProvider.credentials || "MD"}`
                   : providers.find((p) => p.id === formData.provider_id)
-                  ? `${
-                      providers.find((p) => p.id === formData.provider_id)
-                        ?.first_name
-                    } ${
-                      providers.find((p) => p.id === formData.provider_id)
-                        ?.last_name
-                    }`
-                  : "Unknown Provider"}
+                    ? `${providers.find((p) => p.id === formData.provider_id)?.first_name} ${providers.find((p) => p.id === formData.provider_id)?.last_name}`
+                    : "Unknown Provider"}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {new Date().toLocaleString()}
-              </p>
+              <p className="text-xs text-muted-foreground mt-1">{new Date().toLocaleString()}</p>
             </div>
 
             {/* Attestation */}
@@ -347,17 +270,12 @@ export function DischargeSummaryForm({
               <Checkbox
                 id="attestation"
                 checked={signatureConfirmed}
-                onCheckedChange={(checked) =>
-                  setSignatureConfirmed(checked as boolean)
-                }
+                onCheckedChange={(checked) => setSignatureConfirmed(checked as boolean)}
               />
-              <label
-                htmlFor="attestation"
-                className="text-sm leading-relaxed cursor-pointer">
-                I hereby attest that I have reviewed this discharge summary,
-                that the information contained herein is accurate to the best of
-                my knowledge, and that I am authorized to sign this document as
-                the treating provider.
+              <label htmlFor="attestation" className="text-sm leading-relaxed cursor-pointer">
+                I hereby attest that I have reviewed this discharge summary, that the information contained herein is
+                accurate to the best of my knowledge, and that I am authorized to sign this document as the treating
+                provider.
               </label>
             </div>
 
@@ -373,8 +291,7 @@ export function DischargeSummaryForm({
                 maxLength={6}
               />
               <p className="text-xs text-muted-foreground">
-                Enter your provider signature PIN to electronically sign this
-                document.
+                Enter your provider signature PIN to electronically sign this document.
               </p>
             </div>
 
@@ -387,9 +304,7 @@ export function DischargeSummaryForm({
           </div>
 
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowSignatureDialog(false)}>
+            <Button variant="outline" onClick={() => setShowSignatureDialog(false)}>
               Cancel
             </Button>
             <Button onClick={handleFinalizeAndSign} disabled={isLoading}>
@@ -419,10 +334,7 @@ export function DischargeSummaryForm({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            onClick={() => handleSubmit(true)}
-            disabled={isLoading}>
+          <Button variant="outline" onClick={() => handleSubmit(true)} disabled={isLoading}>
             <Save className="h-4 w-4 mr-2" />
             Save Draft
           </Button>
@@ -436,9 +348,7 @@ export function DischargeSummaryForm({
       {/* Patient & Admission Information */}
       <Card>
         <CardHeader>
-          <CardTitle className="font-[family-name:var(--font-work-sans)]">
-            Patient & Admission Information
-          </CardTitle>
+          <CardTitle className="font-[family-name:var(--font-work-sans)]">Patient & Admission Information</CardTitle>
           <CardDescription>Basic patient and admission details</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -447,9 +357,8 @@ export function DischargeSummaryForm({
               <Label htmlFor="patient_id">Patient *</Label>
               <Select
                 value={formData.patient_id}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, patient_id: value })
-                }>
+                onValueChange={(value) => setFormData({ ...formData, patient_id: value })}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select patient" />
                 </SelectTrigger>
@@ -466,17 +375,15 @@ export function DischargeSummaryForm({
               <Label htmlFor="provider_id">Provider *</Label>
               <Select
                 value={formData.provider_id}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, provider_id: value })
-                }>
+                onValueChange={(value) => setFormData({ ...formData, provider_id: value })}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select provider" />
                 </SelectTrigger>
                 <SelectContent>
                   {providers.map((provider) => (
                     <SelectItem key={provider.id} value={provider.id}>
-                      {provider.last_name}, {provider.first_name} -{" "}
-                      {provider.specialization || "N/A"}
+                      {provider.last_name}, {provider.first_name} - {provider.specialty}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -490,9 +397,7 @@ export function DischargeSummaryForm({
                 id="admission_date"
                 type="date"
                 value={formData.admission_date}
-                onChange={(e) =>
-                  setFormData({ ...formData, admission_date: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, admission_date: e.target.value })}
               />
             </div>
             <div className="space-y-2">
@@ -501,31 +406,22 @@ export function DischargeSummaryForm({
                 id="discharge_date"
                 type="date"
                 value={formData.discharge_date}
-                onChange={(e) =>
-                  setFormData({ ...formData, discharge_date: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, discharge_date: e.target.value })}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="discharge_disposition">
-                Discharge Disposition
-              </Label>
+              <Label htmlFor="discharge_disposition">Discharge Disposition</Label>
               <Select
                 value={formData.discharge_disposition}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, discharge_disposition: value })
-                }>
+                onValueChange={(value) => setFormData({ ...formData, discharge_disposition: value })}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select disposition" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="home">Home</SelectItem>
-                  <SelectItem value="home_health">
-                    Home with Health Services
-                  </SelectItem>
-                  <SelectItem value="residential">
-                    Residential Treatment
-                  </SelectItem>
+                  <SelectItem value="home_health">Home with Health Services</SelectItem>
+                  <SelectItem value="residential">Residential Treatment</SelectItem>
                   <SelectItem value="inpatient">Inpatient Facility</SelectItem>
                   <SelectItem value="ama">Against Medical Advice</SelectItem>
                   <SelectItem value="other">Other</SelectItem>
@@ -539,12 +435,8 @@ export function DischargeSummaryForm({
       {/* Clinical Information */}
       <Card>
         <CardHeader>
-          <CardTitle className="font-[family-name:var(--font-work-sans)]">
-            Clinical Information
-          </CardTitle>
-          <CardDescription>
-            Diagnosis, treatment, and clinical course
-          </CardDescription>
+          <CardTitle className="font-[family-name:var(--font-work-sans)]">Clinical Information</CardTitle>
+          <CardDescription>Diagnosis, treatment, and clinical course</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -552,12 +444,7 @@ export function DischargeSummaryForm({
             <Textarea
               id="admission_diagnosis"
               value={formData.admission_diagnosis}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  admission_diagnosis: e.target.value,
-                })
-              }
+              onChange={(e) => setFormData({ ...formData, admission_diagnosis: e.target.value })}
               placeholder="Primary diagnosis at admission..."
               rows={2}
             />
@@ -567,12 +454,7 @@ export function DischargeSummaryForm({
             <Textarea
               id="discharge_diagnosis"
               value={formData.discharge_diagnosis}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  discharge_diagnosis: e.target.value,
-                })
-              }
+              onChange={(e) => setFormData({ ...formData, discharge_diagnosis: e.target.value })}
               placeholder="Final diagnosis at discharge..."
               rows={2}
             />
@@ -582,12 +464,7 @@ export function DischargeSummaryForm({
             <Textarea
               id="reason_for_admission"
               value={formData.reason_for_admission}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  reason_for_admission: e.target.value,
-                })
-              }
+              onChange={(e) => setFormData({ ...formData, reason_for_admission: e.target.value })}
               placeholder="Describe the reason for admission..."
               rows={3}
             />
@@ -597,9 +474,7 @@ export function DischargeSummaryForm({
             <Textarea
               id="clinical_course"
               value={formData.clinical_course}
-              onChange={(e) =>
-                setFormData({ ...formData, clinical_course: e.target.value })
-              }
+              onChange={(e) => setFormData({ ...formData, clinical_course: e.target.value })}
               placeholder="Describe the patient's clinical course during treatment..."
               rows={4}
             />
@@ -609,27 +484,18 @@ export function DischargeSummaryForm({
             <Textarea
               id="treatment_summary"
               value={formData.treatment_summary}
-              onChange={(e) =>
-                setFormData({ ...formData, treatment_summary: e.target.value })
-              }
+              onChange={(e) => setFormData({ ...formData, treatment_summary: e.target.value })}
               placeholder="Summarize treatments provided..."
               rows={4}
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="response_to_treatment">
-                Response to Treatment
-              </Label>
+              <Label htmlFor="response_to_treatment">Response to Treatment</Label>
               <Textarea
                 id="response_to_treatment"
                 value={formData.response_to_treatment}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    response_to_treatment: e.target.value,
-                  })
-                }
+                onChange={(e) => setFormData({ ...formData, response_to_treatment: e.target.value })}
                 placeholder="Patient's response to treatment..."
                 rows={3}
               />
@@ -639,9 +505,7 @@ export function DischargeSummaryForm({
               <Textarea
                 id="complications"
                 value={formData.complications}
-                onChange={(e) =>
-                  setFormData({ ...formData, complications: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, complications: e.target.value })}
                 placeholder="Any complications during treatment..."
                 rows={3}
               />
@@ -655,12 +519,8 @@ export function DischargeSummaryForm({
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="font-[family-name:var(--font-work-sans)]">
-                Discharge Medications
-              </CardTitle>
-              <CardDescription>
-                Medications prescribed at discharge
-              </CardDescription>
+              <CardTitle className="font-[family-name:var(--font-work-sans)]">Discharge Medications</CardTitle>
+              <CardDescription>Medications prescribed at discharge</CardDescription>
             </div>
             <Button variant="outline" size="sm" onClick={addMedication}>
               <Plus className="h-4 w-4 mr-2" />
@@ -672,26 +532,17 @@ export function DischargeSummaryForm({
           {medications.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <p>No medications added yet</p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={addMedication}
-                className="mt-2 bg-transparent">
+              <Button variant="outline" size="sm" onClick={addMedication} className="mt-2 bg-transparent">
                 <Plus className="h-4 w-4 mr-2" />
                 Add First Medication
               </Button>
             </div>
           ) : (
             medications.map((med, index) => (
-              <div
-                key={index}
-                className="p-4 border border-border rounded-lg space-y-3">
+              <div key={index} className="p-4 border border-border rounded-lg space-y-3">
                 <div className="flex items-center justify-between">
                   <Badge variant="outline">Medication {index + 1}</Badge>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeMedication(index)}>
+                  <Button variant="ghost" size="sm" onClick={() => removeMedication(index)}>
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
@@ -700,9 +551,7 @@ export function DischargeSummaryForm({
                     <Label>Medication Name</Label>
                     <Input
                       value={med.name}
-                      onChange={(e) =>
-                        updateMedication(index, "name", e.target.value)
-                      }
+                      onChange={(e) => updateMedication(index, "name", e.target.value)}
                       placeholder="e.g., Buprenorphine"
                     />
                   </div>
@@ -710,9 +559,7 @@ export function DischargeSummaryForm({
                     <Label>Dosage</Label>
                     <Input
                       value={med.dosage}
-                      onChange={(e) =>
-                        updateMedication(index, "dosage", e.target.value)
-                      }
+                      onChange={(e) => updateMedication(index, "dosage", e.target.value)}
                       placeholder="e.g., 8mg"
                     />
                   </div>
@@ -722,9 +569,7 @@ export function DischargeSummaryForm({
                     <Label>Frequency</Label>
                     <Input
                       value={med.frequency}
-                      onChange={(e) =>
-                        updateMedication(index, "frequency", e.target.value)
-                      }
+                      onChange={(e) => updateMedication(index, "frequency", e.target.value)}
                       placeholder="e.g., Once daily"
                     />
                   </div>
@@ -732,9 +577,7 @@ export function DischargeSummaryForm({
                     <Label>Instructions</Label>
                     <Input
                       value={med.instructions}
-                      onChange={(e) =>
-                        updateMedication(index, "instructions", e.target.value)
-                      }
+                      onChange={(e) => updateMedication(index, "instructions", e.target.value)}
                       placeholder="Special instructions..."
                     />
                   </div>
@@ -748,21 +591,16 @@ export function DischargeSummaryForm({
       {/* Discharge Instructions */}
       <Card>
         <CardHeader>
-          <CardTitle className="font-[family-name:var(--font-work-sans)]">
-            Discharge Instructions
-          </CardTitle>
-          <CardDescription>
-            Patient care instructions and recommendations
-          </CardDescription>
+          <CardTitle className="font-[family-name:var(--font-work-sans)]">Discharge Instructions</CardTitle>
+          <CardDescription>Patient care instructions and recommendations</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="discharge_condition">Discharge Condition</Label>
             <Select
               value={formData.discharge_condition}
-              onValueChange={(value) =>
-                setFormData({ ...formData, discharge_condition: value })
-              }>
+              onValueChange={(value) => setFormData({ ...formData, discharge_condition: value })}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select condition" />
               </SelectTrigger>
@@ -775,18 +613,11 @@ export function DischargeSummaryForm({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="discharge_instructions">
-              General Discharge Instructions
-            </Label>
+            <Label htmlFor="discharge_instructions">General Discharge Instructions</Label>
             <Textarea
               id="discharge_instructions"
               value={formData.discharge_instructions}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  discharge_instructions: e.target.value,
-                })
-              }
+              onChange={(e) => setFormData({ ...formData, discharge_instructions: e.target.value })}
               placeholder="General instructions for patient care after discharge..."
               rows={4}
             />
@@ -796,12 +627,7 @@ export function DischargeSummaryForm({
             <Textarea
               id="activity_restrictions"
               value={formData.activity_restrictions}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  activity_restrictions: e.target.value,
-                })
-              }
+              onChange={(e) => setFormData({ ...formData, activity_restrictions: e.target.value })}
               placeholder="Any activity limitations or restrictions..."
               rows={3}
             />
@@ -811,12 +637,7 @@ export function DischargeSummaryForm({
             <Textarea
               id="diet_recommendations"
               value={formData.diet_recommendations}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  diet_recommendations: e.target.value,
-                })
-              }
+              onChange={(e) => setFormData({ ...formData, diet_recommendations: e.target.value })}
               placeholder="Dietary recommendations and restrictions..."
               rows={3}
             />
@@ -826,9 +647,7 @@ export function DischargeSummaryForm({
             <Textarea
               id="warning_signs"
               value={formData.warning_signs}
-              onChange={(e) =>
-                setFormData({ ...formData, warning_signs: e.target.value })
-              }
+              onChange={(e) => setFormData({ ...formData, warning_signs: e.target.value })}
               placeholder="Warning signs that require immediate medical attention..."
               rows={3}
             />
@@ -841,12 +660,8 @@ export function DischargeSummaryForm({
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="font-[family-name:var(--font-work-sans)]">
-                Follow-Up Care
-              </CardTitle>
-              <CardDescription>
-                Aftercare plan and follow-up appointments
-              </CardDescription>
+              <CardTitle className="font-[family-name:var(--font-work-sans)]">Follow-Up Care</CardTitle>
+              <CardDescription>Aftercare plan and follow-up appointments</CardDescription>
             </div>
             <Button variant="outline" size="sm" onClick={addFollowUp}>
               <Plus className="h-4 w-4 mr-2" />
@@ -860,9 +675,7 @@ export function DischargeSummaryForm({
             <Textarea
               id="aftercare_plan"
               value={formData.aftercare_plan}
-              onChange={(e) =>
-                setFormData({ ...formData, aftercare_plan: e.target.value })
-              }
+              onChange={(e) => setFormData({ ...formData, aftercare_plan: e.target.value })}
               placeholder="Comprehensive aftercare and continuing care plan..."
               rows={4}
             />
@@ -871,26 +684,17 @@ export function DischargeSummaryForm({
           {followUps.length === 0 ? (
             <div className="text-center py-6 text-muted-foreground border border-dashed border-border rounded-lg">
               <p>No follow-up appointments added yet</p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={addFollowUp}
-                className="mt-2 bg-transparent">
+              <Button variant="outline" size="sm" onClick={addFollowUp} className="mt-2 bg-transparent">
                 <Plus className="h-4 w-4 mr-2" />
                 Add First Appointment
               </Button>
             </div>
           ) : (
             followUps.map((followUp, index) => (
-              <div
-                key={index}
-                className="p-4 border border-border rounded-lg space-y-3">
+              <div key={index} className="p-4 border border-border rounded-lg space-y-3">
                 <div className="flex items-center justify-between">
                   <Badge variant="outline">Appointment {index + 1}</Badge>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeFollowUp(index)}>
+                  <Button variant="ghost" size="sm" onClick={() => removeFollowUp(index)}>
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
@@ -899,9 +703,7 @@ export function DischargeSummaryForm({
                     <Label>Provider/Specialty</Label>
                     <Input
                       value={followUp.provider}
-                      onChange={(e) =>
-                        updateFollowUp(index, "provider", e.target.value)
-                      }
+                      onChange={(e) => updateFollowUp(index, "provider", e.target.value)}
                       placeholder="e.g., Primary Care"
                     />
                   </div>
@@ -910,18 +712,14 @@ export function DischargeSummaryForm({
                     <Input
                       type="date"
                       value={followUp.date}
-                      onChange={(e) =>
-                        updateFollowUp(index, "date", e.target.value)
-                      }
+                      onChange={(e) => updateFollowUp(index, "date", e.target.value)}
                     />
                   </div>
                   <div className="space-y-2">
                     <Label>Type</Label>
                     <Input
                       value={followUp.type}
-                      onChange={(e) =>
-                        updateFollowUp(index, "type", e.target.value)
-                      }
+                      onChange={(e) => updateFollowUp(index, "type", e.target.value)}
                       placeholder="e.g., Follow-up visit"
                     />
                   </div>
@@ -932,18 +730,11 @@ export function DischargeSummaryForm({
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="follow_up_provider">
-                Primary Follow-up Provider
-              </Label>
+              <Label htmlFor="follow_up_provider">Primary Follow-up Provider</Label>
               <Input
                 id="follow_up_provider"
                 value={formData.follow_up_provider}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    follow_up_provider: e.target.value,
-                  })
-                }
+                onChange={(e) => setFormData({ ...formData, follow_up_provider: e.target.value })}
                 placeholder="Name of primary follow-up provider"
               />
             </div>
@@ -953,9 +744,7 @@ export function DischargeSummaryForm({
                 id="follow_up_date"
                 type="date"
                 value={formData.follow_up_date}
-                onChange={(e) =>
-                  setFormData({ ...formData, follow_up_date: e.target.value })
-                }
+                onChange={(e) => setFormData({ ...formData, follow_up_date: e.target.value })}
               />
             </div>
           </div>
@@ -965,12 +754,8 @@ export function DischargeSummaryForm({
       {/* Additional Information */}
       <Card>
         <CardHeader>
-          <CardTitle className="font-[family-name:var(--font-work-sans)]">
-            Additional Information
-          </CardTitle>
-          <CardDescription>
-            Support system, education, and special considerations
-          </CardDescription>
+          <CardTitle className="font-[family-name:var(--font-work-sans)]">Additional Information</CardTitle>
+          <CardDescription>Support system, education, and special considerations</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -979,12 +764,7 @@ export function DischargeSummaryForm({
               <Textarea
                 id="family_involvement"
                 value={formData.family_involvement}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    family_involvement: e.target.value,
-                  })
-                }
+                onChange={(e) => setFormData({ ...formData, family_involvement: e.target.value })}
                 placeholder="Describe family involvement in care..."
                 rows={3}
               />
@@ -994,83 +774,50 @@ export function DischargeSummaryForm({
               <Textarea
                 id="support_system_notes"
                 value={formData.support_system_notes}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    support_system_notes: e.target.value,
-                  })
-                }
+                onChange={(e) => setFormData({ ...formData, support_system_notes: e.target.value })}
                 placeholder="Patient's support system and resources..."
                 rows={3}
               />
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="patient_education_provided">
-              Patient Education Provided
-            </Label>
+            <Label htmlFor="patient_education_provided">Patient Education Provided</Label>
             <Textarea
               id="patient_education_provided"
               value={formData.patient_education_provided}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  patient_education_provided: e.target.value,
-                })
-              }
+              onChange={(e) => setFormData({ ...formData, patient_education_provided: e.target.value })}
               placeholder="Education provided to patient and family..."
               rows={3}
             />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="barriers_to_discharge">
-                Barriers to Discharge
-              </Label>
+              <Label htmlFor="barriers_to_discharge">Barriers to Discharge</Label>
               <Textarea
                 id="barriers_to_discharge"
                 value={formData.barriers_to_discharge}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    barriers_to_discharge: e.target.value,
-                  })
-                }
+                onChange={(e) => setFormData({ ...formData, barriers_to_discharge: e.target.value })}
                 placeholder="Any identified barriers..."
                 rows={3}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="special_considerations">
-                Special Considerations
-              </Label>
+              <Label htmlFor="special_considerations">Special Considerations</Label>
               <Textarea
                 id="special_considerations"
                 value={formData.special_considerations}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    special_considerations: e.target.value,
-                  })
-                }
+                onChange={(e) => setFormData({ ...formData, special_considerations: e.target.value })}
                 placeholder="Any special considerations..."
                 rows={3}
               />
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="emergency_contact_info">
-              Emergency Contact Information
-            </Label>
+            <Label htmlFor="emergency_contact_info">Emergency Contact Information</Label>
             <Textarea
               id="emergency_contact_info"
               value={formData.emergency_contact_info}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  emergency_contact_info: e.target.value,
-                })
-              }
+              onChange={(e) => setFormData({ ...formData, emergency_contact_info: e.target.value })}
               placeholder="Emergency contact numbers and resources..."
               rows={2}
             />
@@ -1080,15 +827,10 @@ export function DischargeSummaryForm({
 
       {/* Bottom Action Bar */}
       <div className="flex items-center justify-end gap-2 pt-4 border-t border-border">
-        <Button
-          variant="outline"
-          onClick={() => router.push("/discharge-summaries")}>
+        <Button variant="outline" onClick={() => router.push("/discharge-summaries")}>
           Cancel
         </Button>
-        <Button
-          variant="outline"
-          onClick={() => handleSubmit(true)}
-          disabled={isLoading}>
+        <Button variant="outline" onClick={() => handleSubmit(true)} disabled={isLoading}>
           <Save className="h-4 w-4 mr-2" />
           Save Draft
         </Button>
@@ -1098,5 +840,5 @@ export function DischargeSummaryForm({
         </Button>
       </div>
     </div>
-  );
+  )
 }
