@@ -42,7 +42,6 @@ import {
   ChevronDown,
   ChevronRight,
   Handshake,
-  HeartHandshake,
   Target,
   Network,
   Truck,
@@ -53,6 +52,8 @@ import {
   FileBarChart,
   Baby,
   Eye,
+  UserCircle,
+  FileCheck2,
   type LucideIcon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -97,6 +98,7 @@ const getNavigationCategories = (isSuperAdmin: boolean): NavCategory[] => {
       items: [
         { icon: Home, label: "Dashboard", href: isSuperAdmin ? "/super-admin/dashboard" : "/landing" },
         { icon: Clock, label: "Check-In Queue", href: "/check-in", count: 5 },
+        { icon: Users, label: "Waiting List", href: "/waiting-list", count: 12, highlight: "alert" },
         { icon: ClipboardCheck, label: "My Work", href: "/my-work", count: 6 },
         { icon: MessageSquare, label: "Notifications", href: "/notifications", count: 7 },
       ],
@@ -110,6 +112,7 @@ const getNavigationCategories = (isSuperAdmin: boolean): NavCategory[] => {
         { icon: FileText, label: "Patient Chart", href: "/patient-chart" },
         { icon: UserPlus, label: "Intake Queue", href: "/intake-queue", count: 5 },
         { icon: ClipboardCheck, label: "Patient Intake", href: "/intake", count: 3 },
+        { icon: Baby, label: "Pregnant Women (Priority)", href: "/pregnant-women", count: 8, highlight: "alert" },
         { icon: Users, label: "Patient Portal", href: "/patient-portal" },
         { icon: Users, label: "Care Teams", href: "/care-teams", count: 8 },
       ],
@@ -118,8 +121,14 @@ const getNavigationCategories = (isSuperAdmin: boolean): NavCategory[] => {
       label: "Clinical",
       icon: Stethoscope,
       items: [
+        { icon: Stethoscope, label: "Nursing Assessment", href: "/nursing-assessment", count: 7, highlight: "alert" },
+        { icon: MessageSquare, label: "Counseling Intake", href: "/counseling-intake", count: 5 },
+        { icon: Brain, label: "Bio-Psycho-Social", href: "/bio-psycho-social", count: 3 },
+        { icon: Target, label: "Treatment Planning", href: "/treatment-planning", count: 8 },
+        { icon: Heart, label: "Case Management", href: "/case-management", count: 12 },
+        { icon: Users, label: "Peer Recovery", href: "/peer-recovery", count: 6 },
+        { icon: Stethoscope, label: "Physician Dashboard", href: "/doctor-system", count: 8, highlight: "alert" },
         { icon: ClipboardPlus, label: "Encounters", href: "/encounters", count: 12 },
-        { icon: HeartHandshake, label: "CHW Encounter", href: "/chw-encounter", count: 3 },
         { icon: Video, label: "Telehealth", href: "/telehealth", count: 8 },
         { icon: Calendar, label: "Appointments", href: "/appointments" },
         { icon: FileText, label: "Documentation", href: "/documentation" },
@@ -140,6 +149,8 @@ const getNavigationCategories = (isSuperAdmin: boolean): NavCategory[] => {
         { icon: Pill, label: "Medication List", href: "/medications", count: 156 },
         { icon: Send, label: "Prescriptions", href: "/prescriptions", count: 8 },
         { icon: Send, label: "E-Prescribing", href: "/e-prescribing", count: 3 },
+        { icon: Syringe, label: "Dosing Window", href: "/dosing-window", count: 15, highlight: "alert" },
+        { icon: FileCheck2, label: "Order Management", href: "/order-management", count: 8, highlight: "alert" },
         { icon: Syringe, label: "Methadone Dispensing", href: "/dispensing", count: 12 },
         { icon: PackageCheck, label: "Take-Home Mgmt", href: "/takehome", count: 8 },
         { icon: Package, label: "Take-Home Bottles", href: "/dispensing/takehome-bottles", count: 12 },
@@ -188,6 +199,7 @@ const getNavigationCategories = (isSuperAdmin: boolean): NavCategory[] => {
         { icon: Bell, label: "Patient Reminders", href: "/patient-reminders", count: 5 },
         { icon: Handshake, label: "Provider Collaboration", href: "/provider-collaboration", count: 3 },
         { icon: Network, label: "HIE Network", href: "/hie-network", count: 2 },
+        { icon: UserCircle, label: "Contacts", href: "/contacts" }, // adding Contacts menu item
       ],
     },
     {

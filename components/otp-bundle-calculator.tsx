@@ -308,24 +308,39 @@ export function OTPBundleCalculator() {
         facilityRates[medicationType as keyof typeof facilityRates];
 
       if (isTakehome && takehomeDays) {
-        // Take-home scenario
-        billingMethod = "Take-Home Bundle";
-        const bundleInfo =
-          "takehome" in medRates ? medRates.takehome : medRates.weekly;
-        const days = Number.parseInt(takehomeDays) || 1;
-        rateCodes.push({
-          code: bundleInfo.code,
-          description: bundleInfo.description,
-          rate: bundleInfo.rate * days,
-        });
-        procedureCodes.push(bundleInfo.hcpcs);
-        bundleTotal = bundleInfo.rate * days;
-        notes.push(`Take-home bottles for ${days} day(s)`);
+        // Take-home scenario - only available for methadone and buprenorphine
+        if ("takehome" in medRates) {
+          billingMethod = "Take-Home Bundle";
+          const bundleInfo = medRates.takehome;
+          const days = Number.parseInt(takehomeDays) || 1;
+          rateCodes.push({
+            code: bundleInfo.code,
+            description: bundleInfo.description,
+            rate: bundleInfo.rate * days,
+          });
+          procedureCodes.push(bundleInfo.hcpcs);
+          bundleTotal = bundleInfo.rate * days;
+          notes.push(`Take-home bottles for ${days} day(s)`);
 
-        if (days > 27) {
+          if (days > 27) {
+            warnings.push(
+              "Maximum take-home is typically 27 days per month - verify with OASAS guidelines"
+            );
+          }
+        } else {
+          // Naltrexone doesn't support take-home, fall back to weekly bundle
           warnings.push(
-            "Maximum take-home is typically 27 days per month - verify with OASAS guidelines"
+            "Take-home bundles are not available for this medication type. Using weekly bundle instead."
           );
+          billingMethod = "Weekly Bundle";
+          const bundleInfo = medRates.weekly;
+          rateCodes.push({
+            code: bundleInfo.code,
+            description: bundleInfo.description,
+            rate: bundleInfo.rate,
+          });
+          procedureCodes.push(bundleInfo.hcpcs);
+          bundleTotal = bundleInfo.rate;
         }
       } else {
         // Weekly bundle

@@ -98,6 +98,8 @@ export function ProviderCredentialManagement({
       credentialNumber: n.npi_number,
       credentialType: "NPI",
       issuingOrganization: "CMS/NPPES",
+      issuingState: null,
+      issueDate: null,
       expirationDate: null,
       verificationStatus: n.verification_status,
       verificationDate: n.verification_date,

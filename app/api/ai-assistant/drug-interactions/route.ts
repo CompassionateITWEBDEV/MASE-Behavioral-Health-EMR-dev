@@ -8,7 +8,10 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
-import type { DrugInteractionResult, DrugInteraction } from "@/types/ai-assistant";
+import type {
+  DrugInteractionResult,
+  DrugInteraction,
+} from "@/types/ai-assistant";
 
 /**
  * GET /api/ai-assistant/drug-interactions
@@ -41,7 +44,10 @@ export async function GET(request: Request) {
 
       if (error) {
         console.error("[API] Error fetching medications:", error);
-        return NextResponse.json({ error: "Failed to fetch medications" }, { status: 500 });
+        return NextResponse.json(
+          { error: "Failed to fetch medications" },
+          { status: 500 }
+        );
       }
       medications = data || [];
     } else if (medicationIds) {
@@ -53,7 +59,10 @@ export async function GET(request: Request) {
 
       if (error) {
         console.error("[API] Error fetching medications:", error);
-        return NextResponse.json({ error: "Failed to fetch medications" }, { status: 500 });
+        return NextResponse.json(
+          { error: "Failed to fetch medications" },
+          { status: 500 }
+        );
       }
       medications = data || [];
     }
@@ -99,7 +108,8 @@ function checkDrugInteractions(
         drug2: "Aspirin",
         severity: "major",
         description: "Increased risk of bleeding when used together",
-        action: "Monitor INR closely, consider alternative antiplatelet if possible",
+        action:
+          "Monitor INR closely, consider alternative antiplatelet if possible",
       });
     }
     if (drugNames.some((d) => d.includes("ibuprofen") || d.includes("nsaid"))) {
@@ -131,7 +141,8 @@ function checkDrugInteractions(
 
   if (interactions.some((i) => i.severity === "contraindicated")) {
     status = "critical";
-    message = "Critical drug interaction detected - contraindicated combination";
+    message =
+      "Critical drug interaction detected - contraindicated combination";
   } else if (interactions.some((i) => i.severity === "major")) {
     status = "major";
     message = `${interactions.length} major drug interaction(s) detected`;
@@ -146,4 +157,3 @@ function checkDrugInteractions(
     interactions: interactions.length > 0 ? interactions : undefined,
   };
 }
-

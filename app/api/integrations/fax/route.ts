@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
 
     let query = `
-      SELECT 
+      SELECT
         fm.*,
         p.first_name,
         p.last_name,

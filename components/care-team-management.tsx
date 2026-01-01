@@ -152,7 +152,8 @@ export function CareTeamManagement({
     try {
       const { data, error } = await supabase
         .from("providers")
-        .select("id, first_name, last_name, specialization");
+        .select("id, first_name, last_name, specialization")
+        .eq("is_active", true);
 
       if (error) throw error;
       setAvailableProviders(data || []);
@@ -165,7 +166,8 @@ export function CareTeamManagement({
     try {
       const { data, error } = await supabase
         .from("patients")
-        .select("id, first_name, last_name");
+        .select("id, first_name, last_name, date_of_birth")
+        .eq("status", "active");
 
       if (error) throw error;
       setAvailablePatients(data || []);

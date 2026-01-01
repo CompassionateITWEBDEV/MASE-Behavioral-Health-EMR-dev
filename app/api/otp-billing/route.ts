@@ -245,18 +245,34 @@ export async function GET() {
   }
 }
 
+interface VitalSignWithPatient {
+  id: string;
+  patient_id: string;
+  measurement_date: string;
+  systolic_bp?: number | null;
+  diastolic_bp?: number | null;
+  heart_rate?: number | null;
+  temperature?: number | null;
+  weight?: number | null;
+  patients?: {
+    id: string;
+    first_name: string;
+    last_name: string;
+  } | null;
+}
+
 function calculateVitalsTrending(vitals: any[]) {
   const grouped = vitals.reduce((acc, vital) => {
     const patientId = vital.patient_id;
     if (!acc[patientId]) acc[patientId] = [];
     acc[patientId].push(vital);
     return acc;
-  }, {} as Record<string, any[]>);
+  }, {} as Record<string, VitalSignWithPatient[]>);
 
   return Object.entries(grouped).map(([patientId, patientVitals]) => {
-    const vitalsArray = patientVitals as any[];
+    const vitalsArray = patientVitals as VitalSignWithPatient[];
     const sorted = vitalsArray.sort(
-      (a: any, b: any) =>
+      (a: VitalSignWithPatient, b: VitalSignWithPatient) =>
         new Date(b.measurement_date).getTime() -
         new Date(a.measurement_date).getTime()
     );
@@ -287,9 +303,18 @@ function calculateVitalsTrending(vitals: any[]) {
           }
         : null,
       trends: {
-        bpTrend: calculateTrend(current.systolic_bp, previous?.systolic_bp),
-        hrTrend: calculateTrend(current.heart_rate, previous?.heart_rate),
-        weightTrend: calculateTrend(current.weight, previous?.weight),
+        bpTrend: calculateTrend(
+          current.systolic_bp ?? null,
+          previous?.systolic_bp ?? null
+        ),
+        hrTrend: calculateTrend(
+          current.heart_rate ?? null,
+          previous?.heart_rate ?? null
+        ),
+        weightTrend: calculateTrend(
+          current.weight ?? null,
+          previous?.weight ?? null
+        ),
       },
     };
   });

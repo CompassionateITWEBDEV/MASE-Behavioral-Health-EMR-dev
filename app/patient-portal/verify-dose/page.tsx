@@ -265,7 +265,11 @@ export default function PatientVerifyDosePage() {
               <div className="flex flex-col items-center">
                 <div
                   className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                    step === "scan" ? "bg-cyan-500" : "bg-green-500"
+                    step === "scan"
+                      ? "bg-cyan-500"
+                      : ["location", "biometric", "success"].includes(step)
+                      ? "bg-green-500"
+                      : "bg-gray-600"
                   }`}>
                   <QrCode className="h-5 w-5 text-white" />
                 </div>

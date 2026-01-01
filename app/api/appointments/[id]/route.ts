@@ -55,7 +55,10 @@ export async function GET(request: Request, { params }: RouteParams) {
 
     if (error) {
       if (error.code === "PGRST116") {
-        return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
+        return NextResponse.json(
+          { error: "Appointment not found" },
+          { status: 404 }
+        );
       }
       console.error("[API] Error fetching appointment:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -86,10 +89,14 @@ export async function PUT(request: Request, { params }: RouteParams) {
     const updateData: Record<string, unknown> = {};
 
     if (body.status !== undefined) updateData.status = body.status;
-    if (body.appointment_date !== undefined) updateData.appointment_date = body.appointment_date;
-    if (body.duration_minutes !== undefined) updateData.duration_minutes = body.duration_minutes;
-    if (body.appointment_type !== undefined) updateData.appointment_type = body.appointment_type;
-    if (body.provider_id !== undefined) updateData.provider_id = body.provider_id;
+    if (body.appointment_date !== undefined)
+      updateData.appointment_date = body.appointment_date;
+    if (body.duration_minutes !== undefined)
+      updateData.duration_minutes = body.duration_minutes;
+    if (body.appointment_type !== undefined)
+      updateData.appointment_type = body.appointment_type;
+    if (body.provider_id !== undefined)
+      updateData.provider_id = body.provider_id;
     if (body.notes !== undefined) updateData.notes = body.notes;
 
     // Add updated timestamp
@@ -104,7 +111,10 @@ export async function PUT(request: Request, { params }: RouteParams) {
 
     if (error) {
       if (error.code === "PGRST116") {
-        return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
+        return NextResponse.json(
+          { error: "Appointment not found" },
+          { status: 404 }
+        );
       }
       console.error("[API] Error updating appointment:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -140,13 +150,19 @@ export async function DELETE(request: Request, { params }: RouteParams) {
 
     if (error) {
       if (error.code === "PGRST116") {
-        return NextResponse.json({ error: "Appointment not found" }, { status: 404 });
+        return NextResponse.json(
+          { error: "Appointment not found" },
+          { status: 404 }
+        );
       }
       console.error("[API] Error cancelling appointment:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ message: "Appointment cancelled", appointment: data });
+    return NextResponse.json({
+      message: "Appointment cancelled",
+      appointment: data,
+    });
   } catch (error: unknown) {
     const err = error as Error;
     console.error("[API] Cancel appointment error:", err);
@@ -156,4 +172,3 @@ export async function DELETE(request: Request, { params }: RouteParams) {
     );
   }
 }
-

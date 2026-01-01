@@ -49,115 +49,65 @@ export default function PatientsPage() {
       console.log("[v0] Auth check failed, using default provider")
     }
 
-    try {
-      // Use API endpoint to bypass RLS policies
-      const patientsResponse = await fetch("/api/patients")
-      if (!patientsResponse.ok) {
-        throw new Error(`API returned ${patientsResponse.status}`)
-      }
-      const patientsResult = await patientsResponse.json()
-      let patientsData = patientsResult.patients || []
+    const { count: totalCount } = await supabase.from("patients").select("*", { count: "exact", head: true })
 
-      console.log("[v0] Fetched patients via API:", patientsData.length)
+    const { count: activeCount } = await supabase.from("patients").select("*", { count: "exact", head: true })
 
-      // Fetch related data for each patient if we have patients
-      if (patientsData.length > 0) {
-        const patientsWithRelations = await Promise.all(
-          patientsData.map(async (patient: any) => {
-            try {
-              const [appointmentsResult, assessmentsResult, medicationsResult] = await Promise.all([
-                supabase
-                  .from("appointments")
-                  .select("id, appointment_date, status, provider_id")
-                  .eq("patient_id", patient.id)
-                  .order("appointment_date", { ascending: false })
-                  .limit(10),
-                supabase
-                  .from("assessments")
-                  .select("id, assessment_type, risk_assessment, created_at")
-                  .eq("patient_id", patient.id)
-                  .order("created_at", { ascending: false })
-                  .limit(10),
-                supabase
-                  .from("medications")
-                  .select("id, medication_name, dosage, status")
-                  .eq("patient_id", patient.id)
-                  .limit(10),
-              ])
+    const { count: recentCount } = await supabase
+      .from("appointments")
+      .select("*", { count: "exact", head: true })
+      .gte("appointment_date", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
 
-              return {
-                ...patient,
-                appointments: appointmentsResult.data || [],
-                assessments: assessmentsResult.data || [],
-                medications: medicationsResult.data || [],
-              }
-            } catch (error) {
-              console.error(`[v0] Error fetching relations for patient ${patient.id}:`, error)
-              return {
-                ...patient,
-                appointments: [],
-                assessments: [],
-                medications: [],
-              }
-            }
-          }),
+    const { data: patientsData } = await supabase
+      .from("patients")
+      .select(`
+        *,
+        appointments(
+          id,
+          appointment_date,
+          status,
+          provider_id
+        ),
+        assessments(
+          id,
+          assessment_type,
+          risk_assessment,
+          created_at
+        ),
+        medications(
+          id,
+          medication_name,
+          dosage,
+          status
         )
+      `)
+      .order("created_at", { ascending: false })
 
-        // Sort by created_at descending (newest first)
-        patientsWithRelations.sort((a, b) => {
-          const dateA = new Date(a.created_at || 0).getTime()
-          const dateB = new Date(b.created_at || 0).getTime()
-          return dateB - dateA
-        })
+    console.log("[v0] Fetched patients:", patientsData?.length || 0)
 
-        patientsData = patientsWithRelations
-      }
+    const highRiskCount =
+      patientsData?.filter((p) =>
+        p.assessments?.some(
+          (a: { risk_assessment?: { level?: string } }) =>
+            a.risk_assessment &&
+            typeof a.risk_assessment === "object" &&
+            "level" in a.risk_assessment &&
+            a.risk_assessment.level === "high",
+        ),
+      ).length || 0
 
-      // Calculate stats
-      const totalCount = patientsData.length
-      const highRiskCount =
-        patientsData.filter((p: any) =>
-          p.assessments?.some(
-            (a: { risk_assessment?: { level?: string } }) =>
-              a.risk_assessment &&
-              typeof a.risk_assessment === "object" &&
-              "level" in a.risk_assessment &&
-              a.risk_assessment.level === "high",
-          ),
-        ).length || 0
-
-      // Try to get recent appointments count
-      let recentCount = 0
-      try {
-        const { count } = await supabase
-          .from("appointments")
-          .select("*", { count: "exact", head: true })
-          .gte("appointment_date", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-        recentCount = count || 0
-      } catch (error) {
-        console.error("[v0] Error fetching recent appointments count:", error)
-      }
-
-      setPatients(patientsData)
-      setStats({
-        total: totalCount,
-        active: totalCount,
-        highRisk: highRiskCount,
-        recentAppointments: recentCount,
-      })
-    } catch (error) {
-      console.error("[v0] Error fetching patients:", error)
-      setPatients([])
-      setStats({ total: 0, active: 0, highRisk: 0, recentAppointments: 0 })
-    } finally {
-      setLoading(false)
-    }
+    setPatients(patientsData || [])
+    setStats({
+      total: totalCount || 0,
+      active: activeCount || 0,
+      highRisk: highRiskCount,
+      recentAppointments: recentCount || 0,
+    })
+    setLoading(false)
   }
 
-  const handlePatientAdded = async () => {
-    // Small delay to ensure database is updated
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    await fetchData()
+  const handlePatientAdded = () => {
+    fetchData()
   }
 
   if (loading) {

@@ -1952,6 +1952,851 @@ export default function SubscriptionPage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+                        onChange={(e) =>
+                          setPracticeFormData({
+                            ...practiceFormData,
+                            dea: e.target.value.toUpperCase(),
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-md mt-1"
+                        placeholder="AB1234567"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Drug Enforcement Administration Number
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium">
+                        State License Number *
+                      </label>
+                      <input
+                        required
+                        type="text"
+                        value={practiceFormData.stateLicense}
+                        onChange={(e) =>
+                          setPracticeFormData({
+                            ...practiceFormData,
+                            stateLicense: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-md mt-1"
+                        placeholder="12345678"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium">
+                        License State *
+                      </label>
+                      <select
+                        required
+                        value={practiceFormData.stateLicenseState}
+                        onChange={(e) =>
+                          setPracticeFormData({
+                            ...practiceFormData,
+                            stateLicenseState: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-md mt-1">
+                        <option value="">Select State</option>
+                        <option value="AL">Alabama</option>
+                        <option value="AK">Alaska</option>
+                        <option value="AZ">Arizona</option>
+                        <option value="AR">Arkansas</option>
+                        <option value="CA">California</option>
+                        <option value="CO">Colorado</option>
+                        <option value="CT">Connecticut</option>
+                        <option value="DE">Delaware</option>
+                        <option value="FL">Florida</option>
+                        <option value="GA">Georgia</option>
+                        <option value="HI">Hawaii</option>
+                        <option value="ID">Idaho</option>
+                        <option value="IL">Illinois</option>
+                        <option value="IN">Indiana</option>
+                        <option value="IA">Iowa</option>
+                        <option value="KS">Kansas</option>
+                        <option value="KY">Kentucky</option>
+                        <option value="LA">Louisiana</option>
+                        <option value="ME">Maine</option>
+                        <option value="MD">Maryland</option>
+                        <option value="MA">Massachusetts</option>
+                        <option value="MI">Michigan</option>
+                        <option value="MN">Minnesota</option>
+                        <option value="MS">Mississippi</option>
+                        <option value="MO">Missouri</option>
+                        <option value="MT">Montana</option>
+                        <option value="NE">Nebraska</option>
+                        <option value="NV">Nevada</option>
+                        <option value="NH">New Hampshire</option>
+                        <option value="NJ">New Jersey</option>
+                        <option value="NM">New Mexico</option>
+                        <option value="NY">New York</option>
+                        <option value="NC">North Carolina</option>
+                        <option value="ND">North Dakota</option>
+                        <option value="OH">Ohio</option>
+                        <option value="OK">Oklahoma</option>
+                        <option value="OR">Oregon</option>
+                        <option value="PA">Pennsylvania</option>
+                        <option value="RI">Rhode Island</option>
+                        <option value="SC">South Carolina</option>
+                        <option value="SD">South Dakota</option>
+                        <option value="TN">Tennessee</option>
+                        <option value="TX">Texas</option>
+                        <option value="UT">Utah</option>
+                        <option value="VT">Vermont</option>
+                        <option value="VA">Virginia</option>
+                        <option value="WA">Washington</option>
+                        <option value="WV">West Virginia</option>
+                        <option value="WI">Wisconsin</option>
+                        <option value="WY">Wyoming</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium">
+                        SAMHSA Number *
+                      </label>
+                      <input
+                        required
+                        type="text"
+                        value={practiceFormData.samhsa}
+                        onChange={(e) =>
+                          setPracticeFormData({
+                            ...practiceFormData,
+                            samhsa: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-md mt-1"
+                        placeholder="SAMHSA-12345"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Substance Abuse Mental Health Services Admin
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium">
+                        DUNS Number (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        pattern="[0-9]{9}"
+                        maxLength={9}
+                        value={practiceFormData.duns}
+                        onChange={(e) =>
+                          setPracticeFormData({
+                            ...practiceFormData,
+                            duns: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-md mt-1"
+                        placeholder="123456789"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        9-digit Data Universal Numbering System
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium">
+                        Tax ID (EIN) *
+                      </label>
+                      <input
+                        required
+                        type="text"
+                        pattern="[0-9]{2}-[0-9]{7}"
+                        value={practiceFormData.taxId}
+                        onChange={(e) =>
+                          setPracticeFormData({
+                            ...practiceFormData,
+                            taxId: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-md mt-1"
+                        placeholder="12-3456789"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Contact Information */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold">Contact Information</h3>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="md:col-span-2">
+                      <label className="text-sm font-medium">Address *</label>
+                      <input
+                        required
+                        type="text"
+                        value={practiceFormData.address}
+                        onChange={(e) =>
+                          setPracticeFormData({
+                            ...practiceFormData,
+                            address: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-md mt-1"
+                        placeholder="123 Main Street"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium">City *</label>
+                      <input
+                        required
+                        type="text"
+                        value={practiceFormData.city}
+                        onChange={(e) =>
+                          setPracticeFormData({
+                            ...practiceFormData,
+                            city: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-md mt-1"
+                        placeholder="Detroit"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium">State *</label>
+                      <select
+                        required
+                        value={practiceFormData.state}
+                        onChange={(e) =>
+                          setPracticeFormData({
+                            ...practiceFormData,
+                            state: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-md mt-1">
+                        <option value="">Select State</option>
+                        <option value="MI">Michigan</option>
+                        <option value="AL">Alabama</option>
+                        <option value="AK">Alaska</option>
+                        <option value="AZ">Arizona</option>
+                        <option value="AR">Arkansas</option>
+                        <option value="CA">California</option>
+                        <option value="CO">Colorado</option>
+                        <option value="CT">Connecticut</option>
+                        <option value="DE">Delaware</option>
+                        <option value="FL">Florida</option>
+                        <option value="GA">Georgia</option>
+                        <option value="HI">Hawaii</option>
+                        <option value="ID">Idaho</option>
+                        <option value="IL">Illinois</option>
+                        <option value="IN">Indiana</option>
+                        <option value="IA">Iowa</option>
+                        <option value="KS">Kansas</option>
+                        <option value="KY">Kentucky</option>
+                        <option value="LA">Louisiana</option>
+                        <option value="ME">Maine</option>
+                        <option value="MD">Maryland</option>
+                        <option value="MA">Massachusetts</option>
+                        <option value="MN">Minnesota</option>
+                        <option value="MS">Mississippi</option>
+                        <option value="MO">Missouri</option>
+                        <option value="MT">Montana</option>
+                        <option value="NE">Nebraska</option>
+                        <option value="NV">Nevada</option>
+                        <option value="NH">New Hampshire</option>
+                        <option value="NJ">New Jersey</option>
+                        <option value="NM">New Mexico</option>
+                        <option value="NY">New York</option>
+                        <option value="NC">North Carolina</option>
+                        <option value="ND">North Dakota</option>
+                        <option value="OH">Ohio</option>
+                        <option value="OK">Oklahoma</option>
+                        <option value="OR">Oregon</option>
+                        <option value="PA">Pennsylvania</option>
+                        <option value="RI">Rhode Island</option>
+                        <option value="SC">South Carolina</option>
+                        <option value="SD">South Dakota</option>
+                        <option value="TN">Tennessee</option>
+                        <option value="TX">Texas</option>
+                        <option value="UT">Utah</option>
+                        <option value="VT">Vermont</option>
+                        <option value="VA">Virginia</option>
+                        <option value="WA">Washington</option>
+                        <option value="WV">West Virginia</option>
+                        <option value="WI">Wisconsin</option>
+                        <option value="WY">Wyoming</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium">ZIP Code *</label>
+                      <input
+                        required
+                        type="text"
+                        pattern="[0-9]{5}"
+                        maxLength={5}
+                        value={practiceFormData.zip}
+                        onChange={(e) =>
+                          setPracticeFormData({
+                            ...practiceFormData,
+                            zip: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-md mt-1"
+                        placeholder="48201"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium">Phone *</label>
+                      <input
+                        required
+                        type="tel"
+                        value={practiceFormData.phone}
+                        onChange={(e) =>
+                          setPracticeFormData({
+                            ...practiceFormData,
+                            phone: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-md mt-1"
+                        placeholder="(313) 555-0100"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium">Email *</label>
+                      <input
+                        required
+                        type="email"
+                        value={practiceFormData.email}
+                        onChange={(e) =>
+                          setPracticeFormData({
+                            ...practiceFormData,
+                            email: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-md mt-1"
+                        placeholder="admin@practice.com"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Specialties Offered Section */}
+                <div className="space-y-3">
+                  <label className="text-sm font-medium">
+                    Specialties Offered *
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    Select all specialties this practice offers
+                  </p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 border rounded-lg p-4">
+                    {[
+                      {
+                        value: "behavioral-health",
+                        label: "Behavioral Health",
+                      },
+                      { value: "otp", label: "OTP (Opioid Treatment Program)" },
+                      {
+                        value: "mat",
+                        label: "MAT (Medication-Assisted Treatment)",
+                      },
+                      { value: "primary-care", label: "Primary Care" },
+                      { value: "psychiatry", label: "Psychiatry" },
+                      { value: "obgyn", label: "OB/GYN" },
+                      { value: "pediatrics", label: "Pediatrics" },
+                      { value: "cardiology", label: "Cardiology" },
+                      { value: "physical-therapy", label: "Physical Therapy" },
+                      {
+                        value: "occupational-therapy",
+                        label: "Occupational Therapy",
+                      },
+                      {
+                        value: "substance-use-disorder",
+                        label: "Substance Use Disorder",
+                      },
+                      {
+                        value: "mental-health",
+                        label: "Mental Health Counseling",
+                      },
+                    ].map((specialty) => (
+                      <label
+                        key={specialty.value}
+                        className="flex items-center space-x-2 cursor-pointer hover:bg-accent/50 p-2 rounded">
+                        <input
+                          type="checkbox"
+                          checked={practiceFormData.specialties.includes(
+                            specialty.value
+                          )}
+                          onChange={() => {
+                            const updatedSpecialties =
+                              practiceFormData.specialties.includes(
+                                specialty.value
+                              )
+                                ? practiceFormData.specialties.filter(
+                                    (s) => s !== specialty.value
+                                  )
+                                : [
+                                    ...practiceFormData.specialties,
+                                    specialty.value,
+                                  ];
+                            setPracticeFormData({
+                              ...practiceFormData,
+                              specialties: updatedSpecialties,
+                            });
+                          }}
+                          className="w-4 h-4 rounded border-gray-300"
+                        />
+                        <span className="text-sm">{specialty.label}</span>
+                      </label>
+                    ))}
+                  </div>
+
+                  {practiceFormData.specialties.length === 0 && (
+                    <p className="text-xs text-destructive">
+                      Please select at least one specialty
+                    </p>
+                  )}
+                </div>
+
+                {/* Add-Ons Selection */}
+                <div className="space-y-4">
+                  <Label className="text-base font-semibold">
+                    Select Add-On Features
+                  </Label>
+                  <p className="text-sm text-muted-foreground">
+                    Choose additional features to enhance your practice
+                    capabilities
+                  </p>
+
+                  {/* Clinical Add-Ons */}
+                  <div className="space-y-3">
+                    <h4 className="font-medium flex items-center gap-2">
+                      <Pill className="h-4 w-4" />
+                      Clinical Features
+                    </h4>
+                    <div className="grid gap-3 ml-6">
+                      <div className="flex items-start space-x-3">
+                        <Checkbox
+                          id="addon-eprescribing"
+                          checked={practiceFormData.addons?.includes(
+                            "e-prescribing"
+                          )}
+                          onCheckedChange={(checked) =>
+                            setPracticeFormData((prev) => ({
+                              ...prev,
+                              addons: checked
+                                ? [...(prev.addons || []), "e-prescribing"]
+                                : (prev.addons || []).filter(
+                                    (a) => a !== "e-prescribing"
+                                  ),
+                            }))
+                          }
+                        />
+                        <div className="grid gap-1.5">
+                          <Label
+                            htmlFor="addon-eprescribing"
+                            className="font-normal">
+                            E-Prescribing (EPCS) - $99/mo
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Electronic prescribing including controlled
+                            substances
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start space-x-3">
+                        <Checkbox
+                          id="addon-telehealth"
+                          checked={practiceFormData.addons?.includes(
+                            "telehealth"
+                          )}
+                          onCheckedChange={(checked) =>
+                            setPracticeFormData((prev) => ({
+                              ...prev,
+                              addons: checked
+                                ? [...(prev.addons || []), "telehealth"]
+                                : (prev.addons || []).filter(
+                                    (a) => a !== "telehealth"
+                                  ),
+                            }))
+                          }
+                        />
+                        <div className="grid gap-1.5">
+                          <Label
+                            htmlFor="addon-telehealth"
+                            className="font-normal">
+                            Telehealth - $79/mo
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Video consultations with patients
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start space-x-3">
+                        <Checkbox
+                          id="addon-lab"
+                          checked={practiceFormData.addons?.includes(
+                            "lab-integration"
+                          )}
+                          onCheckedChange={(checked) =>
+                            setPracticeFormData((prev) => ({
+                              ...prev,
+                              addons: checked
+                                ? [...(prev.addons || []), "lab-integration"]
+                                : (prev.addons || []).filter(
+                                    (a) => a !== "lab-integration"
+                                  ),
+                            }))
+                          }
+                        />
+                        <div className="grid gap-1.5">
+                          <Label htmlFor="addon-lab" className="font-normal">
+                            Lab Integration - $59/mo
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Connect with lab providers for orders and results
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Billing Add-Ons */}
+                  <div className="space-y-3">
+                    <h4 className="font-medium flex items-center gap-2">
+                      <CreditCard className="h-4 w-4" />
+                      Billing Features
+                    </h4>
+                    <div className="grid gap-3 ml-6">
+                      <div className="flex items-start space-x-3">
+                        <Checkbox
+                          id="addon-billing"
+                          checked={practiceFormData.addons?.includes(
+                            "billing-claims"
+                          )}
+                          onCheckedChange={(checked) =>
+                            setPracticeFormData((prev) => ({
+                              ...prev,
+                              addons: checked
+                                ? [...(prev.addons || []), "billing-claims"]
+                                : (prev.addons || []).filter(
+                                    (a) => a !== "billing-claims"
+                                  ),
+                            }))
+                          }
+                        />
+                        <div className="grid gap-1.5">
+                          <Label
+                            htmlFor="addon-billing"
+                            className="font-normal">
+                            Billing & Claims - $149/mo
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Insurance billing and claims management
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start space-x-3">
+                        <Checkbox
+                          id="addon-clearinghouse"
+                          checked={practiceFormData.addons?.includes(
+                            "clearinghouse"
+                          )}
+                          onCheckedChange={(checked) =>
+                            setPracticeFormData((prev) => ({
+                              ...prev,
+                              addons: checked
+                                ? [...(prev.addons || []), "clearinghouse"]
+                                : (prev.addons || []).filter(
+                                    (a) => a !== "clearinghouse"
+                                  ),
+                            }))
+                          }
+                        />
+                        <div className="grid gap-1.5">
+                          <Label
+                            htmlFor="addon-clearinghouse"
+                            className="font-normal">
+                            Clearinghouse Integration - $79/mo
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Direct claims submission to clearinghouses
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start space-x-3">
+                        <Checkbox
+                          id="addon-otp-bundle"
+                          checked={practiceFormData.addons?.includes(
+                            "otp-bundle"
+                          )}
+                          onCheckedChange={(checked) =>
+                            setPracticeFormData((prev) => ({
+                              ...prev,
+                              addons: checked
+                                ? [...(prev.addons || []), "otp-bundle"]
+                                : (prev.addons || []).filter(
+                                    (a) => a !== "otp-bundle"
+                                  ),
+                            }))
+                          }
+                        />
+                        <div className="grid gap-1.5">
+                          <Label
+                            htmlFor="addon-otp-bundle"
+                            className="font-normal">
+                            OTP Bundle Billing - $49/mo
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Specialized OTP billing with bundle calculator
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Integration Add-Ons */}
+                  <div className="space-y-3">
+                    <h4 className="font-medium flex items-center gap-2">
+                      <Zap className="h-4 w-4" />
+                      Integration Features
+                    </h4>
+                    <div className="grid gap-3 ml-6">
+                      <div className="flex items-start space-x-3">
+                        <Checkbox
+                          id="addon-pmp"
+                          checked={practiceFormData.addons?.includes(
+                            "pmp-integration"
+                          )}
+                          onCheckedChange={(checked) =>
+                            setPracticeFormData((prev) => ({
+                              ...prev,
+                              addons: checked
+                                ? [...(prev.addons || []), "pmp-integration"]
+                                : (prev.addons || []).filter(
+                                    (a) => a !== "pmp-integration"
+                                  ),
+                            }))
+                          }
+                        />
+                        <div className="grid gap-1.5">
+                          <Label htmlFor="addon-pmp" className="font-normal">
+                            PMP Integration - $49/mo
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Prescription Monitoring Program integration
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start space-x-3">
+                        <Checkbox
+                          id="addon-mobile-checkin"
+                          checked={practiceFormData.addons?.includes(
+                            "mobile-check-in"
+                          )}
+                          onCheckedChange={(checked) =>
+                            setPracticeFormData((prev) => ({
+                              ...prev,
+                              addons: checked
+                                ? [...(prev.addons || []), "mobile-check-in"]
+                                : (prev.addons || []).filter(
+                                    (a) => a !== "mobile-check-in"
+                                  ),
+                            }))
+                          }
+                        />
+                        <div className="grid gap-1.5">
+                          <Label
+                            htmlFor="addon-mobile-checkin"
+                            className="font-normal">
+                            Mobile Check-In - $39/mo
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Patient mobile check-in and queue management
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start space-x-3">
+                        <Checkbox
+                          id="addon-sms"
+                          checked={practiceFormData.addons?.includes(
+                            "sms-reminders"
+                          )}
+                          onCheckedChange={(checked) =>
+                            setPracticeFormData((prev) => ({
+                              ...prev,
+                              addons: checked
+                                ? [...(prev.addons || []), "sms-reminders"]
+                                : (prev.addons || []).filter(
+                                    (a) => a !== "sms-reminders"
+                                  ),
+                            }))
+                          }
+                        />
+                        <div className="grid gap-1.5">
+                          <Label htmlFor="addon-sms" className="font-normal">
+                            SMS/Email Reminders - $29/mo
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Automated appointment and medication reminders
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Advanced Add-Ons */}
+                  <div className="space-y-3">
+                    <h4 className="font-medium flex items-center gap-2">
+                      <Sparkles className="h-4 w-4" />
+                      Advanced Features
+                    </h4>
+                    <div className="grid gap-3 ml-6">
+                      <div className="flex items-start space-x-3">
+                        <Checkbox
+                          id="addon-ai"
+                          checked={practiceFormData.addons?.includes(
+                            "ai-assistant"
+                          )}
+                          onCheckedChange={(checked) =>
+                            setPracticeFormData((prev) => ({
+                              ...prev,
+                              addons: checked
+                                ? [...(prev.addons || []), "ai-assistant"]
+                                : (prev.addons || []).filter(
+                                    (a) => a !== "ai-assistant"
+                                  ),
+                            }))
+                          }
+                        />
+                        <div className="grid gap-1.5">
+                          <Label htmlFor="addon-ai" className="font-normal">
+                            AI Clinical Assistant - $199/mo
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            AI-powered documentation and decision support
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start space-x-3">
+                        <Checkbox
+                          id="addon-analytics"
+                          checked={practiceFormData.addons?.includes(
+                            "advanced-analytics"
+                          )}
+                          onCheckedChange={(checked) =>
+                            setPracticeFormData((prev) => ({
+                              ...prev,
+                              addons: checked
+                                ? [...(prev.addons || []), "advanced-analytics"]
+                                : (prev.addons || []).filter(
+                                    (a) => a !== "advanced-analytics"
+                                  ),
+                            }))
+                          }
+                        />
+                        <div className="grid gap-1.5">
+                          <Label
+                            htmlFor="addon-analytics"
+                            className="font-normal">
+                            Advanced Analytics - $149/mo
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Comprehensive reporting and analytics dashboard
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start space-x-3">
+                        <Checkbox
+                          id="addon-diversion"
+                          checked={practiceFormData.addons?.includes(
+                            "takehome-diversion-control"
+                          )}
+                          onCheckedChange={(checked) =>
+                            setPracticeFormData((prev) => ({
+                              ...prev,
+                              addons: checked
+                                ? [
+                                    ...(prev.addons || []),
+                                    "takehome-diversion-control",
+                                  ]
+                                : (prev.addons || []).filter(
+                                    (a) => a !== "takehome-diversion-control"
+                                  ),
+                            }))
+                          }
+                        />
+                        <div className="grid gap-1.5">
+                          <Label
+                            htmlFor="addon-diversion"
+                            className="font-normal">
+                            Take-Home Diversion Control - $199/mo
+                            <Badge variant="secondary" className="ml-2">
+                              Premium
+                            </Badge>
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            QR code scanning with GPS verification and facial
+                            biometrics
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start space-x-3">
+                        <Checkbox
+                          id="addon-multi-location"
+                          checked={practiceFormData.addons?.includes(
+                            "multi-location"
+                          )}
+                          onCheckedChange={(checked) =>
+                            setPracticeFormData((prev) => ({
+                              ...prev,
+                              addons: checked
+                                ? [...(prev.addons || []), "multi-location"]
+                                : (prev.addons || []).filter(
+                                    (a) => a !== "multi-location"
+                                  ),
+                            }))
+                          }
+                        />
+                        <div className="grid gap-1.5">
+                          <Label
+                            htmlFor="addon-multi-location"
+                            className="font-normal">
+                            Multi-Location Support - $199/mo
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Manage multiple clinic locations
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-4 border-t">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsPracticeOnboardingOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit">
+                    <Building2 className="h-4 w-4 mr-2" />
+                    Onboard Practice
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
         </main>
       </div>
     </div>

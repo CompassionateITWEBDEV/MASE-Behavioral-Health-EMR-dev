@@ -12,8 +12,20 @@ import {
   WifiOff,
 } from "lucide-react";
 
+interface DeviceStatus {
+  status: string;
+  device_id: string;
+  serial_port?: string;
+  bottle_id?: string;
+  est_remaining_ml?: number;
+  pump_cycles?: number;
+  total_dispensed_today?: number;
+  last_alarm?: string;
+  firmware_version?: string;
+}
+
 export function SerialDeviceMonitor() {
-  const [deviceStatus, setDeviceStatus] = useState<any>(null);
+  const [deviceStatus, setDeviceStatus] = useState<DeviceStatus | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 

@@ -205,7 +205,7 @@ export function SupervisoryReviewWorkflow() {
         review.id === reviewId
           ? {
               ...review,
-              reviewStatus: decision as any,
+              reviewStatus: decision as ReviewItem["reviewStatus"],
               reviewNotes: notes,
               reviewedBy: "Dr. Sarah Johnson",
               reviewedDate: new Date().toISOString(),

@@ -60,7 +60,7 @@ export function EditPatientDialog({
     lastName: patient.last_name,
     dateOfBirth: patient.date_of_birth,
     gender: patient.gender || "",
-    phone: patient.phone,
+    phone: patient.phone || "",
     email: patient.email || "",
     address: patient.address || "",
     emergencyContactName: patient.emergency_contact_name || "",
@@ -185,7 +185,7 @@ export function EditPatientDialog({
                 id="phone"
                 type="tel"
                 required
-                value={formData.phone}
+                value={formData.phone ?? ""}
                 onChange={(e) => handleInputChange("phone", e.target.value)}
               />
             </div>
@@ -194,7 +194,7 @@ export function EditPatientDialog({
               <Input
                 id="email"
                 type="email"
-                value={formData.email}
+                value={formData.email ?? ""}
                 onChange={(e) => handleInputChange("email", e.target.value)}
               />
             </div>
@@ -204,7 +204,7 @@ export function EditPatientDialog({
             <Label htmlFor="address">Address</Label>
             <Textarea
               id="address"
-              value={formData.address}
+              value={formData.address ?? ""}
               onChange={(e) => handleInputChange("address", e.target.value)}
             />
           </div>

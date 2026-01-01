@@ -284,7 +284,7 @@ export default function PMPPage() {
 
       // If patient selected from dropdown, get their info
       if (selectedPatient) {
-        const patient = patients.find((p: any) => p.id === selectedPatient);
+        const patient = patients.find((p: Patient) => p.id === selectedPatient);
         if (patient) {
           patientData.firstName = patient.first_name;
           patientData.lastName = patient.last_name;
@@ -571,7 +571,7 @@ export default function PMPPage() {
                           <SelectValue placeholder="Choose a patient..." />
                         </SelectTrigger>
                         <SelectContent>
-                          {patients.map((patient: any) => (
+                          {patients.map((patient: Patient) => (
                             <SelectItem key={patient.id} value={patient.id}>
                               {patient.last_name}, {patient.first_name} (DOB:{" "}
                               {patient.date_of_birth})

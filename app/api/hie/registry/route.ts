@@ -28,7 +28,7 @@ export async function GET() {
       directory: directory || [],
       network_stats: {
         total_clinics: clinics?.length || 0,
-        total_states: new Set(clinics?.map((c) => c.state)).size || 0,
+        total_states: new Set(clinics?.map((c: any) => c.state)).size || 0,
       },
     });
   } catch (error: any) {

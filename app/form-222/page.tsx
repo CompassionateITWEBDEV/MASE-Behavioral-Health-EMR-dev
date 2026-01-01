@@ -324,8 +324,8 @@ export default function Form222Page() {
 
       // Check if all lines are complete
       const form = forms.find((f) => f.id === receivingFormId);
-      if (form) {
-        const allComplete = form.lines?.every(
+      if (form && form.lines && form.lines.length > 0) {
+        const allComplete = form.lines.every(
           (l) =>
             (receivingLines.find((rl) => rl.lineId === l.id)
               ?.containersReceived ?? 0) > 0 || l.status === "complete"

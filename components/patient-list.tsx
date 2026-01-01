@@ -245,10 +245,10 @@ export function PatientList({
                           </div>
                           <div className="flex items-center gap-4 text-sm text-muted-foreground">
                             <span>
-                              {age}y • {patient.gender}
+                              {age}y • {patient.gender || "N/A"}
                             </span>
-                            <span>{patient.phone}</span>
-                            <span>{patient.insurance_provider}</span>
+                            <span>{patient.phone || "N/A"}</span>
+                            <span>{patient.insurance_provider || "N/A"}</span>
                           </div>
                           <div className="flex items-center gap-4 text-sm">
                             <span>

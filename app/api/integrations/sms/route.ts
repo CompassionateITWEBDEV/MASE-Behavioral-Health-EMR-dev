@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     const patientId = searchParams.get("patientId");
 
     let query = `
-      SELECT 
+      SELECT
         sm.*,
         p.first_name,
         p.last_name
