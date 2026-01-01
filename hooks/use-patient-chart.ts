@@ -44,7 +44,9 @@ export function usePatientChart(
 
       const data = await response.json();
 
-      // Handle both client_number and patient_number for compatibility
+      // Handle both client_number and patient_number for backwards compatibility.
+      // Legacy systems used patient_number, while newer schema uses client_number.
+      // This fallback ensures compatibility during migration.
       const patientData = {
         ...data.patient,
         client_number:
