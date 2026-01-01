@@ -1,10 +1,11 @@
-import type { NextRequest } from "next/server"
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 
 export async function proxy(request: NextRequest) {
   // return await updateSession(request)
 
   // Allow all requests to pass through without authentication
-  return
+  return NextResponse.next();
 }
 
 export const config = {
@@ -19,5 +20,4 @@ export const config = {
      */
     "/((?!_next/static|_next/image|favicon.ico|.*.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
-}
-
+};
