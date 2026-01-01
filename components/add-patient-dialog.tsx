@@ -49,103 +49,52 @@ export function AddPatientDialog({ children, providerId, onSuccess }: AddPatient
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
-  const resetForm = () => {
-    setFormData({
-      firstName: "",
-      lastName: "",
-      dateOfBirth: "",
-      gender: "",
-      phone: "",
-      email: "",
-      address: "",
-      emergencyContactName: "",
-      emergencyContactPhone: "",
-      insuranceProvider: "",
-      insuranceId: "",
-    })
-  }
-
-  const validateForm = (): string | null => {
-    if (!formData.firstName.trim()) {
-      return "First name is required"
-    }
-    if (!formData.lastName.trim()) {
-      return "Last name is required"
-    }
-    if (!formData.dateOfBirth) {
-      return "Date of birth is required"
-    }
-    // Validate date of birth is in the past
-    const birthDate = new Date(formData.dateOfBirth)
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    if (birthDate >= today) {
-      return "Date of birth must be in the past"
-    }
-    if (!formData.phone.trim()) {
-      return "Phone number is required"
-    }
-    // Validate email format if provided
-    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      return "Invalid email format"
-    }
-    return null
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    // Client-side validation
-    const validationError = validateForm()
-    if (validationError) {
-      toast.error(validationError)
-      return
-    }
-
     setIsLoading(true)
 
     try {
-      const requestBody: any = {
-        first_name: formData.firstName.trim(),
-        last_name: formData.lastName.trim(),
-        date_of_birth: formData.dateOfBirth,
-        phone: formData.phone.trim(),
-        gender: formData.gender && formData.gender.trim() ? formData.gender : null,
-        email: formData.email?.trim() || null,
-        address: formData.address?.trim() || null,
-        emergency_contact_name: formData.emergencyContactName?.trim() || null,
-        emergency_contact_phone: formData.emergencyContactPhone?.trim() || null,
-        insurance_provider: formData.insuranceProvider || null,
-        insurance_id: formData.insuranceId?.trim() || null,
-        created_by: providerId,
-      }
-
-      console.log("Submitting patient data:", requestBody)
-
       const response = await fetch("/api/patients", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          date_of_birth: formData.dateOfBirth,
+          gender: formData.gender,
+          phone: formData.phone,
+          email: formData.email || null,
+          address: formData.address || null,
+          emergency_contact_name: formData.emergencyContactName || null,
+          emergency_contact_phone: formData.emergencyContactPhone || null,
+          insurance_provider: formData.insuranceProvider || null,
+          insurance_id: formData.insuranceId || null,
+        }),
       })
 
       const data = await response.json()
 
       if (!response.ok) {
-        const errorMessage = data.error || `Failed to add patient (${response.status})`
-        console.error("API Error:", {
-          status: response.status,
-          statusText: response.statusText,
-          error: data.error,
-          data: data,
-        })
-        throw new Error(errorMessage)
+        throw new Error(data.error || "Failed to add patient")
       }
 
       toast.success("Patient added successfully")
-      resetForm()
       setOpen(false)
+      setFormData({
+        firstName: "",
+        lastName: "",
+        dateOfBirth: "",
+        gender: "",
+        phone: "",
+        email: "",
+        address: "",
+        emergencyContactName: "",
+        emergencyContactPhone: "",
+        insuranceProvider: "",
+        insuranceId: "",
+      })
 
       if (onSuccess) {
         onSuccess()
@@ -160,16 +109,8 @@ export function AddPatientDialog({ children, providerId, onSuccess }: AddPatient
     }
   }
 
-  const handleOpenChange = (newOpen: boolean) => {
-    setOpen(newOpen)
-    if (!newOpen) {
-      // Reset form when dialog closes
-      resetForm()
-    }
-  }
-
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -205,14 +146,13 @@ export function AddPatientDialog({ children, providerId, onSuccess }: AddPatient
                 id="dateOfBirth"
                 type="date"
                 required
-                max={new Date().toISOString().split("T")[0]}
                 value={formData.dateOfBirth}
                 onChange={(e) => handleInputChange("dateOfBirth", e.target.value)}
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="gender">Gender</Label>
-              <Select value={formData.gender} onValueChange={(value) => handleInputChange("gender", value)}>
+              <Select onValueChange={(value) => handleInputChange("gender", value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select gender" />
                 </SelectTrigger>
@@ -286,7 +226,7 @@ export function AddPatientDialog({ children, providerId, onSuccess }: AddPatient
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="insuranceProvider">Insurance Provider</Label>
-              <Select value={formData.insuranceProvider} onValueChange={(value) => handleInputChange("insuranceProvider", value)}>
+              <Select onValueChange={(value) => handleInputChange("insuranceProvider", value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select insurance" />
                 </SelectTrigger>
@@ -315,7 +255,7 @@ export function AddPatientDialog({ children, providerId, onSuccess }: AddPatient
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={isLoading}>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={isLoading}>

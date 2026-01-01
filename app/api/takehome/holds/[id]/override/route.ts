@@ -1,9 +1,10 @@
 import { createServiceRoleClient } from "@/lib/supabase/service-role"
 import { type NextRequest, NextResponse } from "next/server"
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const holdId = Number.parseInt(params.id)
+    const { id } = await params
+    const holdId = Number.parseInt(id)
     const { override_reason, override_type, overridden_by } = await request.json()
 
     if (!Number.isFinite(holdId)) {

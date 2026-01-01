@@ -3,8 +3,9 @@ import { neon } from "@neondatabase/serverless"
 
 const sql = neon(process.env.NEON_NEON_DATABASE_URL!)
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
     const result = await sql`
       SELECT 
         ds.*,
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       FROM discharge_summaries ds
       LEFT JOIN patients p ON ds.patient_id = p.id
       LEFT JOIN providers pr ON ds.provider_id = pr.id
-      WHERE ds.id = ${params.id}
+      WHERE ds.id = ${id}
     `
 
     if (result.length === 0) {
@@ -27,8 +28,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
     const body = await request.json()
 
     const result = await sql`
@@ -64,7 +66,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         follow_up_appointments = ${JSON.stringify(body.follow_up_appointments || [])},
         status = ${body.status || "draft"},
         updated_at = NOW()
-      WHERE id = ${params.id}
+      WHERE id = ${id}
       RETURNING *
     `
 
@@ -79,11 +81,12 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
     await sql`
       DELETE FROM discharge_summaries
-      WHERE id = ${params.id}
+      WHERE id = ${id}
     `
 
     return NextResponse.json({ success: true })

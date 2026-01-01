@@ -11,12 +11,15 @@ import { ConsentFormsOverview } from "@/components/consent-forms-overview"
 import { FormTemplateManager } from "@/components/form-template-manager"
 import { PatientConsentTracker } from "@/components/patient-consent-tracker"
 import { ConsentReports } from "@/components/consent-reports"
+import { ComprehensiveConsentForms } from "@/components/comprehensive-consent-forms"
 import { DashboardSidebar } from "@/components/dashboard-sidebar"
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json())
 
 export default function ConsentFormsPage() {
   const [activeTab, setActiveTab] = useState("overview")
+  const [showComprehensiveConsent, setShowComprehensiveConsent] = useState(false)
+  const [selectedPatient, setSelectedPatient] = useState<any>(null)
 
   const { data, error, isLoading } = useSWR("/api/consent-forms", fetcher, {
     refreshInterval: 30000,
@@ -40,6 +43,10 @@ export default function ConsentFormsPage() {
             <p className="text-muted-foreground">Manage patient consent forms, templates, and compliance tracking</p>
           </div>
           <div className="flex items-center space-x-2">
+            <Button variant="outline" onClick={() => setActiveTab("comprehensive")}>
+              <FileSignature className="mr-2 h-4 w-4" />
+              Complete Patient Forms
+            </Button>
             <Button onClick={() => setActiveTab("templates")}>
               <Plus className="mr-2 h-4 w-4" />
               New Form Template
@@ -47,7 +54,6 @@ export default function ConsentFormsPage() {
           </div>
         </div>
 
-        {/* Stats Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -118,6 +124,7 @@ export default function ConsentFormsPage() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList>
             <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="comprehensive">Complete Patient Forms</TabsTrigger>
             <TabsTrigger value="templates">Form Templates</TabsTrigger>
             <TabsTrigger value="patient-tracking">Patient Tracking</TabsTrigger>
             <TabsTrigger value="reports">Reports</TabsTrigger>
@@ -125,6 +132,31 @@ export default function ConsentFormsPage() {
 
           <TabsContent value="overview" className="space-y-4">
             <ConsentFormsOverview data={data} isLoading={isLoading} error={error} />
+          </TabsContent>
+
+          <TabsContent value="comprehensive" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Complete Patient Consent Forms</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Complete all 45+ required and optional consent forms with electronic signature (PIN or biometric)
+                </p>
+              </CardHeader>
+              <CardContent>
+                <Button
+                  onClick={() => {
+                    setSelectedPatient({ id: "demo", name: "Demo Patient", dob: "1990-01-01" })
+                    setShowComprehensiveConsent(true)
+                  }}
+                >
+                  <FileSignature className="mr-2 h-4 w-4" />
+                  Start Consent Form Process
+                </Button>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Select or search for a patient to begin the comprehensive consent form process
+                </p>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="templates" className="space-y-4">
@@ -139,6 +171,18 @@ export default function ConsentFormsPage() {
             <ConsentReports data={data} isLoading={isLoading} error={error} />
           </TabsContent>
         </Tabs>
+
+        {showComprehensiveConsent && selectedPatient && (
+          <ComprehensiveConsentForms
+            patient={selectedPatient}
+            isOpen={showComprehensiveConsent}
+            onClose={() => setShowComprehensiveConsent(false)}
+            onComplete={(data) => {
+              console.log("[v0] Consent forms completed:", data)
+              setShowComprehensiveConsent(false)
+            }}
+          />
+        )}
       </div>
     </div>
   )

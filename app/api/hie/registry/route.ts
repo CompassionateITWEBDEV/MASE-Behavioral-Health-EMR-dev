@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server"
 import { NextResponse } from "next/server"
 
 export async function GET() {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   try {
     // Get all active clinics in the MASE network
@@ -28,7 +28,7 @@ export async function GET() {
       directory: directory || [],
       network_stats: {
         total_clinics: clinics?.length || 0,
-        total_states: new Set(clinics?.map((c) => c.state)).size || 0,
+        total_states: new Set(clinics?.map((c: any) => c.state)).size || 0,
       },
     })
   } catch (error: any) {
@@ -46,7 +46,7 @@ export async function GET() {
 
 // Register a new clinic to the network
 export async function POST(request: Request) {
-  const supabase = createClient()
+  const supabase = await createClient()
 
   try {
     const body = await request.json()

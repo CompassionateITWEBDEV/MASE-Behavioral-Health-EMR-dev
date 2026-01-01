@@ -400,7 +400,7 @@ export default function ToxicologyPage() {
     <div className="flex h-screen overflow-hidden bg-background">
       <DashboardSidebar />
 
-      <div className="flex-1 overflow-auto pl-64">
+      <div className="flex-1 overflow-auto">
         <div className="p-6">
           {/* Header */}
           <div className="mb-6 flex items-center justify-between">

@@ -1,10 +1,10 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState } from "react"
-import { createClient } from "@/lib/supabase/client"
-import { Button } from "@/components/ui/button"
+import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -13,63 +13,58 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
-import { useRouter } from "next/navigation"
-import { toast } from "sonner"
-
-interface Patient {
-  id: string
-  first_name: string
-  last_name: string
-  date_of_birth: string
-  gender: string
-  phone: string
-  email: string
-  address: string
-  emergency_contact_name: string
-  emergency_contact_phone: string
-  insurance_provider: string
-  insurance_id: string
-}
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import type { PatientWithRelations } from "@/types/patient";
 
 interface EditPatientDialogProps {
-  children: React.ReactNode
-  patient: Patient
+  children: React.ReactNode;
+  patient: PatientWithRelations;
 }
 
-export function EditPatientDialog({ children, patient }: EditPatientDialogProps) {
-  const [open, setOpen] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
+export function EditPatientDialog({
+  children,
+  patient,
+}: EditPatientDialogProps) {
+  const [open, setOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
 
   const [formData, setFormData] = useState({
     firstName: patient.first_name,
     lastName: patient.last_name,
     dateOfBirth: patient.date_of_birth,
     gender: patient.gender || "",
-    phone: patient.phone,
+    phone: patient.phone || "",
     email: patient.email || "",
     address: patient.address || "",
     emergencyContactName: patient.emergency_contact_name || "",
     emergencyContactPhone: patient.emergency_contact_phone || "",
     insuranceProvider: patient.insurance_provider || "",
     insuranceId: patient.insurance_id || "",
-  })
+  });
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
-  }
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
+    e.preventDefault();
+    setIsLoading(true);
 
     try {
-      const supabase = createClient()
+      const supabase = createClient();
 
       const { error } = await supabase
         .from("patients")
@@ -87,20 +82,20 @@ export function EditPatientDialog({ children, patient }: EditPatientDialogProps)
           insurance_id: formData.insuranceId || null,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", patient.id)
+        .eq("id", patient.id);
 
-      if (error) throw error
+      if (error) throw error;
 
-      toast.success("Patient updated successfully")
-      setOpen(false)
-      router.refresh()
+      toast.success("Patient updated successfully");
+      setOpen(false);
+      router.refresh();
     } catch (error) {
-      console.error("Error updating patient:", error)
-      toast.error("Failed to update patient")
+      console.error("Error updating patient:", error);
+      toast.error("Failed to update patient");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -108,7 +103,9 @@ export function EditPatientDialog({ children, patient }: EditPatientDialogProps)
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Patient</DialogTitle>
-          <DialogDescription>{"Update the patient's information."}</DialogDescription>
+          <DialogDescription>
+            {"Update the patient's information."}
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Same form fields as AddPatientDialog but with pre-filled values */}
@@ -141,12 +138,16 @@ export function EditPatientDialog({ children, patient }: EditPatientDialogProps)
                 type="date"
                 required
                 value={formData.dateOfBirth}
-                onChange={(e) => handleInputChange("dateOfBirth", e.target.value)}
+                onChange={(e) =>
+                  handleInputChange("dateOfBirth", e.target.value)
+                }
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="gender">Gender</Label>
-              <Select value={formData.gender} onValueChange={(value) => handleInputChange("gender", value)}>
+              <Select
+                value={formData.gender || undefined}
+                onValueChange={(value) => handleInputChange("gender", value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select gender" />
                 </SelectTrigger>
@@ -155,7 +156,9 @@ export function EditPatientDialog({ children, patient }: EditPatientDialogProps)
                   <SelectItem value="Female">Female</SelectItem>
                   <SelectItem value="Non-binary">Non-binary</SelectItem>
                   <SelectItem value="Other">Other</SelectItem>
-                  <SelectItem value="Prefer not to say">Prefer not to say</SelectItem>
+                  <SelectItem value="Prefer not to say">
+                    Prefer not to say
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -168,7 +171,7 @@ export function EditPatientDialog({ children, patient }: EditPatientDialogProps)
                 id="phone"
                 type="tel"
                 required
-                value={formData.phone}
+                value={formData.phone ?? ""}
                 onChange={(e) => handleInputChange("phone", e.target.value)}
               />
             </div>
@@ -177,7 +180,7 @@ export function EditPatientDialog({ children, patient }: EditPatientDialogProps)
               <Input
                 id="email"
                 type="email"
-                value={formData.email}
+                value={formData.email ?? ""}
                 onChange={(e) => handleInputChange("email", e.target.value)}
               />
             </div>
@@ -187,27 +190,35 @@ export function EditPatientDialog({ children, patient }: EditPatientDialogProps)
             <Label htmlFor="address">Address</Label>
             <Textarea
               id="address"
-              value={formData.address}
+              value={formData.address ?? ""}
               onChange={(e) => handleInputChange("address", e.target.value)}
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="emergencyContactName">Emergency Contact Name</Label>
+              <Label htmlFor="emergencyContactName">
+                Emergency Contact Name
+              </Label>
               <Input
                 id="emergencyContactName"
-                value={formData.emergencyContactName}
-                onChange={(e) => handleInputChange("emergencyContactName", e.target.value)}
+                value={formData.emergencyContactName ?? ""}
+                onChange={(e) =>
+                  handleInputChange("emergencyContactName", e.target.value)
+                }
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="emergencyContactPhone">Emergency Contact Phone</Label>
+              <Label htmlFor="emergencyContactPhone">
+                Emergency Contact Phone
+              </Label>
               <Input
                 id="emergencyContactPhone"
                 type="tel"
-                value={formData.emergencyContactPhone}
-                onChange={(e) => handleInputChange("emergencyContactPhone", e.target.value)}
+                value={formData.emergencyContactPhone ?? ""}
+                onChange={(e) =>
+                  handleInputChange("emergencyContactPhone", e.target.value)
+                }
               />
             </div>
           </div>
@@ -216,19 +227,24 @@ export function EditPatientDialog({ children, patient }: EditPatientDialogProps)
             <div className="space-y-2">
               <Label htmlFor="insuranceProvider">Insurance Provider</Label>
               <Select
-                value={formData.insuranceProvider}
-                onValueChange={(value) => handleInputChange("insuranceProvider", value)}
-              >
+                value={formData.insuranceProvider || undefined}
+                onValueChange={(value) =>
+                  handleInputChange("insuranceProvider", value)
+                }>
                 <SelectTrigger>
                   <SelectValue placeholder="Select insurance" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Medicaid">Medicaid</SelectItem>
                   <SelectItem value="Medicare">Medicare</SelectItem>
-                  <SelectItem value="Blue Cross Blue Shield">Blue Cross Blue Shield</SelectItem>
+                  <SelectItem value="Blue Cross Blue Shield">
+                    Blue Cross Blue Shield
+                  </SelectItem>
                   <SelectItem value="Aetna">Aetna</SelectItem>
                   <SelectItem value="Cigna">Cigna</SelectItem>
-                  <SelectItem value="United Healthcare">United Healthcare</SelectItem>
+                  <SelectItem value="United Healthcare">
+                    United Healthcare
+                  </SelectItem>
                   <SelectItem value="Humana">Humana</SelectItem>
                   <SelectItem value="Private Pay">Private Pay</SelectItem>
                   <SelectItem value="Other">Other</SelectItem>
@@ -239,14 +255,19 @@ export function EditPatientDialog({ children, patient }: EditPatientDialogProps)
               <Label htmlFor="insuranceId">Insurance ID</Label>
               <Input
                 id="insuranceId"
-                value={formData.insuranceId}
-                onChange={(e) => handleInputChange("insuranceId", e.target.value)}
+                value={formData.insuranceId ?? ""}
+                onChange={(e) =>
+                  handleInputChange("insuranceId", e.target.value)
+                }
               />
             </div>
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setOpen(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={isLoading}>
@@ -256,5 +277,5 @@ export function EditPatientDialog({ children, patient }: EditPatientDialogProps)
         </form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

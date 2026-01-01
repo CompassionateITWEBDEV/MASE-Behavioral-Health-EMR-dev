@@ -481,7 +481,7 @@ export default function VaccinationsPage() {
   return (
     <div className="flex min-h-screen bg-background">
       <DashboardSidebar />
-      <div className="flex-1 flex flex-col pl-64">
+      <div className="flex-1 flex flex-col">
         <DashboardHeader />
         <main className="flex-1 p-6 overflow-auto">
           <div className="flex items-center justify-between mb-6">

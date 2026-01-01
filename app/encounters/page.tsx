@@ -1210,22 +1210,20 @@ export default function EncountersPage() {
               <Tabs
                 value={encounterTab}
                 onValueChange={setEncounterTab}
-                className="flex-1 overflow-hidden flex flex-col min-h-0"
+                className="flex-1 overflow-hidden flex flex-col"
               >
-                <div className="w-full overflow-x-auto flex-shrink-0">
-                  <TabsList className="inline-flex w-max gap-2">
-                    <TabsTrigger value="chief-complaint" className="flex-shrink-0 whitespace-nowrap">CC/HPI</TabsTrigger>
-                    <TabsTrigger value="vitals" className="flex-shrink-0 whitespace-nowrap">Vitals</TabsTrigger>
-                    <TabsTrigger value="ros" className="flex-shrink-0 whitespace-nowrap">ROS</TabsTrigger>
-                    <TabsTrigger value="exam" className="flex-shrink-0 whitespace-nowrap">Physical</TabsTrigger>
-                    <TabsTrigger value="assessment" className="flex-shrink-0 whitespace-nowrap">Assessment</TabsTrigger>
-                    <TabsTrigger value="plan" className="flex-shrink-0 whitespace-nowrap">Plan</TabsTrigger>
-                    <TabsTrigger value="diagnoses" className="flex-shrink-0 whitespace-nowrap">Diagnoses</TabsTrigger>
-                    <TabsTrigger value="review" className="flex-shrink-0 whitespace-nowrap">Review</TabsTrigger>
-                  </TabsList>
-                </div>
+                <TabsList className="grid grid-cols-8 w-full">
+                  <TabsTrigger value="chief-complaint">CC/HPI</TabsTrigger>
+                  <TabsTrigger value="vitals">Vitals</TabsTrigger>
+                  <TabsTrigger value="ros">ROS</TabsTrigger>
+                  <TabsTrigger value="exam">Physical Exam</TabsTrigger>
+                  <TabsTrigger value="assessment">Assessment</TabsTrigger>
+                  <TabsTrigger value="plan">Plan</TabsTrigger>
+                  <TabsTrigger value="diagnoses">Diagnoses</TabsTrigger>
+                  <TabsTrigger value="review">Review</TabsTrigger>
+                </TabsList>
 
-                <ScrollArea className="flex-1 min-h-0">
+                <ScrollArea className="flex-1 pr-4">
                   {/* Chief Complaint / HPI Tab */}
                   <TabsContent value="chief-complaint" className="space-y-4 mt-4">
                     <div className="grid grid-cols-3 gap-4">
