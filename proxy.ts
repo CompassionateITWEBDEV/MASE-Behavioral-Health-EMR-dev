@@ -1,10 +1,19 @@
-import type { NextRequest } from "next/server"
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 
+/**
+ * Proxy middleware placeholder.
+ * 
+ * Note: Session/authentication handling is currently disabled.
+ * When authentication is required, uncomment the updateSession call.
+ * All requests currently pass through without authentication.
+ */
 export async function proxy(request: NextRequest) {
+  // TODO: Implement session-based authentication when ready
   // return await updateSession(request)
 
   // Allow all requests to pass through without authentication
-  return
+  return NextResponse.next();
 }
 
 export const config = {
@@ -19,5 +28,4 @@ export const config = {
      */
     "/((?!_next/static|_next/image|favicon.ico|.*.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
-}
-
+};
