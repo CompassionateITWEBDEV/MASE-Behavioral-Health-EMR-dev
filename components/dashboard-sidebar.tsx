@@ -157,6 +157,7 @@ const getNavigationCategories = (isSuperAdmin: boolean): NavCategory[] => {
         { icon: Send, label: "E-Prescribing", href: "/e-prescribing", count: 3 },
         { icon: Syringe, label: "Dosing Window", href: "/dosing-window", count: 15, highlight: "alert" },
         { icon: FileCheck2, label: "Order Management", href: "/order-management", count: 8, highlight: "alert" },
+        { icon: UserCheck, label: "Guest Dosing", href: "/guest-dosing", count: 3, highlight: "alert" },
         { icon: Syringe, label: "Methadone Dispensing", href: "/dispensing", count: 12 },
         { icon: PackageCheck, label: "Take-Home Mgmt", href: "/takehome", count: 8 },
         { icon: Package, label: "Take-Home Bottles", href: "/dispensing/takehome-bottles", count: 12 },

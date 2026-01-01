@@ -141,6 +141,31 @@ export function BillingCenterOverview() {
 
   return (
     <div className="space-y-6">
+      <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-full bg-blue-500 flex items-center justify-center">
+                <Users className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-lg">Advanced Eligibility Verification System</h3>
+                <p className="text-sm text-muted-foreground">
+                  Batch verification, history tracking, and downloadable reports
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={() => setShowAdvancedEligibilityDialog(true)}
+              size="lg"
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              Open Advanced Verification →
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Revenue Overview */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card>
