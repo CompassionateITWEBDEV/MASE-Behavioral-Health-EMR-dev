@@ -1,10 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { neon } from "@neondatabase/serverless";
 
-const sql = neon(process.env.NEON_DATABASE_URL!);
-
 export async function GET(request: NextRequest) {
   try {
+    const sql = neon(process.env.NEON_DATABASE_URL!);
     const searchParams = request.nextUrl.searchParams;
     const direction = searchParams.get("direction") || "inbound";
     const status = searchParams.get("status");
@@ -46,6 +45,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    const sql = neon(process.env.NEON_DATABASE_URL!);
     const body = await request.json();
     const { patientId, recipientFax, subject, fileUrl, pageCount } = body;
 

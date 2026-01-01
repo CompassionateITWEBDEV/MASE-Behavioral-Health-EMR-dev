@@ -1,10 +1,9 @@
-import { createClient } from "@supabase/supabase-js"
+import { createServiceClient } from "@/lib/supabase/service-role"
 import { NextResponse } from "next/server"
-
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const supabase = createServiceClient()
     const { id } = await params
 
     // Fetch patient data - explicitly include client_number and patient_number

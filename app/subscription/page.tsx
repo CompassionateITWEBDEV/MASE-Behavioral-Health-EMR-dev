@@ -58,6 +58,8 @@ import {
 } from "lucide-react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/use-toast";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface SubscriptionFeature {
   id: string;
@@ -682,6 +684,25 @@ export default function SubscriptionPage() {
 
   const pathname = usePathname();
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [isPracticeOnboardingOpen, setIsPracticeOnboardingOpen] =
+    useState(false);
+  const [practiceFormData, setPracticeFormData] = useState({
+    name: "",
+    dea: "",
+    stateLicense: "",
+    stateLicenseState: "",
+    samhsa: "",
+    duns: "",
+    taxId: "",
+    address: "",
+    city: "",
+    state: "",
+    zip: "",
+    phone: "",
+    email: "",
+    specialties: [] as string[],
+    addons: [] as string[],
+  });
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -1952,7 +1973,60 @@ export default function SubscriptionPage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-                        onChange={(e) =>
+
+          {/* Practice Onboarding Dialog */}
+          <Dialog
+            open={isPracticeOnboardingOpen}
+            onOpenChange={setIsPracticeOnboardingOpen}>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Onboard New Practice</DialogTitle>
+                <DialogDescription>
+                  Enter practice information to set up a new clinic
+                </DialogDescription>
+              </DialogHeader>
+              <form
+                onSubmit={(e: React.FormEvent<HTMLFormElement>) => {
+                  e.preventDefault();
+                  // Handle form submission
+                  setIsPracticeOnboardingOpen(false);
+                }}
+                className="space-y-6">
+                {/* Practice Information */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold">
+                    Practice Information
+                  </h3>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium">
+                        Practice Name *
+                      </label>
+                      <input
+                        required
+                        type="text"
+                        value={practiceFormData.name}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                          setPracticeFormData({
+                            ...practiceFormData,
+                            name: e.target.value,
+                          })
+                        }
+                        className="w-full px-3 py-2 border rounded-md mt-1"
+                        placeholder="Practice Name"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium">
+                        DEA Number *
+                      </label>
+                      <input
+                        required
+                        type="text"
+                        value={practiceFormData.dea}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                           setPracticeFormData({
                             ...practiceFormData,
                             dea: e.target.value.toUpperCase(),
@@ -1974,7 +2048,7 @@ export default function SubscriptionPage() {
                         required
                         type="text"
                         value={practiceFormData.stateLicense}
-                        onChange={(e) =>
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                           setPracticeFormData({
                             ...practiceFormData,
                             stateLicense: e.target.value,
@@ -1992,7 +2066,7 @@ export default function SubscriptionPage() {
                       <select
                         required
                         value={practiceFormData.stateLicenseState}
-                        onChange={(e) =>
+                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
                           setPracticeFormData({
                             ...practiceFormData,
                             stateLicenseState: e.target.value,
@@ -2061,7 +2135,7 @@ export default function SubscriptionPage() {
                         required
                         type="text"
                         value={practiceFormData.samhsa}
-                        onChange={(e) =>
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                           setPracticeFormData({
                             ...practiceFormData,
                             samhsa: e.target.value,
@@ -2084,7 +2158,7 @@ export default function SubscriptionPage() {
                         pattern="[0-9]{9}"
                         maxLength={9}
                         value={practiceFormData.duns}
-                        onChange={(e) =>
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                           setPracticeFormData({
                             ...practiceFormData,
                             duns: e.target.value,
@@ -2107,7 +2181,7 @@ export default function SubscriptionPage() {
                         type="text"
                         pattern="[0-9]{2}-[0-9]{7}"
                         value={practiceFormData.taxId}
-                        onChange={(e) =>
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                           setPracticeFormData({
                             ...practiceFormData,
                             taxId: e.target.value,
@@ -2131,7 +2205,7 @@ export default function SubscriptionPage() {
                         required
                         type="text"
                         value={practiceFormData.address}
-                        onChange={(e) =>
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                           setPracticeFormData({
                             ...practiceFormData,
                             address: e.target.value,
@@ -2148,7 +2222,7 @@ export default function SubscriptionPage() {
                         required
                         type="text"
                         value={practiceFormData.city}
-                        onChange={(e) =>
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                           setPracticeFormData({
                             ...practiceFormData,
                             city: e.target.value,
@@ -2164,7 +2238,7 @@ export default function SubscriptionPage() {
                       <select
                         required
                         value={practiceFormData.state}
-                        onChange={(e) =>
+                        onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
                           setPracticeFormData({
                             ...practiceFormData,
                             state: e.target.value,
@@ -2233,7 +2307,7 @@ export default function SubscriptionPage() {
                         pattern="[0-9]{5}"
                         maxLength={5}
                         value={practiceFormData.zip}
-                        onChange={(e) =>
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                           setPracticeFormData({
                             ...practiceFormData,
                             zip: e.target.value,
@@ -2250,7 +2324,7 @@ export default function SubscriptionPage() {
                         required
                         type="tel"
                         value={practiceFormData.phone}
-                        onChange={(e) =>
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                           setPracticeFormData({
                             ...practiceFormData,
                             phone: e.target.value,
@@ -2267,7 +2341,7 @@ export default function SubscriptionPage() {
                         required
                         type="email"
                         value={practiceFormData.email}
-                        onChange={(e) =>
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
                           setPracticeFormData({
                             ...practiceFormData,
                             email: e.target.value,
@@ -2333,7 +2407,7 @@ export default function SubscriptionPage() {
                                 specialty.value
                               )
                                 ? practiceFormData.specialties.filter(
-                                    (s) => s !== specialty.value
+                                    (s: string) => s !== specialty.value
                                   )
                                 : [
                                     ...practiceFormData.specialties,
@@ -2381,16 +2455,18 @@ export default function SubscriptionPage() {
                           checked={practiceFormData.addons?.includes(
                             "e-prescribing"
                           )}
-                          onCheckedChange={(checked) =>
-                            setPracticeFormData((prev) => ({
-                              ...prev,
-                              addons: checked
-                                ? [...(prev.addons || []), "e-prescribing"]
-                                : (prev.addons || []).filter(
-                                    (a) => a !== "e-prescribing"
-                                  ),
-                            }))
-                          }
+                          onCheckedChange={(checked: boolean) => {
+                            setPracticeFormData(
+                              (prev: typeof practiceFormData) => ({
+                                ...prev,
+                                addons: checked
+                                  ? [...(prev.addons || []), "e-prescribing"]
+                                  : (prev.addons || []).filter(
+                                      (a: string) => a !== "e-prescribing"
+                                    ),
+                              })
+                            );
+                          }}
                         />
                         <div className="grid gap-1.5">
                           <Label
@@ -2411,15 +2487,17 @@ export default function SubscriptionPage() {
                           checked={practiceFormData.addons?.includes(
                             "telehealth"
                           )}
-                          onCheckedChange={(checked) =>
-                            setPracticeFormData((prev) => ({
-                              ...prev,
-                              addons: checked
-                                ? [...(prev.addons || []), "telehealth"]
-                                : (prev.addons || []).filter(
-                                    (a) => a !== "telehealth"
-                                  ),
-                            }))
+                          onCheckedChange={(checked: boolean) =>
+                            setPracticeFormData(
+                              (prev: typeof practiceFormData) => ({
+                                ...prev,
+                                addons: checked
+                                  ? [...(prev.addons || []), "telehealth"]
+                                  : (prev.addons || []).filter(
+                                      (a: string) => a !== "telehealth"
+                                    ),
+                              })
+                            )
                           }
                         />
                         <div className="grid gap-1.5">
@@ -2440,15 +2518,17 @@ export default function SubscriptionPage() {
                           checked={practiceFormData.addons?.includes(
                             "lab-integration"
                           )}
-                          onCheckedChange={(checked) =>
-                            setPracticeFormData((prev) => ({
-                              ...prev,
-                              addons: checked
-                                ? [...(prev.addons || []), "lab-integration"]
-                                : (prev.addons || []).filter(
-                                    (a) => a !== "lab-integration"
-                                  ),
-                            }))
+                          onCheckedChange={(checked: boolean) =>
+                            setPracticeFormData(
+                              (prev: typeof practiceFormData) => ({
+                                ...prev,
+                                addons: checked
+                                  ? [...(prev.addons || []), "lab-integration"]
+                                  : (prev.addons || []).filter(
+                                      (a: string) => a !== "lab-integration"
+                                    ),
+                              })
+                            )
                           }
                         />
                         <div className="grid gap-1.5">
@@ -2476,15 +2556,17 @@ export default function SubscriptionPage() {
                           checked={practiceFormData.addons?.includes(
                             "billing-claims"
                           )}
-                          onCheckedChange={(checked) =>
-                            setPracticeFormData((prev) => ({
-                              ...prev,
-                              addons: checked
-                                ? [...(prev.addons || []), "billing-claims"]
-                                : (prev.addons || []).filter(
-                                    (a) => a !== "billing-claims"
-                                  ),
-                            }))
+                          onCheckedChange={(checked: boolean) =>
+                            setPracticeFormData(
+                              (prev: typeof practiceFormData) => ({
+                                ...prev,
+                                addons: checked
+                                  ? [...(prev.addons || []), "billing-claims"]
+                                  : (prev.addons || []).filter(
+                                      (a: string) => a !== "billing-claims"
+                                    ),
+                              })
+                            )
                           }
                         />
                         <div className="grid gap-1.5">
@@ -2505,15 +2587,17 @@ export default function SubscriptionPage() {
                           checked={practiceFormData.addons?.includes(
                             "clearinghouse"
                           )}
-                          onCheckedChange={(checked) =>
-                            setPracticeFormData((prev) => ({
-                              ...prev,
-                              addons: checked
-                                ? [...(prev.addons || []), "clearinghouse"]
-                                : (prev.addons || []).filter(
-                                    (a) => a !== "clearinghouse"
-                                  ),
-                            }))
+                          onCheckedChange={(checked: boolean) =>
+                            setPracticeFormData(
+                              (prev: typeof practiceFormData) => ({
+                                ...prev,
+                                addons: checked
+                                  ? [...(prev.addons || []), "clearinghouse"]
+                                  : (prev.addons || []).filter(
+                                      (a: string) => a !== "clearinghouse"
+                                    ),
+                              })
+                            )
                           }
                         />
                         <div className="grid gap-1.5">
@@ -2534,15 +2618,17 @@ export default function SubscriptionPage() {
                           checked={practiceFormData.addons?.includes(
                             "otp-bundle"
                           )}
-                          onCheckedChange={(checked) =>
-                            setPracticeFormData((prev) => ({
-                              ...prev,
-                              addons: checked
-                                ? [...(prev.addons || []), "otp-bundle"]
-                                : (prev.addons || []).filter(
-                                    (a) => a !== "otp-bundle"
-                                  ),
-                            }))
+                          onCheckedChange={(checked: boolean) =>
+                            setPracticeFormData(
+                              (prev: typeof practiceFormData) => ({
+                                ...prev,
+                                addons: checked
+                                  ? [...(prev.addons || []), "otp-bundle"]
+                                  : (prev.addons || []).filter(
+                                      (a: string) => a !== "otp-bundle"
+                                    ),
+                              })
+                            )
                           }
                         />
                         <div className="grid gap-1.5">
@@ -2572,15 +2658,17 @@ export default function SubscriptionPage() {
                           checked={practiceFormData.addons?.includes(
                             "pmp-integration"
                           )}
-                          onCheckedChange={(checked) =>
-                            setPracticeFormData((prev) => ({
-                              ...prev,
-                              addons: checked
-                                ? [...(prev.addons || []), "pmp-integration"]
-                                : (prev.addons || []).filter(
-                                    (a) => a !== "pmp-integration"
-                                  ),
-                            }))
+                          onCheckedChange={(checked: boolean) =>
+                            setPracticeFormData(
+                              (prev: typeof practiceFormData) => ({
+                                ...prev,
+                                addons: checked
+                                  ? [...(prev.addons || []), "pmp-integration"]
+                                  : (prev.addons || []).filter(
+                                      (a: string) => a !== "pmp-integration"
+                                    ),
+                              })
+                            )
                           }
                         />
                         <div className="grid gap-1.5">
@@ -2599,15 +2687,17 @@ export default function SubscriptionPage() {
                           checked={practiceFormData.addons?.includes(
                             "mobile-check-in"
                           )}
-                          onCheckedChange={(checked) =>
-                            setPracticeFormData((prev) => ({
-                              ...prev,
-                              addons: checked
-                                ? [...(prev.addons || []), "mobile-check-in"]
-                                : (prev.addons || []).filter(
-                                    (a) => a !== "mobile-check-in"
-                                  ),
-                            }))
+                          onCheckedChange={(checked: boolean) =>
+                            setPracticeFormData(
+                              (prev: typeof practiceFormData) => ({
+                                ...prev,
+                                addons: checked
+                                  ? [...(prev.addons || []), "mobile-check-in"]
+                                  : (prev.addons || []).filter(
+                                      (a: string) => a !== "mobile-check-in"
+                                    ),
+                              })
+                            )
                           }
                         />
                         <div className="grid gap-1.5">
@@ -2628,15 +2718,17 @@ export default function SubscriptionPage() {
                           checked={practiceFormData.addons?.includes(
                             "sms-reminders"
                           )}
-                          onCheckedChange={(checked) =>
-                            setPracticeFormData((prev) => ({
-                              ...prev,
-                              addons: checked
-                                ? [...(prev.addons || []), "sms-reminders"]
-                                : (prev.addons || []).filter(
-                                    (a) => a !== "sms-reminders"
-                                  ),
-                            }))
+                          onCheckedChange={(checked: boolean) =>
+                            setPracticeFormData(
+                              (prev: typeof practiceFormData) => ({
+                                ...prev,
+                                addons: checked
+                                  ? [...(prev.addons || []), "sms-reminders"]
+                                  : (prev.addons || []).filter(
+                                      (a: string) => a !== "sms-reminders"
+                                    ),
+                              })
+                            )
                           }
                         />
                         <div className="grid gap-1.5">
@@ -2664,15 +2756,17 @@ export default function SubscriptionPage() {
                           checked={practiceFormData.addons?.includes(
                             "ai-assistant"
                           )}
-                          onCheckedChange={(checked) =>
-                            setPracticeFormData((prev) => ({
-                              ...prev,
-                              addons: checked
-                                ? [...(prev.addons || []), "ai-assistant"]
-                                : (prev.addons || []).filter(
-                                    (a) => a !== "ai-assistant"
-                                  ),
-                            }))
+                          onCheckedChange={(checked: boolean) =>
+                            setPracticeFormData(
+                              (prev: typeof practiceFormData) => ({
+                                ...prev,
+                                addons: checked
+                                  ? [...(prev.addons || []), "ai-assistant"]
+                                  : (prev.addons || []).filter(
+                                      (a: string) => a !== "ai-assistant"
+                                    ),
+                              })
+                            )
                           }
                         />
                         <div className="grid gap-1.5">
@@ -2691,15 +2785,20 @@ export default function SubscriptionPage() {
                           checked={practiceFormData.addons?.includes(
                             "advanced-analytics"
                           )}
-                          onCheckedChange={(checked) =>
-                            setPracticeFormData((prev) => ({
-                              ...prev,
-                              addons: checked
-                                ? [...(prev.addons || []), "advanced-analytics"]
-                                : (prev.addons || []).filter(
-                                    (a) => a !== "advanced-analytics"
-                                  ),
-                            }))
+                          onCheckedChange={(checked: boolean) =>
+                            setPracticeFormData(
+                              (prev: typeof practiceFormData) => ({
+                                ...prev,
+                                addons: checked
+                                  ? [
+                                      ...(prev.addons || []),
+                                      "advanced-analytics",
+                                    ]
+                                  : (prev.addons || []).filter(
+                                      (a: string) => a !== "advanced-analytics"
+                                    ),
+                              })
+                            )
                           }
                         />
                         <div className="grid gap-1.5">
@@ -2720,18 +2819,21 @@ export default function SubscriptionPage() {
                           checked={practiceFormData.addons?.includes(
                             "takehome-diversion-control"
                           )}
-                          onCheckedChange={(checked) =>
-                            setPracticeFormData((prev) => ({
-                              ...prev,
-                              addons: checked
-                                ? [
-                                    ...(prev.addons || []),
-                                    "takehome-diversion-control",
-                                  ]
-                                : (prev.addons || []).filter(
-                                    (a) => a !== "takehome-diversion-control"
-                                  ),
-                            }))
+                          onCheckedChange={(checked: boolean) =>
+                            setPracticeFormData(
+                              (prev: typeof practiceFormData) => ({
+                                ...prev,
+                                addons: checked
+                                  ? [
+                                      ...(prev.addons || []),
+                                      "takehome-diversion-control",
+                                    ]
+                                  : (prev.addons || []).filter(
+                                      (a: string) =>
+                                        a !== "takehome-diversion-control"
+                                    ),
+                              })
+                            )
                           }
                         />
                         <div className="grid gap-1.5">
@@ -2756,15 +2858,17 @@ export default function SubscriptionPage() {
                           checked={practiceFormData.addons?.includes(
                             "multi-location"
                           )}
-                          onCheckedChange={(checked) =>
-                            setPracticeFormData((prev) => ({
-                              ...prev,
-                              addons: checked
-                                ? [...(prev.addons || []), "multi-location"]
-                                : (prev.addons || []).filter(
-                                    (a) => a !== "multi-location"
-                                  ),
-                            }))
+                          onCheckedChange={(checked: boolean) =>
+                            setPracticeFormData(
+                              (prev: typeof practiceFormData) => ({
+                                ...prev,
+                                addons: checked
+                                  ? [...(prev.addons || []), "multi-location"]
+                                  : (prev.addons || []).filter(
+                                      (a: string) => a !== "multi-location"
+                                    ),
+                              })
+                            )
                           }
                         />
                         <div className="grid gap-1.5">

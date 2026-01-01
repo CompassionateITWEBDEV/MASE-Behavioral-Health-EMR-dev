@@ -1,13 +1,18 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { neon } from "@neondatabase/serverless";
-
-const sql = neon(process.env.NEON_DATABASE_URL!);
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    if (!process.env.NEON_DATABASE_URL) {
+      return NextResponse.json(
+        { error: "Database connection not configured" },
+        { status: 500 }
+      );
+    }
+    const { neon } = await import("@neondatabase/serverless");
+    const sql = neon(process.env.NEON_DATABASE_URL);
     const { id } = await params;
     const result = await sql`
       SELECT
@@ -42,6 +47,14 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    if (!process.env.NEON_DATABASE_URL) {
+      return NextResponse.json(
+        { error: "Database connection not configured" },
+        { status: 500 }
+      );
+    }
+    const { neon } = await import("@neondatabase/serverless");
+    const sql = neon(process.env.NEON_DATABASE_URL);
     const { id } = await params;
     const body = await request.json();
 
@@ -108,6 +121,14 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    if (!process.env.NEON_DATABASE_URL) {
+      return NextResponse.json(
+        { error: "Database connection not configured" },
+        { status: 500 }
+      );
+    }
+    const { neon } = await import("@neondatabase/serverless");
+    const sql = neon(process.env.NEON_DATABASE_URL);
     const { id } = await params;
     await sql`
       DELETE FROM discharge_summaries

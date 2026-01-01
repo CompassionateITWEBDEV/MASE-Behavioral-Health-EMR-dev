@@ -1,10 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { neon } from "@neondatabase/serverless";
-
-const sql = neon(process.env.NEON_DATABASE_URL!);
 
 export async function GET(request: NextRequest) {
   try {
+    if (!process.env.NEON_DATABASE_URL) {
+      return NextResponse.json(
+        { error: "Database connection not configured" },
+        { status: 500 }
+      );
+    }
+    const { neon } = await import("@neondatabase/serverless");
+    const sql = neon(process.env.NEON_DATABASE_URL);
     const summaries = await sql`
       SELECT 
         ds.*,
@@ -28,6 +33,14 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    if (!process.env.NEON_DATABASE_URL) {
+      return NextResponse.json(
+        { error: "Database connection not configured" },
+        { status: 500 }
+      );
+    }
+    const { neon } = await import("@neondatabase/serverless");
+    const sql = neon(process.env.NEON_DATABASE_URL);
     const body = await request.json();
 
     const result = await sql`

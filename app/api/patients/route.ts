@@ -1,10 +1,9 @@
-import { createClient } from "@supabase/supabase-js"
+import { createServiceClient } from "@/lib/supabase/service-role"
 import { NextResponse } from "next/server"
-
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 export async function GET(request: Request) {
   try {
+    const supabase = createServiceClient()
     const { searchParams } = new URL(request.url)
     const search = searchParams.get("search")
     const status = searchParams.get("status")
@@ -60,6 +59,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const supabase = createServiceClient()
     const body = await request.json()
 
     const { data, error } = await supabase

@@ -228,7 +228,16 @@ describe("PrimaryCareDashboardPage", () => {
 
     await waitFor(() => {
       // The summary total should be displayed somewhere
-      expect(screen.getByText("12")).toBeInTheDocument();
+      // Use getAllByText since "12" might appear in multiple places (e.g., in badges and stat cards)
+      const allTwelves = screen.getAllByText("12");
+      expect(allTwelves.length).toBeGreaterThan(0);
+      
+      // Verify at least one "12" is in the stat display (text-2xl font-bold)
+      const statDisplay = allTwelves.find((el) => {
+        const className = el.className || "";
+        return className.includes("text-2xl") && className.includes("font-bold");
+      });
+      expect(statDisplay).toBeInTheDocument();
     });
   });
 

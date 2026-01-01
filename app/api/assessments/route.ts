@@ -1,10 +1,9 @@
-import { createClient } from "@supabase/supabase-js"
+import { createServiceClient } from "@/lib/supabase/service-role"
 import { type NextRequest, NextResponse } from "next/server"
-
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
 
 export async function GET() {
   try {
+    const supabase = createServiceClient()
     // Fetch assessment types from catalog
     const { data: assessmentCatalog, error: catalogError } = await supabase
       .from("assessment_forms_catalog")
@@ -108,6 +107,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = createServiceClient()
     const body = await request.json()
     const { action, ...data } = body
 
