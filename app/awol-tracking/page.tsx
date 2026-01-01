@@ -30,7 +30,6 @@ export default function AWOLTrackingPage() {
       <div className="flex-1 ml-64">
         <DashboardHeader
           title="AWOL/Runaway Patient Tracking"
-          description="Track and manage patients who leave treatment against medical advice"
         />
 
         <div className="p-6 space-y-6">

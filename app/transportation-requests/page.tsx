@@ -30,7 +30,6 @@ export default function TransportationRequestsPage() {
       <div className="flex-1 ml-64">
         <DashboardHeader
           title="Transportation Requests"
-          description="Manage patient transportation for appointments and services"
         />
 
         <div className="p-6 space-y-6">

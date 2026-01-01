@@ -32,7 +32,6 @@ export default function PatientPropertyPage() {
       <div className="flex-1 ml-64">
         <DashboardHeader
           title="Patient Property Management"
-          description="Track lockboxes, smartphones, and other issued items"
         />
 
         <div className="p-6 space-y-6">
