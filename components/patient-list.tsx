@@ -62,12 +62,16 @@ interface PatientListProps {
   patients: Patient[];
   currentProviderId: string;
   showFilters?: boolean;
+  onPatientUpdated?: () => void;
+  onPatientDeleted?: () => void;
 }
 
 export function PatientList({
   patients,
   currentProviderId,
   showFilters = true,
+  onPatientUpdated,
+  onPatientDeleted,
 }: PatientListProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -204,8 +208,24 @@ export function PatientList({
         <CardContent>
           <div className="space-y-4">
             {filteredPatients.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No patients found matching your criteria.
+              <div className="text-center py-8">
+                {patients.length === 0 ? (
+                  <div className="space-y-2">
+                    <Users className="h-12 w-12 mx-auto text-muted-foreground/50" />
+                    <p className="text-lg font-medium text-foreground">No patients in database</p>
+                    <p className="text-sm text-muted-foreground">
+                      Get started by adding your first patient using the "Add Patient" button above.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Users className="h-12 w-12 mx-auto text-muted-foreground/50" />
+                    <p className="text-lg font-medium text-foreground">No patients found</p>
+                    <p className="text-sm text-muted-foreground">
+                      No patients match your current search or filter criteria. Try adjusting your filters or search terms.
+                    </p>
+                  </div>
+                )}
               </div>
             ) : (
               filteredPatients.map((patient) => {
@@ -286,14 +306,17 @@ export function PatientList({
                           <Button variant="outline" size="sm">
                             <Calendar className="h-4 w-4" />
                           </Button>
-                          <EditPatientDialog patient={patient}>
+                          <EditPatientDialog 
+                            patient={patient}
+                            onSuccess={onPatientUpdated}>
                             <Button variant="outline" size="sm">
                               <Edit className="h-4 w-4" />
                             </Button>
                           </EditPatientDialog>
                           <DeletePatientDialog
                             patientId={patient.id}
-                            patientName={`${patient.first_name} ${patient.last_name}`}>
+                            patientName={`${patient.first_name} ${patient.last_name}`}
+                            onSuccess={onPatientDeleted}>
                             <Button variant="outline" size="sm">
                               <Trash2 className="h-4 w-4" />
                             </Button>

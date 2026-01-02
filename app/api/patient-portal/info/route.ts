@@ -69,6 +69,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       name: `${patient.first_name} ${patient.last_name}`,
       id: `PT-${patient.id}`,
+      patientId: patient.id, // Add the actual patient database ID
       program: activePrescription?.medication_name || "Treatment Program",
       dose: activePrescription?.dosage || "N/A",
       nextAppointment: upcomingAppointment
@@ -108,6 +109,7 @@ function getMockPatientInfo() {
   return {
     name: "Sarah Johnson",
     id: "PT-2024-001",
+    patientId: null, // Will be null for demo - frontend should handle this
     program: "Methadone Program",
     dose: "80mg",
     nextAppointment: "January 18, 2024 at 10:00 AM",

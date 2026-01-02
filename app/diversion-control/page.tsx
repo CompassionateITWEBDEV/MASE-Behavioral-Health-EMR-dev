@@ -1308,6 +1308,7 @@ export default function DiversionControlPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Alert Details</DialogTitle>
+            <DialogDescription>View detailed information about the selected alert</DialogDescription>
           </DialogHeader>
           {selectedAlert && (
             <div className="space-y-4">

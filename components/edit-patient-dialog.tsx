@@ -3,7 +3,6 @@
 import type React from "react";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -40,16 +39,19 @@ interface Patient {
   emergency_contact_phone?: string;
   insurance_provider?: string;
   insurance_id?: string;
+  program_type?: string;
 }
 
 interface EditPatientDialogProps {
   children: React.ReactNode;
   patient: Patient;
+  onSuccess?: () => void;
 }
 
 export function EditPatientDialog({
   children,
   patient,
+  onSuccess,
 }: EditPatientDialogProps) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -60,6 +62,7 @@ export function EditPatientDialog({
     lastName: patient.last_name,
     dateOfBirth: patient.date_of_birth,
     gender: patient.gender || "",
+    programType: patient.program_type || "",
     phone: patient.phone || "",
     email: patient.email || "",
     address: patient.address || "",
@@ -78,15 +81,17 @@ export function EditPatientDialog({
     setIsLoading(true);
 
     try {
-      const supabase = createClient();
-
-      const { error } = await supabase
-        .from("patients")
-        .update({
+      // Use API route instead of direct Supabase client to bypass RLS
+      const response = await fetch(`/api/patients/${patient.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
           first_name: formData.firstName,
           last_name: formData.lastName,
           date_of_birth: formData.dateOfBirth,
-          gender: formData.gender,
+          gender: formData.gender || null,
           phone: formData.phone,
           email: formData.email || null,
           address: formData.address || null,
@@ -94,18 +99,38 @@ export function EditPatientDialog({
           emergency_contact_phone: formData.emergencyContactPhone || null,
           insurance_provider: formData.insuranceProvider || null,
           insurance_id: formData.insuranceId || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", patient.id);
+          program_type: formData.programType || null,
+        }),
+      });
 
-      if (error) throw error;
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to update patient");
+      }
+
+      console.log("[Edit Patient] Update successful:", data);
+      console.log("[Edit Patient] Updated program_type:", data.patient?.program_type);
 
       toast.success("Patient updated successfully");
       setOpen(false);
-      router.refresh();
+      
+      // Dispatch event to notify chart to refresh
+      window.dispatchEvent(new Event('patient-updated'));
+      
+      // Call onSuccess callback to refresh patient list without page refresh
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        // Fallback to router refresh if no callback provided
+        router.refresh();
+      }
     } catch (error) {
       console.error("Error updating patient:", error);
-      toast.error("Failed to update patient");
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : "Failed to update patient. Please try again.";
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -173,6 +198,24 @@ export function EditPatientDialog({
                   <SelectItem value="Prefer not to say">
                     Prefer not to say
                   </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="programType">Program Type</Label>
+              <Select
+                value={formData.programType || undefined}
+                onValueChange={(value) => handleInputChange("programType", value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select program type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="otp">OTP (Opioid Treatment Program)</SelectItem>
+                  <SelectItem value="mat">MAT (Medication-Assisted Treatment)</SelectItem>
+                  <SelectItem value="primary_care">Primary Care</SelectItem>
                 </SelectContent>
               </Select>
             </div>

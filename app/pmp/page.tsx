@@ -176,19 +176,36 @@ export default function PMPPage() {
   }, []);
 
   const loadConfig = async () => {
-    const { data } = await supabase.from("pdmp_config").select("*").single();
+    try {
+      const { data, error } = await supabase
+        .from("pdmp_config")
+        .select("*")
+        .maybeSingle();
 
-    if (data) {
-      setPdmpConfig(data);
-      setConfigForm({
-        state_code: data.state_code || "MI",
-        pdmp_username: data.pdmp_username || "",
-        pdmp_password: "", // Don't load password
-        pdmp_api_key: data.pdmp_api_key || "",
-        pdmp_endpoint:
-          data.pdmp_endpoint || "https://michigan.pmpaware.net/api/v2",
-        auto_check_controlled_rx: data.auto_check_controlled_rx ?? true,
-      });
+      if (error) {
+        // Only log if it's not a "not found" type error
+        if (error.code !== "PGRST116") {
+          console.warn("[v0] Error loading PDMP config:", error.message);
+        }
+        // If table doesn't exist or no config, continue without error
+        return;
+      }
+
+      if (data) {
+        setPdmpConfig(data);
+        setConfigForm({
+          state_code: data.state_code || "MI",
+          pdmp_username: data.pdmp_username || "",
+          pdmp_password: "", // Don't load password
+          pdmp_api_key: data.pdmp_api_key || "",
+          pdmp_endpoint:
+            data.pdmp_endpoint || "https://michigan.pmpaware.net/api/v2",
+          auto_check_controlled_rx: data.auto_check_controlled_rx ?? true,
+        });
+      }
+    } catch (error) {
+      // Silently handle errors - PMP config is optional
+      // Don't log to avoid console spam
     }
   };
 

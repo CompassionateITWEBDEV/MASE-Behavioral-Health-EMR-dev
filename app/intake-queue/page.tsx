@@ -43,54 +43,44 @@ export default function IntakeQueuePage() {
   const [error, setError] = useState<string | null>(null);
   const [notificationCount, setNotificationCount] = useState(0);
 
-  useEffect(() => {
-    const loadIntakePatients = async () => {
-      try {
-        setLoading(true);
-        const response = await fetch("/api/intake/patients");
-        if (!response.ok) throw new Error("Failed to fetch patients");
-        const data = await response.json();
-        setIntakePatients(data);
-        setError(null);
-      } catch (err) {
-        console.error("[v0] Error loading intake patients:", err);
-        setError("Failed to load patients");
-        setIntakePatients([
-          {
-            id: "INT-2025-001",
-            name: "Maria Santos",
-            age: 29,
-            phone: "(555) 123-4567",
-            entryTime: "08:30 AM",
-            currentStage: "data-entry",
-            eligibilityStatus: "pending",
-            udsRequired: true,
-            pregnancyTestRequired: true,
-            priority: "normal",
-            estimatedWait: "15 min",
-            alerts: [],
-          },
-          {
-            id: "INT-2025-002",
-            name: "James Rodriguez",
-            age: 34,
-            phone: "(555) 234-5678",
-            entryTime: "09:15 AM",
-            currentStage: "collector-queue",
-            eligibilityStatus: "approved",
-            udsRequired: true,
-            pregnancyTestRequired: false,
-            priority: "urgent",
-            estimatedWait: "5 min",
-            alerts: ["Withdrawal symptoms"],
-          },
-        ]);
-      } finally {
-        setLoading(false);
+  const loadIntakePatients = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch("/api/intake/patients");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Failed to fetch patients: ${response.status}`);
       }
+      const data = await response.json();
+      console.log("[Intake Queue] Loaded patients:", {
+        count: data.length,
+        patients: data.map((p: any) => ({
+          name: p.name,
+          stage: p.currentStage,
+          status: p.admissionStatus
+        }))
+      });
+      setIntakePatients(data || []);
+      setError(null);
+    } catch (err) {
+      console.error("[v0] Error loading intake patients:", err);
+      setError(err instanceof Error ? err.message : "Failed to load patients");
+      setIntakePatients([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadIntakePatients();
+
+    // Listen for intake completion events to refresh the queue
+    const handleIntakeCompleted = () => {
+      console.log("[Intake Queue] Intake completed, refreshing queue...");
+      loadIntakePatients();
     };
 
-    loadIntakePatients();
+    window.addEventListener("intake-completed", handleIntakeCompleted);
 
     const loadNotifications = async () => {
       try {
@@ -108,7 +98,11 @@ export default function IntakeQueuePage() {
 
     loadNotifications();
     const interval = setInterval(loadNotifications, 30000);
-    return () => clearInterval(interval);
+
+    return () => {
+      window.removeEventListener("intake-completed", handleIntakeCompleted);
+      clearInterval(interval);
+    };
   }, []);
 
   const queueStages = [

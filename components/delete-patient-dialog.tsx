@@ -3,7 +3,6 @@
 import type React from "react"
 
 import { useState } from "react"
-import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -22,9 +21,10 @@ interface DeletePatientDialogProps {
   children: React.ReactNode
   patientId: string
   patientName: string
+  onSuccess?: () => void
 }
 
-export function DeletePatientDialog({ children, patientId, patientName }: DeletePatientDialogProps) {
+export function DeletePatientDialog({ children, patientId, patientName, onSuccess }: DeletePatientDialogProps) {
   const [open, setOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
@@ -33,18 +33,32 @@ export function DeletePatientDialog({ children, patientId, patientName }: Delete
     setIsLoading(true)
 
     try {
-      const supabase = createClient()
+      const response = await fetch(`/api/patients/${patientId}`, {
+        method: "DELETE",
+      })
 
-      const { error } = await supabase.from("patients").delete().eq("id", patientId)
+      const data = await response.json()
 
-      if (error) throw error
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to delete patient")
+      }
 
       toast.success("Patient deleted successfully")
       setOpen(false)
-      router.refresh()
+      
+      // Call onSuccess callback to refresh patient list without page refresh
+      if (onSuccess) {
+        onSuccess()
+      } else {
+        // Fallback to router refresh if no callback provided
+        router.refresh()
+      }
     } catch (error) {
       console.error("Error deleting patient:", error)
-      toast.error("Failed to delete patient")
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : "Failed to delete patient. Please try again."
+      toast.error(errorMessage)
     } finally {
       setIsLoading(false)
     }

@@ -19,6 +19,7 @@ export interface Patient {
   emergency_contact_phone?: string | null;
   insurance_provider?: string | null;
   insurance_id?: string | null;
+  program_type?: string | null;
   created_by?: string | null;
   created_at: string;
   updated_at?: string | null;

@@ -10,7 +10,8 @@ import { AddPatientDialog } from "@/components/add-patient-dialog"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Users, Filter, Plus, AlertTriangle, FileText } from "lucide-react"
+import { Users, Filter, Plus, AlertTriangle, FileText, RefreshCw } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 const DEFAULT_PROVIDER = {
   id: "00000000-0000-0000-0000-000000000001",
@@ -24,6 +25,7 @@ export default function PatientsPage() {
   const [patients, setPatients] = useState<any[]>([])
   const [stats, setStats] = useState({ total: 0, active: 0, highRisk: 0, recentAppointments: 0 })
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [showFilters, setShowFilters] = useState(false)
   const [provider, setProvider] = useState(DEFAULT_PROVIDER)
 
@@ -33,77 +35,82 @@ export default function PatientsPage() {
 
   const fetchData = async () => {
     setLoading(true)
+    setError(null)
     const supabase = createClient()
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (user) {
-        const { data: providerData } = await supabase.from("providers").select("*").eq("id", user.id).single()
-        if (providerData) {
-          setProvider(providerData)
+      // Get provider info (for auth context, not for data fetching)
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (user) {
+          const { data: providerData } = await supabase
+            .from("providers")
+            .select("*")
+            .eq("id", user.id)
+            .single()
+          if (providerData) {
+            setProvider(providerData)
+          }
         }
+      } catch (authError) {
+        console.log("[v0] Auth check failed, using default provider")
       }
-    } catch (error) {
-      console.log("[v0] Auth check failed, using default provider")
-    }
 
-    const { count: totalCount } = await supabase.from("patients").select("*", { count: "exact", head: true })
-
-    const { count: activeCount } = await supabase.from("patients").select("*", { count: "exact", head: true })
-
-    const { count: recentCount } = await supabase
-      .from("appointments")
-      .select("*", { count: "exact", head: true })
-      .gte("appointment_date", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-
-    const { data: patientsData } = await supabase
-      .from("patients")
-      .select(`
-        *,
-        appointments(
-          id,
-          appointment_date,
-          status,
-          provider_id
-        ),
-        assessments(
-          id,
-          assessment_type,
-          risk_assessment,
-          created_at
-        ),
-        medications(
-          id,
-          medication_name,
-          dosage,
-          status
+      // Fetch patients and stats from API route
+      console.log("[v0] Fetching patients from /api/patients/list")
+      const response = await fetch("/api/patients/list")
+      
+      console.log("[v0] API response status:", response.status, response.statusText)
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        console.error("[v0] API error response:", errorData)
+        throw new Error(
+          errorData.error || `Failed to fetch patients: ${response.status} ${response.statusText}`
         )
-      `)
-      .order("created_at", { ascending: false })
+      }
 
-    console.log("[v0] Fetched patients:", patientsData?.length || 0)
+      const data = await response.json()
+      console.log("[v0] API response data:", {
+        patientsCount: data.patients?.length || 0,
+        stats: data.stats,
+        hasError: !!data.error,
+      })
 
-    const highRiskCount =
-      patientsData?.filter((p) =>
-        p.assessments?.some(
-          (a: { risk_assessment?: { level?: string } }) =>
-            a.risk_assessment &&
-            typeof a.risk_assessment === "object" &&
-            "level" in a.risk_assessment &&
-            a.risk_assessment.level === "high",
-        ),
-      ).length || 0
+      if (data.error) {
+        console.error("[v0] API returned error:", data.error)
+        throw new Error(data.error)
+      }
 
-    setPatients(patientsData || [])
-    setStats({
-      total: totalCount || 0,
-      active: activeCount || 0,
-      highRisk: highRiskCount,
-      recentAppointments: recentCount || 0,
-    })
-    setLoading(false)
+      const patientsData = data.patients || []
+      const statsData = data.stats || {
+        total: 0,
+        active: 0,
+        highRisk: 0,
+        recentAppointments: 0,
+      }
+
+      console.log("[v0] Processed patients:", patientsData.length)
+      console.log("[v0] First patient sample:", patientsData[0] ? {
+        id: patientsData[0].id,
+        name: `${patientsData[0].first_name} ${patientsData[0].last_name}`,
+      } : "No patients")
+
+      setPatients(patientsData)
+      setStats(statsData)
+      setError(null)
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to load patients. Please try again."
+      console.error("[v0] Error fetching patients:", errorMessage)
+      setError(errorMessage)
+      setPatients([])
+      setStats({ total: 0, active: 0, highRisk: 0, recentAppointments: 0 })
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handlePatientAdded = () => {
@@ -151,6 +158,25 @@ export default function PatientsPage() {
             </div>
           </div>
 
+          {error && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Error Loading Patients</AlertTitle>
+              <AlertDescription className="flex items-center justify-between">
+                <span>{error}</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={fetchData}
+                  className="ml-4"
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Retry
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
           <PatientStats stats={stats} />
 
           <Tabs defaultValue="list" className="space-y-6">
@@ -160,7 +186,13 @@ export default function PatientsPage() {
             </TabsList>
 
             <TabsContent value="list" className="space-y-4">
-              <PatientList patients={patients} currentProviderId={provider.id} showFilters={showFilters} />
+              <PatientList 
+                patients={patients} 
+                currentProviderId={provider.id} 
+                showFilters={showFilters}
+                onPatientUpdated={fetchData}
+                onPatientDeleted={fetchData}
+              />
             </TabsContent>
 
             <TabsContent value="dashboard" className="space-y-6">
