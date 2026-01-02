@@ -86,6 +86,10 @@ interface Assessment {
   assessment_type: string;
   assessment_date: string;
   created_at: string;
+  severity_level?: string | null;
+  total_score?: number | null;
+  performed_by?: string | null;
+  notes?: string | null;
 }
 
 interface Encounter {

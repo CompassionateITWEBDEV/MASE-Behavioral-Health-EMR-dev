@@ -383,9 +383,11 @@ export default function PatientIntake() {
       })
 
       // Dispatch event to refresh intake queue if it's open
-      window.dispatchEvent(new CustomEvent("intake-completed", {
-        patientId: selectedPatient.id,
-        patientName: `${selectedPatient.first_name} ${selectedPatient.last_name}`
+      window.dispatchEvent(new CustomEvent<{ patientId: string; patientName: string }>("intake-completed", {
+        detail: {
+          patientId: selectedPatient.id,
+          patientName: `${selectedPatient.first_name} ${selectedPatient.last_name}`
+        }
       }))
 
       // Reset form

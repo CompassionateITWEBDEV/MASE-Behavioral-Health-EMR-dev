@@ -102,6 +102,17 @@ describe("PrimaryCareDashboardPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
+    // Mock fetch for DashboardHeader notifications
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url === "/api/notifications") {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ notifications: [] }),
+        });
+      }
+      return Promise.reject(new Error(`Unexpected fetch call to ${url}`));
+    });
+
     // Default mock implementations
     (useAppointments as ReturnType<typeof vi.fn>).mockReturnValue({
       data: mockAppointments,
@@ -136,6 +147,11 @@ describe("PrimaryCareDashboardPage", () => {
   it("should render the dashboard with title", async () => {
     render(<PrimaryCareDashboardPage />, { wrapper: TestWrapper });
 
+    // Wait for DashboardHeader async operations to complete
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith("/api/notifications");
+    });
+
     await waitFor(() => {
       expect(screen.getByText(/Primary Care Dashboard/i)).toBeInTheDocument();
     });
@@ -151,6 +167,11 @@ describe("PrimaryCareDashboardPage", () => {
 
     render(<PrimaryCareDashboardPage />, { wrapper: TestWrapper });
 
+    // Wait for DashboardHeader async operations to complete
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith("/api/notifications");
+    });
+
     await waitFor(() => {
       expect(screen.getByText("Loading schedule...")).toBeInTheDocument();
     });
@@ -158,6 +179,11 @@ describe("PrimaryCareDashboardPage", () => {
 
   it("should display appointments when loaded", async () => {
     render(<PrimaryCareDashboardPage />, { wrapper: TestWrapper });
+
+    // Wait for DashboardHeader async operations to complete
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith("/api/notifications");
+    });
 
     await waitFor(() => {
       // Use getAllByText since patient names may appear multiple times
@@ -178,6 +204,11 @@ describe("PrimaryCareDashboardPage", () => {
 
     render(<PrimaryCareDashboardPage />, { wrapper: TestWrapper });
 
+    // Wait for DashboardHeader async operations to complete
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith("/api/notifications");
+    });
+
     await waitFor(() => {
       expect(screen.getByText(/Failed to load schedule/i)).toBeInTheDocument();
     });
@@ -193,6 +224,11 @@ describe("PrimaryCareDashboardPage", () => {
 
     render(<PrimaryCareDashboardPage />, { wrapper: TestWrapper });
 
+    // Wait for DashboardHeader async operations to complete
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith("/api/notifications");
+    });
+
     await waitFor(() => {
       expect(
         screen.getByText(/No appointments scheduled for today/i)
@@ -202,6 +238,11 @@ describe("PrimaryCareDashboardPage", () => {
 
   it("should display clinical alerts", async () => {
     render(<PrimaryCareDashboardPage />, { wrapper: TestWrapper });
+
+    // Wait for DashboardHeader async operations to complete
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith("/api/notifications");
+    });
 
     await waitFor(() => {
       expect(screen.getByText(/Critical lab result/i)).toBeInTheDocument();
@@ -218,6 +259,11 @@ describe("PrimaryCareDashboardPage", () => {
 
     render(<PrimaryCareDashboardPage />, { wrapper: TestWrapper });
 
+    // Wait for DashboardHeader async operations to complete
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith("/api/notifications");
+    });
+
     await waitFor(() => {
       expect(screen.getByText("Loading alerts...")).toBeInTheDocument();
     });
@@ -226,23 +272,35 @@ describe("PrimaryCareDashboardPage", () => {
   it("should display stats from schedule summary", async () => {
     render(<PrimaryCareDashboardPage />, { wrapper: TestWrapper });
 
+    // Wait for DashboardHeader async operations to complete
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith("/api/notifications");
+    });
+
     await waitFor(() => {
       // The summary total should be displayed somewhere
       // Use getAllByText since "12" might appear in multiple places (e.g., in badges and stat cards)
       const allTwelves = screen.getAllByText("12");
       expect(allTwelves.length).toBeGreaterThan(0);
-      
+
       // Verify at least one "12" is in the stat display (text-2xl font-bold)
       const statDisplay = allTwelves.find((el) => {
         const className = el.className || "";
-        return className.includes("text-2xl") && className.includes("font-bold");
+        return (
+          className.includes("text-2xl") && className.includes("font-bold")
+        );
       });
       expect(statDisplay).toBeInTheDocument();
     });
   });
 
-  it("should call useAppointments with today's date filter", () => {
+  it("should call useAppointments with today's date filter", async () => {
     render(<PrimaryCareDashboardPage />, { wrapper: TestWrapper });
+
+    // Wait for DashboardHeader async operations to complete
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith("/api/notifications");
+    });
 
     expect(useAppointments).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -254,8 +312,13 @@ describe("PrimaryCareDashboardPage", () => {
     );
   });
 
-  it("should call useClinicalAlerts with unacknowledged filter", () => {
+  it("should call useClinicalAlerts with unacknowledged filter", async () => {
     render(<PrimaryCareDashboardPage />, { wrapper: TestWrapper });
+
+    // Wait for DashboardHeader async operations to complete
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith("/api/notifications");
+    });
 
     expect(useClinicalAlerts).toHaveBeenCalledWith(
       expect.objectContaining({

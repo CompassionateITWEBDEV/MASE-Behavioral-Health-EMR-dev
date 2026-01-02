@@ -93,6 +93,17 @@ describe("SpecialtyPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
+    // Mock fetch for DashboardHeader notifications
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url === "/api/notifications") {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ notifications: [] }),
+        });
+      }
+      return Promise.reject(new Error(`Unexpected fetch call to ${url}`));
+    });
+
     // Default mock implementations
     (useSpecialtyConfig as ReturnType<typeof vi.fn>).mockReturnValue({
       data: mockSpecialtyConfig,
@@ -116,6 +127,11 @@ describe("SpecialtyPage", () => {
   it("should render the specialty page with title", async () => {
     render(<SpecialtyPage />, { wrapper: TestWrapper });
 
+    // Wait for DashboardHeader async operations to complete
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith("/api/notifications");
+    });
+
     await waitFor(() => {
       expect(
         screen.getByText("Primary Care / Family Medicine")
@@ -132,6 +148,11 @@ describe("SpecialtyPage", () => {
     });
 
     render(<SpecialtyPage />, { wrapper: TestWrapper });
+
+    // Wait for DashboardHeader async operations to complete
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith("/api/notifications");
+    });
 
     await waitFor(() => {
       expect(
@@ -150,6 +171,11 @@ describe("SpecialtyPage", () => {
 
     render(<SpecialtyPage />, { wrapper: TestWrapper });
 
+    // Wait for DashboardHeader async operations to complete
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith("/api/notifications");
+    });
+
     await waitFor(() => {
       expect(screen.getByText(/Error Loading Specialty/i)).toBeInTheDocument();
     });
@@ -157,6 +183,11 @@ describe("SpecialtyPage", () => {
 
   it("should display specialty features", async () => {
     render(<SpecialtyPage />, { wrapper: TestWrapper });
+
+    // Wait for DashboardHeader async operations to complete
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith("/api/notifications");
+    });
 
     await waitFor(() => {
       // Check for feature names from API
@@ -167,6 +198,11 @@ describe("SpecialtyPage", () => {
 
   it("should display active specialty badge when enabled", async () => {
     render(<SpecialtyPage />, { wrapper: TestWrapper });
+
+    // Wait for DashboardHeader async operations to complete
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith("/api/notifications");
+    });
 
     await waitFor(() => {
       expect(screen.getByText("Active Specialty")).toBeInTheDocument();
@@ -186,6 +222,11 @@ describe("SpecialtyPage", () => {
 
     render(<SpecialtyPage />, { wrapper: TestWrapper });
 
+    // Wait for DashboardHeader async operations to complete
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith("/api/notifications");
+    });
+
     await waitFor(() => {
       expect(screen.getByText("Inactive Specialty")).toBeInTheDocument();
     });
@@ -193,6 +234,11 @@ describe("SpecialtyPage", () => {
 
   it("should display quality measures tab", async () => {
     render(<SpecialtyPage />, { wrapper: TestWrapper });
+
+    // Wait for DashboardHeader async operations to complete
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith("/api/notifications");
+    });
 
     await waitFor(() => {
       // Verify the Quality Measures tab exists
@@ -204,14 +250,24 @@ describe("SpecialtyPage", () => {
   it("should display quality measures badge when measures exist", async () => {
     render(<SpecialtyPage />, { wrapper: TestWrapper });
 
+    // Wait for DashboardHeader async operations to complete
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith("/api/notifications");
+    });
+
     await waitFor(() => {
       // The badge shows "1 Quality Measures" based on mock data
       expect(screen.getByText("1 Quality Measures")).toBeInTheDocument();
     });
   });
 
-  it("should call useSpecialtyConfig with specialty ID", () => {
+  it("should call useSpecialtyConfig with specialty ID", async () => {
     render(<SpecialtyPage />, { wrapper: TestWrapper });
+
+    // Wait for DashboardHeader async operations to complete
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith("/api/notifications");
+    });
 
     expect(useSpecialtyConfig).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -220,8 +276,13 @@ describe("SpecialtyPage", () => {
     );
   });
 
-  it("should call useQualityMeasures with specialty filter", () => {
+  it("should call useQualityMeasures with specialty filter", async () => {
     render(<SpecialtyPage />, { wrapper: TestWrapper });
+
+    // Wait for DashboardHeader async operations to complete
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith("/api/notifications");
+    });
 
     expect(useQualityMeasures).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -234,6 +295,11 @@ describe("SpecialtyPage", () => {
 
   it("should display features count badge", async () => {
     render(<SpecialtyPage />, { wrapper: TestWrapper });
+
+    // Wait for DashboardHeader async operations to complete
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith("/api/notifications");
+    });
 
     await waitFor(() => {
       expect(screen.getByText("2 Features")).toBeInTheDocument();
