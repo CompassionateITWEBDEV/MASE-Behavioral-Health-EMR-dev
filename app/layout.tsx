@@ -4,6 +4,9 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { Suspense } from "react";
 import { ReactQueryProvider } from "@/lib/react-query/provider";
+import { AuthToggleProvider } from "@/lib/dev-tools/auth-toggle-context";
+import { AuthTogglePanel } from "@/components/dev-tools/auth-toggle-panel";
+import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
 
 const inter = Inter({
@@ -43,17 +46,21 @@ export default function RootLayout({
           margin: 0,
           padding: 0,
         }}>
-        <ReactQueryProvider>
-          <Suspense
-            fallback={
-              <div style={{ padding: "20px", color: "#0a0a0a" }}>
-                Loading...
-              </div>
-            }>
-            {children}
-          </Suspense>
-        </ReactQueryProvider>
-        <Analytics />
+        <AuthToggleProvider>
+          <ReactQueryProvider>
+            <Suspense
+              fallback={
+                <div style={{ padding: "20px", color: "#0a0a0a" }}>
+                  Loading...
+                </div>
+              }>
+              {children}
+            </Suspense>
+          </ReactQueryProvider>
+          <AuthTogglePanel />
+          <Toaster />
+          <Analytics />
+        </AuthToggleProvider>
       </body>
     </html>
   );

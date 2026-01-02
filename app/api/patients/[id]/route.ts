@@ -1,10 +1,41 @@
-import { createServiceClient } from "@/lib/supabase/service-role"
-import { NextResponse } from "next/server"
+import { createServiceClient } from "@/lib/supabase/service-role";
+import { NextResponse } from "next/server";
+import { getAuthenticatedUser } from "@/lib/auth/middleware";
+import {
+  validatePhone,
+  normalizePhone,
+  validateEmail,
+  validateDateOfBirth,
+} from "@/lib/validation/patient";
 
-export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const supabase = createServiceClient()
-    const { id } = await params
+    // Check authentication
+    const { user, error: authError } = await getAuthenticatedUser();
+    
+    // Log authentication details for debugging
+    if (authError || !user) {
+      console.warn("[API] Authentication failed:", {
+        hasError: !!authError,
+        errorMessage: authError,
+        hasUser: !!user,
+        path: "/api/patients/[id]",
+      });
+      
+      // In development, allow the request to proceed with service role client
+      // In production, this should be strict
+      if (process.env.NODE_ENV === "production") {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      } else {
+        console.warn("[API] Development mode: Allowing request without authentication");
+      }
+    }
+
+    const supabase = createServiceClient();
+    const { id } = await params;
 
     // Fetch patient data - use select("*") to get all available columns
     // program_type will be included if it exists in the database
@@ -12,15 +43,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       .from("patients")
       .select("*")
       .eq("id", id)
-      .single()
+      .single();
 
     if (patientError) {
-      console.error("[v0] Error fetching patient:", patientError)
-      return NextResponse.json({ error: patientError.message }, { status: 500 })
+      console.error("[v0] Error fetching patient:", patientError);
+      return NextResponse.json(
+        { error: patientError.message },
+        { status: 500 }
+      );
     }
 
     if (!patientData) {
-      return NextResponse.json({ error: "Patient not found" }, { status: 404 })
+      return NextResponse.json({ error: "Patient not found" }, { status: 404 });
     }
 
     // Log patient data to debug patient number issue
@@ -31,7 +65,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       patient_number: patientData.patient_number,
       program_type: patientData.program_type,
       allKeys: Object.keys(patientData),
-    })
+    });
 
     // Fetch all related data in parallel
     // Wrap potentially missing tables in try-catch to handle gracefully
@@ -99,7 +133,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         .eq("document_type", "court_order")
         .order("document_date", { ascending: false })
         .limit(50),
-    ])
+    ]);
 
     // Handle errors gracefully - return empty arrays if tables don't exist
     return NextResponse.json({
@@ -110,41 +144,89 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       encounters: encountersResult.data || [],
       dosingLog: dosingResult.data || [],
       consents: consentsResult.data || [],
-      udsResults: udsResult.error ? [] : (udsResult.data || []),
-      progressNotes: progressNotesResult.error ? [] : (progressNotesResult.data || []),
-      courtOrders: documentsResult.error ? [] : (documentsResult.data || []),
-    })
-  } catch (error) {
-    console.error("[v0] Error fetching patient chart data:", error)
-    return NextResponse.json({ error: "Failed to fetch patient chart data" }, { status: 500 })
+      udsResults: udsResult.error ? [] : udsResult.data || [],
+      progressNotes: progressNotesResult.error
+        ? []
+        : progressNotesResult.data || [],
+      courtOrders: documentsResult.error ? [] : documentsResult.data || [],
+    });
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error("Unknown error");
+    console.error("[v0] Error fetching patient chart data:", err);
+    return NextResponse.json(
+      { error: err.message || "Failed to fetch patient chart data" },
+      { status: 500 }
+    );
   }
 }
 
-export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const supabase = createServiceClient()
-    const { id } = await params
-    const body = await request.json()
+    // Check authentication
+    const { user, error: authError } = await getAuthenticatedUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const supabase = createServiceClient();
+    const { id } = await params;
+    const body = await request.json();
 
     // Validate required fields
-    const firstName = body.first_name || body.firstName
-    const lastName = body.last_name || body.lastName
-    const dateOfBirth = body.date_of_birth || body.dateOfBirth
-    const phone = body.phone
+    const firstName = body.first_name || body.firstName;
+    const lastName = body.last_name || body.lastName;
+    const dateOfBirth = body.date_of_birth || body.dateOfBirth;
+    const phone = body.phone;
 
     if (!firstName || !lastName || !dateOfBirth || !phone) {
       return NextResponse.json(
-        { error: "Missing required fields: first_name, last_name, date_of_birth, and phone are required" },
+        {
+          error:
+            "Missing required fields: first_name, last_name, date_of_birth, and phone are required",
+        },
         { status: 400 }
-      )
+      );
+    }
+
+    // Validate phone number format
+    if (!validatePhone(phone)) {
+      return NextResponse.json(
+        {
+          error:
+            "Invalid phone number format. Please provide a valid 10-digit US phone number.",
+        },
+        { status: 400 }
+      );
+    }
+
+    // Validate date of birth
+    if (!validateDateOfBirth(dateOfBirth)) {
+      return NextResponse.json(
+        {
+          error:
+            "Invalid date of birth. Date must be in the past and in a valid format.",
+        },
+        { status: 400 }
+      );
+    }
+
+    // Validate email if provided
+    if (body.email && !validateEmail(body.email)) {
+      return NextResponse.json(
+        { error: "Invalid email format." },
+        { status: 400 }
+      );
     }
 
     // Build update object
-    const updateData: any = {
+    const updateData: Record<string, unknown> = {
       first_name: firstName,
       last_name: lastName,
       date_of_birth: dateOfBirth,
-      phone: phone,
+      phone: normalizePhone(phone), // Normalize phone to digits only
       email: body.email || null,
       gender: body.gender || null,
       address: body.address || null,
@@ -153,147 +235,183 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       insurance_provider: body.insurance_provider || null,
       insurance_id: body.insurance_id || null,
       updated_at: new Date().toISOString(),
-    }
+    };
 
     // Handle program_type - normalize if provided
     // Note: We'll try to include it, but if the column doesn't exist, we'll retry without it
-    let hasProgramTypeField = false
+    let hasProgramTypeField = false;
     if (body.program_type !== undefined) {
-      hasProgramTypeField = true
+      hasProgramTypeField = true;
       if (body.program_type && body.program_type.trim()) {
-        const normalized = body.program_type.toLowerCase().trim()
+        const normalized = body.program_type.toLowerCase().trim();
         if (normalized === "otp" || normalized.includes("opioid treatment")) {
-          updateData.program_type = "otp"
-        } else if (normalized === "mat" || normalized.includes("medication-assisted")) {
-          updateData.program_type = "mat"
-        } else if (normalized === "primary_care" || normalized === "primary care" || normalized.includes("primary")) {
-          updateData.program_type = "primary_care"
+          updateData.program_type = "otp";
+        } else if (
+          normalized === "mat" ||
+          normalized.includes("medication-assisted")
+        ) {
+          updateData.program_type = "mat";
+        } else if (
+          normalized === "primary_care" ||
+          normalized === "primary care" ||
+          normalized.includes("primary")
+        ) {
+          updateData.program_type = "primary_care";
         } else {
-          updateData.program_type = normalized
+          updateData.program_type = normalized;
         }
       } else {
-        updateData.program_type = null
+        updateData.program_type = null;
       }
     }
 
-    console.log("[v0] Updating patient:", { id, updateData })
+    console.log("[v0] Updating patient:", { id, updateData });
 
     let { data, error } = await supabase
       .from("patients")
       .update(updateData)
       .eq("id", id)
       .select()
-      .single()
+      .single();
 
     // If error is due to program_type column not existing, retry without it
-    if (error && hasProgramTypeField && (
-      error.message?.includes("program_type") || 
-      error.message?.includes("schema cache") ||
-      error.message?.includes("Could not find") ||
-      (error.message?.toLowerCase().includes("column") && error.message?.toLowerCase().includes("program_type"))
-    )) {
-      console.warn("[v0] program_type column may not exist, retrying without it. Error:", error.message)
-      const updateDataWithoutProgramType = { ...updateData }
-      delete updateDataWithoutProgramType.program_type
+    if (
+      error &&
+      hasProgramTypeField &&
+      (error.message?.includes("program_type") ||
+        error.message?.includes("schema cache") ||
+        error.message?.includes("Could not find") ||
+        (error.message?.toLowerCase().includes("column") &&
+          error.message?.toLowerCase().includes("program_type")))
+    ) {
+      console.warn(
+        "[v0] program_type column may not exist, retrying without it. Error:",
+        error.message
+      );
+      const updateDataWithoutProgramType = { ...updateData };
+      delete updateDataWithoutProgramType.program_type;
       const retryResult = await supabase
         .from("patients")
         .update(updateDataWithoutProgramType)
         .eq("id", id)
         .select()
-        .single()
-      
+        .single();
+
       if (retryResult.error) {
-        console.error("[v0] Error updating patient (retry):", retryResult.error)
+        console.error(
+          "[v0] Error updating patient (retry):",
+          retryResult.error
+        );
         return NextResponse.json(
           { error: retryResult.error.message || "Failed to update patient" },
           { status: 500 }
-        )
+        );
       }
-      
-      data = retryResult.data
-      error = null
-      console.log("[v0] Patient updated successfully (program_type column not available)")
+
+      data = retryResult.data;
+      error = null;
+      console.log(
+        "[v0] Patient updated successfully (program_type column not available)"
+      );
     }
 
     if (error) {
-      console.error("[v0] Error updating patient:", error)
+      console.error("[v0] Error updating patient:", error);
       return NextResponse.json(
         { error: error.message || "Failed to update patient" },
         { status: 500 }
-      )
+      );
     }
 
-    console.log("[v0] Patient updated successfully:", data)
-    return NextResponse.json({ patient: data })
-  } catch (error) {
-    console.error("[v0] Update patient error:", error)
-    const errorMessage =
-      error instanceof Error ? error.message : "Failed to update patient"
-    return NextResponse.json({ error: errorMessage }, { status: 500 })
+    console.log("[v0] Patient updated successfully:", data);
+    return NextResponse.json({ patient: data });
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error("Unknown error");
+    console.error("[v0] Update patient error:", err);
+    return NextResponse.json(
+      { error: err.message || "Failed to update patient" },
+      { status: 500 }
+    );
   }
 }
 
-export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const supabase = createServiceClient()
-    const { id } = await params
+    // Check authentication
+    const { user, error: authError } = await getAuthenticatedUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    console.log("[v0] Deleting patient:", id)
+    const supabase = createServiceClient();
+    const { id } = await params;
+
+    console.log("[v0] Soft deleting patient:", id);
 
     // First, verify patient exists
     const { data: patientData, error: fetchError } = await supabase
       .from("patients")
-      .select("id, first_name, last_name")
+      .select("id, first_name, last_name, is_active")
       .eq("id", id)
-      .single()
+      .single();
 
     if (fetchError || !patientData) {
-      return NextResponse.json(
-        { error: "Patient not found" },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: "Patient not found" }, { status: 404 });
     }
 
-    // Delete the patient record
-    // Note: Related records (appointments, assessments, etc.) will be handled by database CASCADE constraints
-    const { error: deleteError } = await supabase
+    // Validate user.id is a valid UUID before using it
+    // Handle dev-bypass-user and other non-UUID values (e.g., from dev auth bypass)
+    const isValidUUID = (str: string): boolean => {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      return uuidRegex.test(str);
+    };
+
+    const deactivatedBy = isValidUUID(user.id) ? user.id : null;
+    
+    if (!isValidUUID(user.id)) {
+      console.warn(
+        "[v0] User ID is not a valid UUID, setting deactivated_by to null:",
+        user.id
+      );
+    }
+
+    // Soft delete: set is_active=false instead of deleting
+    const { error: updateError } = await supabase
       .from("patients")
-      .delete()
-      .eq("id", id)
+      .update({
+        is_active: false,
+        deactivated_at: new Date().toISOString(),
+        deactivated_by: deactivatedBy,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
 
-    if (deleteError) {
-      console.error("[v0] Error deleting patient:", deleteError)
-      
-      // Check if error is due to foreign key constraints
-      if (deleteError.message?.includes("foreign key") || deleteError.message?.includes("violates foreign key")) {
-        return NextResponse.json(
-          { 
-            error: "Cannot delete patient. Patient has related records (appointments, assessments, etc.) that must be removed first." 
-          },
-          { status: 409 }
-        )
-      }
-      
+    if (updateError) {
+      console.error("[v0] Error soft deleting patient:", updateError);
       return NextResponse.json(
-        { error: deleteError.message || "Failed to delete patient" },
+        { error: updateError.message || "Failed to deactivate patient" },
         { status: 500 }
-      )
+      );
     }
 
-    console.log("[v0] Patient deleted successfully:", {
+    console.log("[v0] Patient deactivated successfully:", {
       id,
-      name: `${patientData.first_name} ${patientData.last_name}`
-    })
+      name: `${patientData.first_name} ${patientData.last_name}`,
+    });
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
-      message: "Patient deleted successfully"
-    })
-  } catch (error) {
-    console.error("[v0] Delete patient error:", error)
-    const errorMessage =
-      error instanceof Error ? error.message : "Failed to delete patient"
-    return NextResponse.json({ error: errorMessage }, { status: 500 })
+      message: "Patient deactivated successfully",
+    });
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error("Unknown error");
+    console.error("[v0] Delete patient error:", err);
+    return NextResponse.json(
+      { error: err.message || "Failed to deactivate patient" },
+      { status: 500 }
+    );
   }
 }
-

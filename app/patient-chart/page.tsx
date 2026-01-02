@@ -220,7 +220,35 @@ export default function PatientChartPage() {
 
   const fetchPatients = async () => {
     try {
-      const res = await fetch("/api/patients");
+      const supabase = createClient();
+      
+      // Get session token for authentication
+      let sessionToken: string | null = null;
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (session) {
+          sessionToken = session.access_token;
+        }
+      } catch (authError) {
+        console.log("[v0] Auth check failed, proceeding without token");
+      }
+
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+      
+      // Include authorization header if we have a session token
+      if (sessionToken) {
+        headers["Authorization"] = `Bearer ${sessionToken}`;
+      }
+
+      const res = await fetch("/api/patients", {
+        credentials: "include",
+        headers,
+      });
+      
       if (!res.ok) {
         throw new Error(`Failed to fetch patients: ${res.status}`);
       }
@@ -240,36 +268,95 @@ export default function PatientChartPage() {
 
   const fetchClinicalAlerts = async (patientId: string) => {
     try {
+      const supabase = createClient();
+      
+      // Get session token for authentication
+      let sessionToken: string | null = null;
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (session) {
+          sessionToken = session.access_token;
+        }
+      } catch (authError) {
+        console.log("[v0] Auth check failed, proceeding without token");
+      }
+
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+      
+      // Include authorization header if we have a session token
+      if (sessionToken) {
+        headers["Authorization"] = `Bearer ${sessionToken}`;
+      }
+
       // Fetch dosing holds, precautions, and facility alerts in parallel
       const [holdsRes, precautionsRes, facilityRes] = await Promise.all([
-        fetch("/api/clinical-alerts/holds"),
-        fetch("/api/clinical-alerts/precautions"),
-        fetch("/api/clinical-alerts/facility"),
+        fetch("/api/clinical-alerts/holds", {
+          credentials: "include",
+          headers,
+        }),
+        fetch("/api/clinical-alerts/precautions", {
+          credentials: "include",
+          headers,
+        }),
+        fetch("/api/clinical-alerts/facility", {
+          credentials: "include",
+          headers,
+        }),
       ]);
 
       // Process dosing holds - filter by patient_id and active status
       if (holdsRes.ok) {
         const holdsData = await holdsRes.json();
-        const patientHolds = (holdsData.holds || []).filter(
-          (hold: DosingHold) =>
-            hold.patient_id === patientId && hold.status === "active"
-        );
+        console.log("[Patient Chart] All holds from API:", holdsData.holds?.length || 0);
+        
+        const patientHolds = (holdsData.holds || []).filter((hold: DosingHold) => {
+          // Normalize both IDs to strings for comparison
+          const holdPatientId = String(hold.patient_id || "").trim();
+          const targetPatientId = String(patientId || "").trim();
+          return holdPatientId === targetPatientId && hold.status === "active";
+        });
+        
+        console.log("[Patient Chart] Filtered holds for patient:", patientHolds.length);
         setDosingHolds(patientHolds);
       } else {
+        console.error("[Patient Chart] Failed to fetch holds:", holdsRes.status, holdsRes.statusText);
         setDosingHolds([]);
       }
 
       // Process patient precautions - filter by patient_id and active status
       if (precautionsRes.ok) {
         const precautionsData = await precautionsRes.json();
+        console.log("[Patient Chart] All precautions from API:", precautionsData.precautions?.length || 0);
+        console.log("[Patient Chart] Filtering for patientId:", patientId);
+        
         const patientPrecautionsList = (
           precautionsData.precautions || []
-        ).filter(
-          (precaution: PatientPrecaution) =>
-            precaution.patient_id === patientId && precaution.is_active
-        );
+        ).filter((precaution: PatientPrecaution) => {
+          // Normalize both IDs to strings for comparison
+          const precautionPatientId = String(precaution.patient_id || "").trim();
+          const targetPatientId = String(patientId || "").trim();
+          const matches = precautionPatientId === targetPatientId && precaution.is_active;
+          
+          if (precautionPatientId && targetPatientId) {
+            console.log("[Patient Chart] Comparing:", {
+              precautionPatientId,
+              targetPatientId,
+              matches,
+              is_active: precaution.is_active,
+            });
+          }
+          
+          return matches;
+        });
+        
+        console.log("[Patient Chart] Filtered precautions for patient:", patientPrecautionsList.length);
         setPatientPrecautions(patientPrecautionsList);
       } else {
+        console.error("[Patient Chart] Failed to fetch precautions:", precautionsRes.status, precautionsRes.statusText);
         setPatientPrecautions([]);
       }
 
@@ -293,8 +380,35 @@ export default function PatientChartPage() {
     setLoading(true);
 
     try {
+      const supabase = createClient();
+      
+      // Get session token for authentication
+      let sessionToken: string | null = null;
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (session) {
+          sessionToken = session.access_token;
+        }
+      } catch (authError) {
+        console.log("[v0] Auth check failed, proceeding without token");
+      }
+
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+      
+      // Include authorization header if we have a session token
+      if (sessionToken) {
+        headers["Authorization"] = `Bearer ${sessionToken}`;
+      }
+
       // Use API endpoint to bypass RLS policies
-      const response = await fetch(`/api/patients/${patientId}`);
+      const response = await fetch(`/api/patients/${patientId}`, {
+        credentials: "include",
+        headers,
+      });
 
       if (!response.ok) {
         const errorData = await response.json();

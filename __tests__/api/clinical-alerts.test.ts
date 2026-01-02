@@ -29,6 +29,13 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn().mockResolvedValue({ from: mockFrom }),
 }));
 
+vi.mock("@/lib/auth/middleware", () => ({
+  getAuthenticatedUser: vi.fn().mockResolvedValue({
+    user: { id: "test-user-id", email: "test@example.com" },
+    error: null,
+  }),
+}));
+
 import { GET, POST } from "@/app/api/clinical-alerts/route";
 
 describe("GET /api/clinical-alerts", () => {
@@ -65,7 +72,33 @@ describe("GET /api/clinical-alerts", () => {
         patients: { first_name: "Jane", last_name: "Smith" },
       },
     ];
-    mockQueryBuilder.limit.mockResolvedValue({ data: mockAlerts, error: null });
+
+    // Mock the supabase client to return different data based on table name
+    const { createClient } = await import("@/lib/supabase/server");
+    const mockSupabase = vi.mocked(createClient);
+
+    // Create a mock that returns different data based on the table name
+    const mockFromWithTable = vi.fn((tableName: string) => {
+      const builder = { ...mockQueryBuilder };
+
+      // For clinical_alerts table, return the mock alerts
+      if (tableName === "clinical_alerts") {
+        builder.limit.mockResolvedValue({
+          data: mockAlerts,
+          error: null,
+          count: 2,
+        });
+      }
+      // For other tables (dosing_holds, patient_precautions, facility_alerts), return empty arrays
+      else {
+        builder.limit.mockResolvedValue({ data: [], error: null });
+        builder.eq.mockResolvedValue({ data: [], error: null });
+      }
+
+      return builder;
+    });
+
+    mockSupabase.mockResolvedValue({ from: mockFromWithTable } as any);
 
     const request = new Request("http://localhost/api/clinical-alerts");
     const response = await GET(request);
@@ -82,10 +115,38 @@ describe("GET /api/clinical-alerts", () => {
   });
 
   it("should handle table not existing gracefully", async () => {
-    mockQueryBuilder.limit.mockResolvedValue({
-      data: null,
-      error: { code: "42P01", message: "relation does not exist" },
+    // Create table-aware builder that returns error for clinical_alerts but empty for others
+    const createTableBuilder = (tableName: string) => {
+      const builder: Record<string, ReturnType<typeof vi.fn>> = {};
+      const methods = ["select", "order", "eq", "limit"];
+      methods.forEach((method) => {
+        builder[method] = vi.fn().mockReturnValue(builder);
+      });
+
+      // For clinical_alerts table, return error
+      if (tableName === "clinical_alerts") {
+        builder.limit.mockResolvedValue({
+          data: null,
+          error: { code: "42P01", message: "relation does not exist" },
+        });
+      }
+      // For other tables, return empty arrays
+      else {
+        builder.limit.mockResolvedValue({ data: [], error: null });
+        builder.eq.mockResolvedValue({ data: [], error: null });
+      }
+
+      return builder;
+    };
+
+    const mockFromWithTable = vi.fn((tableName: string) => {
+      return createTableBuilder(tableName);
     });
+
+    const { createClient } = await import("@/lib/supabase/server");
+    vi.mocked(createClient).mockResolvedValue({
+      from: mockFromWithTable,
+    } as any);
 
     const request = new Request("http://localhost/api/clinical-alerts");
     const response = await GET(request);
@@ -98,10 +159,45 @@ describe("GET /api/clinical-alerts", () => {
   });
 
   it("should handle database error", async () => {
-    mockQueryBuilder.limit.mockResolvedValue({
-      data: null,
-      error: { code: "OTHER", message: "Database error" },
+    // Create table-aware builder that returns error for clinical_alerts
+    // The API will continue to fetch from other tables, but if all fail and no data, return 500
+    const createTableBuilder = (tableName: string) => {
+      const builder: Record<string, ReturnType<typeof vi.fn>> = {};
+      const methods = ["select", "order", "eq", "limit"];
+      methods.forEach((method) => {
+        builder[method] = vi.fn().mockReturnValue(builder);
+      });
+
+      // For clinical_alerts table, return error
+      if (tableName === "clinical_alerts") {
+        builder.limit.mockResolvedValue({
+          data: null,
+          error: { code: "OTHER", message: "Database error" },
+        });
+      }
+      // For other tables, also return errors to ensure we get a 500
+      else {
+        builder.limit.mockResolvedValue({
+          data: null,
+          error: { code: "OTHER", message: "Database error" },
+        });
+        builder.eq.mockResolvedValue({
+          data: null,
+          error: { code: "OTHER", message: "Database error" },
+        });
+      }
+
+      return builder;
+    };
+
+    const mockFromWithTable = vi.fn((tableName: string) => {
+      return createTableBuilder(tableName);
     });
+
+    const { createClient } = await import("@/lib/supabase/server");
+    vi.mocked(createClient).mockResolvedValue({
+      from: mockFromWithTable,
+    } as any);
 
     const request = new Request("http://localhost/api/clinical-alerts");
     const response = await GET(request);
@@ -128,7 +224,35 @@ describe("POST /api/clinical-alerts", () => {
       alert_type: "medication",
       severity: "high",
     };
-    mockQueryBuilder.single.mockResolvedValue({ data: newAlert, error: null });
+
+    // Create table-aware builder for POST (only needs clinical_alerts table)
+    const createTableBuilder = (tableName: string) => {
+      const builder: Record<string, ReturnType<typeof vi.fn>> = {};
+      const methods = ["select", "insert", "single"];
+      methods.forEach((method) => {
+        builder[method] = vi.fn().mockReturnValue(builder);
+      });
+
+      // For clinical_alerts table, return the new alert
+      if (tableName === "clinical_alerts") {
+        builder.single.mockResolvedValue({ data: newAlert, error: null });
+      }
+      // For other tables, return empty
+      else {
+        builder.single.mockResolvedValue({ data: null, error: null });
+      }
+
+      return builder;
+    };
+
+    const mockFromWithTable = vi.fn((tableName: string) => {
+      return createTableBuilder(tableName);
+    });
+
+    const { createClient } = await import("@/lib/supabase/server");
+    vi.mocked(createClient).mockResolvedValue({
+      from: mockFromWithTable,
+    } as any);
 
     const request = new Request("http://localhost/api/clinical-alerts", {
       method: "POST",

@@ -67,6 +67,13 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn().mockResolvedValue({ from: mockFrom }),
 }));
 
+vi.mock("@/lib/auth/middleware", () => ({
+  getAuthenticatedUser: vi.fn().mockResolvedValue({
+    user: { id: "test-user-id", email: "test@example.com" },
+    error: null,
+  }),
+}));
+
 import { GET, POST } from "@/app/api/ai-assistant/route";
 
 describe("GET /api/ai-assistant", () => {

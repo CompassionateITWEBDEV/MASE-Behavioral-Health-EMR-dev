@@ -40,7 +40,7 @@ interface AppointmentData {
   status: string;
   notes?: string;
   patient_id: string;
-  provider_id: string;
+  provider_id: string | null;
   patients: {
     id: string;
     first_name: string;
@@ -53,7 +53,7 @@ interface AppointmentData {
     first_name: string;
     last_name: string;
     title?: string;
-  };
+  } | null;
 }
 
 interface Patient {
@@ -140,9 +140,10 @@ export function AppointmentList({
         `${apt.patients.first_name} ${apt.patients.last_name}`
           .toLowerCase()
           .includes(searchTerm.toLowerCase()) ||
-        `${apt.providers.first_name} ${apt.providers.last_name}`
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase()) ||
+        (apt.providers &&
+          `${apt.providers.first_name} ${apt.providers.last_name}`
+            .toLowerCase()
+            .includes(searchTerm.toLowerCase())) ||
         apt.appointment_type.toLowerCase().includes(searchTerm.toLowerCase())
     );
   };
@@ -185,12 +186,18 @@ export function AppointmentList({
           <div className="flex items-center space-x-2 text-sm text-muted-foreground">
             <User className="h-3 w-3" />
             <span>
-              {appointment.providers.first_name}{" "}
-              {appointment.providers.last_name}
+              {appointment.providers ? (
+                <>
+                  {appointment.providers.first_name}{" "}
+                  {appointment.providers.last_name}
+                  {appointment.providers.title && (
+                    <>, {appointment.providers.title}</>
+                  )}
+                </>
+              ) : (
+                <span className="text-muted-foreground italic">No Provider Assigned</span>
+              )}
             </span>
-            {appointment.providers.title && (
-              <span>, {appointment.providers.title}</span>
-            )}
             <span>•</span>
             <span>{appointment.appointment_type}</span>
           </div>
@@ -219,7 +226,7 @@ export function AppointmentList({
             </Button>
           </UpdateAppointmentStatusDialog>
 
-          {appointment.providers.id === currentProviderId && (
+          {appointment.providers?.id === currentProviderId && (
             <>
               <EditAppointmentDialog
                 appointment={appointment}

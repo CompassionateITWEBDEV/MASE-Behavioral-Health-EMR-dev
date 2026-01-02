@@ -1,8 +1,41 @@
 import { createServiceClient } from "@/lib/supabase/service-role"
 import { NextResponse } from "next/server"
+import { getAuthenticatedUser } from "@/lib/auth/middleware"
 
+/**
+ * GET /api/patients/list
+ * 
+ * @deprecated This endpoint is maintained for backward compatibility.
+ * Use /api/patients?includeStats=true instead.
+ * 
+ * This endpoint redirects to the unified /api/patients endpoint with includeStats=true
+ */
 export async function GET(request: Request) {
   try {
+    // Check authentication
+    const { user, error: authError } = await getAuthenticatedUser();
+    
+    // Log authentication details for debugging
+    if (authError || !user) {
+      console.warn("[API] Authentication failed:", {
+        hasError: !!authError,
+        errorMessage: authError,
+        hasUser: !!user,
+        path: "/api/patients/list",
+      });
+      
+      // In development, allow the request to proceed with service role client
+      // In production, this should be strict
+      if (process.env.NODE_ENV === "production") {
+        return NextResponse.json(
+          { patients: [], error: "Unauthorized" },
+          { status: 401 }
+        );
+      } else {
+        console.warn("[API] Development mode: Allowing request without authentication");
+      }
+    }
+
     const supabase = createServiceClient()
     const { searchParams } = new URL(request.url)
     const search = searchParams.get("search")
@@ -221,12 +254,13 @@ export async function GET(request: Request) {
         recentAppointments: recentAppointmentsCount,
       },
     })
-  } catch (error) {
-    console.error("[v0] Patients list API error:", error)
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error("Unknown error");
+    console.error("[v0] Patients list API error:", err)
     return NextResponse.json(
       {
         patients: [],
-        error: error instanceof Error ? error.message : "Failed to fetch patients",
+        error: err.message || "Failed to fetch patients",
       },
       { status: 500 }
     )

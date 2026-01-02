@@ -283,23 +283,51 @@ export default function PatientChartPage({
 
       if (holdsRes.ok) {
         const holdsData = await holdsRes.json();
-        const patientHolds = (holdsData.holds || []).filter(
-          (hold: DosingHold) =>
-            hold.patient_id === patientId && hold.status === "active"
-        );
+        console.log("[Patient Detail] All holds from API:", holdsData.holds?.length || 0);
+        
+        const patientHolds = (holdsData.holds || []).filter((hold: DosingHold) => {
+          // Normalize both IDs to strings for comparison
+          const holdPatientId = String(hold.patient_id || "").trim();
+          const targetPatientId = String(patientId || "").trim();
+          return holdPatientId === targetPatientId && hold.status === "active";
+        });
+        
+        console.log("[Patient Detail] Filtered holds for patient:", patientHolds.length);
         setDosingHolds(patientHolds);
       } else {
+        console.error("[Patient Detail] Failed to fetch holds:", holdsRes.status, holdsRes.statusText);
         setDosingHolds([]);
       }
 
       if (precautionsRes.ok) {
         const precautionsData = await precautionsRes.json();
+        console.log("[Patient Detail] All precautions from API:", precautionsData.precautions?.length || 0);
+        console.log("[Patient Detail] Filtering for patientId:", patientId);
+        
         const patientPrecautionsList = (precautionsData.precautions || []).filter(
-          (precaution: PatientPrecaution) =>
-            precaution.patient_id === patientId && precaution.is_active
+          (precaution: PatientPrecaution) => {
+            // Normalize both IDs to strings for comparison
+            const precautionPatientId = String(precaution.patient_id || "").trim();
+            const targetPatientId = String(patientId || "").trim();
+            const matches = precautionPatientId === targetPatientId && precaution.is_active;
+            
+            if (precautionPatientId && targetPatientId) {
+              console.log("[Patient Detail] Comparing:", {
+                precautionPatientId,
+                targetPatientId,
+                matches,
+                is_active: precaution.is_active,
+              });
+            }
+            
+            return matches;
+          }
         );
+        
+        console.log("[Patient Detail] Filtered precautions for patient:", patientPrecautionsList.length);
         setPatientPrecautions(patientPrecautionsList);
       } else {
+        console.error("[Patient Detail] Failed to fetch precautions:", precautionsRes.status, precautionsRes.statusText);
         setPatientPrecautions([]);
       }
 

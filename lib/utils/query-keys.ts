@@ -46,8 +46,9 @@ export const appointmentKeys = {
   list: (filters?: ScheduleFilters) =>
     [...appointmentKeys.lists(), { filters }] as const,
   detail: (id: string) => [...appointmentKeys.all, "detail", id] as const,
+  summaries: () => [...appointmentKeys.all, "summary"] as const,
   summary: (date?: string) =>
-    [...appointmentKeys.all, "summary", date] as const,
+    [...appointmentKeys.summaries(), date] as const,
 };
 
 /**
@@ -72,4 +73,20 @@ export const aiAssistantKeys = {
     [...aiAssistantKeys.recommendations(), patientId] as const,
   drugInteractions: (patientId: string) =>
     [...aiAssistantKeys.all, "drug-interactions", patientId] as const,
+};
+
+/**
+ * Billing codes query keys
+ */
+export const billingKeys = {
+  all: ["billing-codes"] as const,
+  codes: (specialty?: string) =>
+    [...billingKeys.all, "codes", { specialty }] as const,
+};
+
+/**
+ * Assessment tools query keys
+ */
+export const assessmentKeys = {
+  all: ["assessment-tools"] as const,
 };

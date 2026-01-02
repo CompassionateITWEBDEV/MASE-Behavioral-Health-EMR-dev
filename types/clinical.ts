@@ -21,6 +21,8 @@ export type AlertType = AlertVariant;
  * Clinical alert interface for dashboard display
  */
 export interface ClinicalAlert {
+  /** Alert ID (UUID) */
+  id?: string;
   /** Patient name or identifier */
   patient: string;
   /** Patient ID for linking */
@@ -35,6 +37,14 @@ export interface ClinicalAlert {
   type?: AlertVariant;
   /** Whether alert has been acknowledged */
   isAcknowledged?: boolean;
+  /** Timestamp when alert was acknowledged */
+  acknowledgedAt?: string | null;
+  /** User ID who acknowledged the alert */
+  acknowledgedBy?: string | null;
+  /** Alert creation timestamp */
+  createdAt?: string;
+  /** Alert update timestamp */
+  updatedAt?: string | null;
 }
 
 /**

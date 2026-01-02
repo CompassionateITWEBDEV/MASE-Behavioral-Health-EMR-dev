@@ -24,42 +24,10 @@ import {
 import Link from "next/link";
 import { EditPatientDialog } from "./edit-patient-dialog";
 import { DeletePatientDialog } from "./delete-patient-dialog";
-
-interface Patient {
-  id: string;
-  first_name: string;
-  last_name: string;
-  date_of_birth: string;
-  gender: string;
-  phone: string;
-  email: string;
-  address?: string;
-  insurance_provider: string;
-  insurance_id?: string;
-  emergency_contact_name?: string;
-  emergency_contact_phone?: string;
-  created_at: string;
-  appointments?: Array<{
-    id: string;
-    appointment_date: string;
-    status: string;
-  }>;
-  assessments?: Array<{
-    id: string;
-    assessment_type: string;
-    risk_assessment: any;
-    created_at: string;
-  }>;
-  medications?: Array<{
-    id: string;
-    medication_name: string;
-    dosage: string;
-    status: string;
-  }>;
-}
+import type { PatientWithRelations } from "@/types/patient";
 
 interface PatientListProps {
-  patients: Patient[];
+  patients: PatientWithRelations[];
   currentProviderId: string;
   showFilters?: boolean;
   onPatientUpdated?: () => void;
@@ -92,7 +60,7 @@ export function PatientList({
     return age;
   };
 
-  const getPatientRiskLevel = (patient: Patient) => {
+  const getPatientRiskLevel = (patient: PatientWithRelations) => {
     const latestAssessment = patient.assessments?.[0];
     if (
       latestAssessment?.risk_assessment &&
@@ -103,8 +71,8 @@ export function PatientList({
     return "low";
   };
 
-  const getPatientStatus = (patient: Patient) => {
-    const hasRecentAppointment = patient.appointments?.some((apt) => {
+  const getPatientStatus = (patient: PatientWithRelations) => {
+    const hasRecentAppointment = patient.appointments?.some((apt: { appointment_date: string }) => {
       const aptDate = new Date(apt.appointment_date);
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       return aptDate > weekAgo;
@@ -117,7 +85,7 @@ export function PatientList({
     return "Active";
   };
 
-  const getLastVisit = (patient: Patient) => {
+  const getLastVisit = (patient: PatientWithRelations) => {
     const lastAppointment = patient.appointments?.[0];
     if (lastAppointment) {
       const date = new Date(lastAppointment.appointment_date);
@@ -126,9 +94,9 @@ export function PatientList({
     return "No visits";
   };
 
-  const getCurrentMedication = (patient: Patient) => {
+  const getCurrentMedication = (patient: PatientWithRelations) => {
     const activeMed = patient.medications?.find(
-      (med) => med.status === "active"
+      (med: { status: string }) => med.status === "active"
     );
     return activeMed
       ? `${activeMed.medication_name} ${activeMed.dosage}`
@@ -142,7 +110,7 @@ export function PatientList({
       `${patient.first_name} ${patient.last_name}`
         .toLowerCase()
         .includes(searchTerm.toLowerCase()) ||
-      patient.phone.includes(searchTerm);
+      (patient.phone || "").includes(searchTerm);
 
     const patientStatus = getPatientStatus(patient);
     const matchesStatus =
@@ -307,7 +275,21 @@ export function PatientList({
                             <Calendar className="h-4 w-4" />
                           </Button>
                           <EditPatientDialog 
-                            patient={patient}
+                            patient={{
+                              id: patient.id,
+                              first_name: patient.first_name,
+                              last_name: patient.last_name,
+                              date_of_birth: patient.date_of_birth,
+                              gender: patient.gender || "",
+                              phone: patient.phone || "",
+                              email: patient.email || "",
+                              address: patient.address ?? undefined,
+                              emergency_contact_name: patient.emergency_contact_name ?? undefined,
+                              emergency_contact_phone: patient.emergency_contact_phone ?? undefined,
+                              insurance_provider: patient.insurance_provider ?? undefined,
+                              insurance_id: patient.insurance_id ?? undefined,
+                              program_type: patient.program_type ?? undefined,
+                            }}
                             onSuccess={onPatientUpdated}>
                             <Button variant="outline" size="sm">
                               <Edit className="h-4 w-4" />

@@ -12,6 +12,7 @@ import type {
   AIRecommendation,
   AIAssistantRequest,
 } from "@/types/ai-assistant";
+import { getAuthenticatedUser } from "@/lib/auth/middleware";
 
 /**
  * GET /api/ai-assistant
@@ -19,6 +20,15 @@ import type {
  */
 export async function GET(request: Request) {
   try {
+    // Check authentication
+    const { user, error: authError } = await getAuthenticatedUser();
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const supabase = await createClient();
     const { searchParams } = new URL(request.url);
 

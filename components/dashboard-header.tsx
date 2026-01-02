@@ -51,9 +51,10 @@ interface Notification {
 
 export interface DashboardHeaderProps {
   title?: string;
+  description?: string;
 }
 
-export const DashboardHeader: FC<DashboardHeaderProps> = ({ title }) => {
+export const DashboardHeader: FC<DashboardHeaderProps> = ({ title, description }) => {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [notifications, setNotifications] = useState<Notification[]>([]);

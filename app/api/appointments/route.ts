@@ -6,9 +6,20 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import type { AppointmentStatus } from "@/types/schedule";
+import { getAuthenticatedUser } from "@/lib/auth/middleware";
+import { validateAppointmentDate } from "@/lib/validation/patient";
 
 export async function GET(request: Request) {
   try {
+    // Check authentication
+    const { user, error: authError } = await getAuthenticatedUser();
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const supabase = await createClient();
     const { searchParams } = new URL(request.url);
 
@@ -161,6 +172,15 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   try {
+    // Check authentication
+    const { user, error: authError } = await getAuthenticatedUser();
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const supabase = await createClient();
     const body = await request.json();
 
@@ -182,6 +202,44 @@ export async function POST(request: Request) {
         { error: "Appointment type is required" },
         { status: 400 }
       );
+    }
+
+    // Validate appointment date is not in the past (for new appointments)
+    if (!validateAppointmentDate(body.appointment_date, false)) {
+      return NextResponse.json(
+        { error: "Appointment date cannot be in the past" },
+        { status: 400 }
+      );
+    }
+
+    // Verify patient exists
+    const { data: patient } = await supabase
+      .from("patients")
+      .select("id")
+      .eq("id", body.patient_id)
+      .single();
+
+    if (!patient) {
+      return NextResponse.json(
+        { error: "Patient not found" },
+        { status: 404 }
+      );
+    }
+
+    // Verify provider exists if provided
+    if (body.provider_id) {
+      const { data: provider } = await supabase
+        .from("providers")
+        .select("id")
+        .eq("id", body.provider_id)
+        .single();
+
+      if (!provider) {
+        return NextResponse.json(
+          { error: "Provider not found" },
+          { status: 404 }
+        );
+      }
     }
 
     const insertData = {

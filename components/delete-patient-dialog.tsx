@@ -40,10 +40,10 @@ export function DeletePatientDialog({ children, patientId, patientName, onSucces
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || "Failed to delete patient")
+        throw new Error(data.error || "Failed to deactivate patient")
       }
 
-      toast.success("Patient deleted successfully")
+      toast.success("Patient deactivated successfully")
       setOpen(false)
       
       // Call onSuccess callback to refresh patient list without page refresh
@@ -57,7 +57,7 @@ export function DeletePatientDialog({ children, patientId, patientName, onSucces
       console.error("Error deleting patient:", error)
       const errorMessage = error instanceof Error 
         ? error.message 
-        : "Failed to delete patient. Please try again."
+        : "Failed to deactivate patient. Please try again."
       toast.error(errorMessage)
     } finally {
       setIsLoading(false)
@@ -71,11 +71,11 @@ export function DeletePatientDialog({ children, patientId, patientName, onSucces
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-destructive" />
-            Delete Patient
+            Deactivate Patient
           </DialogTitle>
           <DialogDescription>
-            Are you sure you want to delete <strong>{patientName}</strong>? This action cannot be undone and will
-            permanently remove all patient data, including appointments, assessments, and progress notes.
+            Are you sure you want to deactivate <strong>{patientName}</strong>? This will mark the patient as inactive.
+            Patient data will be preserved but hidden from active lists. You can reactivate the patient later if needed.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -83,7 +83,7 @@ export function DeletePatientDialog({ children, patientId, patientName, onSucces
             Cancel
           </Button>
           <Button type="button" variant="destructive" onClick={handleDelete} disabled={isLoading}>
-            {isLoading ? "Deleting..." : "Delete Patient"}
+            {isLoading ? "Deactivating..." : "Deactivate Patient"}
           </Button>
         </DialogFooter>
       </DialogContent>

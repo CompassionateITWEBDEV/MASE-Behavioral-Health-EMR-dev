@@ -23,10 +23,14 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/hooks/use-appointments", () => ({
   useAppointments: vi.fn(),
   useScheduleSummary: vi.fn(),
+  useCreateAppointment: vi.fn(),
+  useCancelAppointment: vi.fn(),
+  useUpdateAppointment: vi.fn(),
 }));
 
 vi.mock("@/hooks/use-clinical-alerts", () => ({
   useClinicalAlerts: vi.fn(),
+  useAcknowledgeAlert: vi.fn(),
 }));
 
 vi.mock("@/hooks/use-ai-assistant", () => ({
@@ -34,8 +38,8 @@ vi.mock("@/hooks/use-ai-assistant", () => ({
 }));
 
 // Import mocked hooks
-import { useAppointments, useScheduleSummary } from "@/hooks/use-appointments";
-import { useClinicalAlerts } from "@/hooks/use-clinical-alerts";
+import { useAppointments, useScheduleSummary, useCreateAppointment, useCancelAppointment } from "@/hooks/use-appointments";
+import { useClinicalAlerts, useAcknowledgeAlert } from "@/hooks/use-clinical-alerts";
 import { useRequestAIAnalysis } from "@/hooks/use-ai-assistant";
 
 // Import component after mocks
@@ -137,6 +141,39 @@ describe("PrimaryCareDashboardPage", () => {
       mutate: vi.fn(),
       isPending: false,
       data: null,
+    });
+
+    (useCreateAppointment as ReturnType<typeof vi.fn>).mockReturnValue({
+      mutate: vi.fn(),
+      mutateAsync: vi.fn(),
+      isPending: false,
+      isSuccess: false,
+      isError: false,
+      error: null,
+      data: null,
+      reset: vi.fn(),
+    });
+
+    (useCancelAppointment as ReturnType<typeof vi.fn>).mockReturnValue({
+      mutate: vi.fn(),
+      mutateAsync: vi.fn(),
+      isPending: false,
+      isSuccess: false,
+      isError: false,
+      error: null,
+      data: null,
+      reset: vi.fn(),
+    });
+
+    (useAcknowledgeAlert as ReturnType<typeof vi.fn>).mockReturnValue({
+      mutate: vi.fn(),
+      mutateAsync: vi.fn(),
+      isPending: false,
+      isSuccess: false,
+      isError: false,
+      error: null,
+      data: null,
+      reset: vi.fn(),
     });
   });
 

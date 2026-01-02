@@ -5,6 +5,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { getAuthenticatedUser } from "@/lib/auth/middleware";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -16,13 +17,17 @@ interface RouteParams {
  */
 export async function POST(request: Request, { params }: RouteParams) {
   try {
+    // Check authentication
+    const { user, error: authError } = await getAuthenticatedUser();
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const { id } = await params;
     const supabase = await createClient();
-
-    // Get the current user from the session
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
 
     // Update the alert status
     const { data, error } = await supabase

@@ -5,6 +5,8 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { getAuthenticatedUser } from "@/lib/auth/middleware";
+import { validateAppointmentDate } from "@/lib/validation/patient";
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -16,6 +18,15 @@ interface RouteParams {
  */
 export async function GET(request: Request, { params }: RouteParams) {
   try {
+    // Check authentication
+    const { user, error: authError } = await getAuthenticatedUser();
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const { id } = await params;
     const supabase = await createClient();
 
@@ -81,9 +92,58 @@ export async function GET(request: Request, { params }: RouteParams) {
  */
 export async function PUT(request: Request, { params }: RouteParams) {
   try {
+    // Check authentication
+    const { user, error: authError } = await getAuthenticatedUser();
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const { id } = await params;
     const supabase = await createClient();
     const body = await request.json();
+
+    // Validate appointment date if provided
+    if (body.appointment_date && !validateAppointmentDate(body.appointment_date, true)) {
+      return NextResponse.json(
+        { error: "Invalid appointment date format" },
+        { status: 400 }
+      );
+    }
+
+    // Verify patient exists if patient_id is being updated
+    if (body.patient_id) {
+      const { data: patient } = await supabase
+        .from("patients")
+        .select("id")
+        .eq("id", body.patient_id)
+        .single();
+
+      if (!patient) {
+        return NextResponse.json(
+          { error: "Patient not found" },
+          { status: 404 }
+        );
+      }
+    }
+
+    // Verify provider exists if provider_id is being updated
+    if (body.provider_id) {
+      const { data: provider } = await supabase
+        .from("providers")
+        .select("id")
+        .eq("id", body.provider_id)
+        .single();
+
+      if (!provider) {
+        return NextResponse.json(
+          { error: "Provider not found" },
+          { status: 404 }
+        );
+      }
+    }
 
     // Build update object with only provided fields
     const updateData: Record<string, unknown> = {};
@@ -97,6 +157,7 @@ export async function PUT(request: Request, { params }: RouteParams) {
       updateData.appointment_type = body.appointment_type;
     if (body.provider_id !== undefined)
       updateData.provider_id = body.provider_id;
+    if (body.mode !== undefined) updateData.mode = body.mode;
     if (body.notes !== undefined) updateData.notes = body.notes;
 
     // Add updated timestamp
@@ -137,6 +198,15 @@ export async function PUT(request: Request, { params }: RouteParams) {
  */
 export async function DELETE(request: Request, { params }: RouteParams) {
   try {
+    // Check authentication
+    const { user, error: authError } = await getAuthenticatedUser();
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const { id } = await params;
     const supabase = await createClient();
 

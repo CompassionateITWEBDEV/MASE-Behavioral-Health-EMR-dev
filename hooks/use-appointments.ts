@@ -160,3 +160,116 @@ export function useScheduleSummary(date?: string, enabled = true) {
     staleTime: 30 * 1000,
   });
 }
+
+/**
+ * Mutation hook for creating a new appointment
+ *
+ * @returns React Query mutation for creating appointments
+ */
+export function useCreateAppointment() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    { appointment: AppointmentRecord },
+    Error,
+    Partial<AppointmentRecord>
+  >({
+    mutationFn: async (appointmentData) => {
+      const response = await fetch("/api/appointments", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(appointmentData),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to create appointment");
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      // Invalidate all appointment queries to refresh the list
+      queryClient.invalidateQueries({ queryKey: appointmentKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: appointmentKeys.summaries() });
+    },
+  });
+}
+
+/**
+ * Mutation hook for updating an appointment
+ *
+ * @returns React Query mutation for updating appointments
+ */
+export function useUpdateAppointment() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    { appointment: AppointmentRecord },
+    Error,
+    { id: string; data: Partial<AppointmentRecord> }
+  >({
+    mutationFn: async ({ id, data }) => {
+      const response = await fetch(`/api/appointments/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to update appointment");
+      }
+
+      return response.json();
+    },
+    onSuccess: (_, variables) => {
+      // Invalidate specific appointment and list queries
+      queryClient.invalidateQueries({
+        queryKey: appointmentKeys.detail(variables.id),
+      });
+      queryClient.invalidateQueries({ queryKey: appointmentKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: appointmentKeys.summaries() });
+    },
+  });
+}
+
+/**
+ * Mutation hook for cancelling an appointment (soft delete)
+ *
+ * @returns React Query mutation for cancelling appointments
+ */
+export function useCancelAppointment() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    { message: string; appointment: AppointmentRecord },
+    Error,
+    string
+  >({
+    mutationFn: async (appointmentId: string) => {
+      const response = await fetch(`/api/appointments/${appointmentId}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to cancel appointment");
+      }
+
+      return response.json();
+    },
+    onSuccess: (_, appointmentId) => {
+      // Invalidate specific appointment and list queries
+      queryClient.invalidateQueries({
+        queryKey: appointmentKeys.detail(appointmentId),
+      });
+      queryClient.invalidateQueries({ queryKey: appointmentKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: appointmentKeys.summaries() });
+    },
+  });
+}

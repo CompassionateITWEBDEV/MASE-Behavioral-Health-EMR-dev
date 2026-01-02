@@ -13,7 +13,8 @@
     "check:all": "pnpm check:types && pnpm lint && pnpm test:run && pnpm build",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:api-auth": "node scripts/test-api-auth.js"
   },
   "dependencies": {
     "@ai-sdk/react": "3.0.5",

@@ -21,6 +21,13 @@ vi.mock("@/lib/supabase/server", () => ({
   }),
 }));
 
+vi.mock("@/lib/auth/middleware", () => ({
+  getAuthenticatedUser: vi.fn().mockResolvedValue({
+    user: { id: "test-user-id", email: "test@example.com" },
+    error: null,
+  }),
+}));
+
 import { POST } from "@/app/api/clinical-alerts/[id]/acknowledge/route";
 
 describe("POST /api/clinical-alerts/[id]/acknowledge", () => {

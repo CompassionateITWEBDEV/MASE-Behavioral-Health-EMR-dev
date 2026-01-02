@@ -128,6 +128,8 @@ export interface ScheduleItem {
   patient: string;
   /** Patient ID for linking */
   patientId?: string;
+  /** Appointment ID for operations */
+  appointmentId?: string;
   /** Appointment type label */
   type: string;
   /** Current status */

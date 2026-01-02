@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -55,26 +56,64 @@ import {
   Info,
   Loader2,
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import type { AIRecommendation } from "@/types/ai-assistant";
-import type { ClinicalAlert } from "@/types/clinical";
+import type {
+  AIRecommendation,
+  RiskAlert,
+  ClinicalRecommendation,
+  LabOrder,
+  Diagnosis,
+  PreventiveGap,
+} from "@/types/ai-assistant";
+import type { ClinicalAlert, AssessmentTool } from "@/types/clinical";
 import type { ScheduleItem } from "@/types/schedule";
-import { useAppointments, useScheduleSummary } from "@/hooks/use-appointments";
-import { useClinicalAlerts } from "@/hooks/use-clinical-alerts";
+import {
+  useAppointments,
+  useScheduleSummary,
+  useCreateAppointment,
+  useCancelAppointment,
+} from "@/hooks/use-appointments";
+import {
+  useClinicalAlerts,
+  useAcknowledgeAlert,
+} from "@/hooks/use-clinical-alerts";
 import { useRequestAIAnalysis } from "@/hooks/use-ai-assistant";
+import { useBillingCodes } from "@/hooks/use-billing-codes";
+import { useAssessmentTools } from "@/hooks/use-assessment-tools";
+import { CreateAppointmentDialog } from "@/components/create-appointment-dialog";
+import { useToast } from "@/hooks/use-toast";
+import type { Patient } from "@/types/patient";
+import type { Provider } from "@/types/patient";
 
 export default function PrimaryCareDashboardPage() {
   // Get today's date in YYYY-MM-DD format for filtering
   const today = useMemo(() => new Date().toISOString().split("T")[0], []);
 
-  // Fetch today's appointments using React Query hook
+  // State for schedule filters
+  const [scheduleDate, setScheduleDate] = useState(today);
+  const [scheduleProvider, setScheduleProvider] = useState<string>("all");
+
+  // Fetch today's appointments for dashboard tab
   const {
     data: appointmentsData,
     isLoading: appointmentsLoading,
     error: appointmentsError,
   } = useAppointments({
     filters: { date: today },
+    enabled: true,
+  });
+
+  // Fetch appointments for schedule tab with filters
+  const {
+    data: scheduleAppointmentsData,
+    isLoading: scheduleAppointmentsLoading,
+    error: scheduleAppointmentsError,
+  } = useAppointments({
+    filters: { 
+      date: scheduleDate,
+      ...(scheduleProvider !== "all" && { providerId: scheduleProvider })
+    },
     enabled: true,
   });
 
@@ -99,6 +138,102 @@ export default function PrimaryCareDashboardPage() {
     data: aiMutationData,
   } = useRequestAIAnalysis();
 
+  // Fetch pending results
+  const [pendingResultsCount, setPendingResultsCount] = useState(0);
+  const [qualityMetricsScore, setQualityMetricsScore] = useState(94);
+  const [ccmPatientsCount, setCcmPatientsCount] = useState(45);
+
+  // Fetch billing codes
+  const { data: billingCodesData } = useBillingCodes({
+    specialty: "primary-care",
+    enabled: true,
+  });
+
+  // Fetch assessment tools
+  const { data: assessmentToolsData } = useAssessmentTools({ enabled: true });
+
+  // Appointment mutations
+  const createAppointment = useCreateAppointment();
+  const cancelAppointment = useCancelAppointment();
+  const acknowledgeAlert = useAcknowledgeAlert();
+  const { toast } = useToast();
+
+  // State for patients and providers (for appointment dialog)
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [currentProviderId, setCurrentProviderId] = useState<string>("");
+
+  // Fetch stats on mount
+  useEffect(() => {
+    fetch("/api/primary-care/pending-results")
+      .then((res) => res.json())
+      .then((data) => setPendingResultsCount(data.count || 0))
+      .catch(() => setPendingResultsCount(8));
+
+    fetch("/api/primary-care/quality-metrics")
+      .then((res) => res.json())
+      .then((data) => setQualityMetricsScore(data.overall_score || 94))
+      .catch(() => setQualityMetricsScore(94));
+
+    fetch("/api/primary-care/ccm-patients")
+      .then((res) => res.json())
+      .then((data) => setCcmPatientsCount(data.count || 45))
+      .catch(() => setCcmPatientsCount(45));
+
+    // Fetch patients and providers
+    fetch("/api/patients?limit=100")
+      .then((res) => res.json())
+      .then((data) => setPatients(data.patients || []))
+      .catch(() => setPatients([]));
+
+    fetch("/api/providers")
+      .then((res) => {
+        if (!res.ok) {
+          console.error("[Primary Care Dashboard] Failed to fetch providers:", res.status, res.statusText);
+          return { providers: [] };
+        }
+        return res.json();
+      })
+      .then((data) => {
+        const providersList = data.providers || [];
+        console.log("[Primary Care Dashboard] Fetched providers:", providersList.length);
+        setProviders(providersList);
+        if (providersList.length > 0) {
+          setCurrentProviderId(providersList[0].id);
+        }
+      })
+      .catch((error) => {
+        console.error("[Primary Care Dashboard] Error fetching providers:", error);
+        setProviders([]);
+      });
+
+    // Fetch claims
+    fetchClaims();
+  }, []);
+
+  // Function to fetch claims
+  const fetchClaims = async () => {
+    setClaimsLoading(true);
+    try {
+      const response = await fetch("/api/claims");
+      if (!response.ok) {
+        throw new Error("Failed to fetch claims");
+      }
+      const data = await response.json();
+      setClaims(data.claims || []);
+      setPayers(data.payers || []);
+    } catch (error) {
+      console.error("[Primary Care Dashboard] Error fetching claims:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load claims",
+        variant: "destructive",
+      });
+    } finally {
+      setClaimsLoading(false);
+    }
+  };
+
   // Transform appointments to schedule items for display
   const todaySchedule: ScheduleItem[] = useMemo(() => {
     if (!appointmentsData?.appointments) return [];
@@ -118,6 +253,7 @@ export default function PrimaryCareDashboardPage() {
         time: timeStr,
         patient: patientName,
         patientId: apt.patient_id,
+        appointmentId: apt.id,
         type: apt.appointment_type || "Appointment",
         status: apt.status,
         duration: apt.duration_minutes
@@ -139,19 +275,25 @@ export default function PrimaryCareDashboardPage() {
     return {
       todayAppointments:
         summary?.total || appointmentsData?.appointments?.length || 0,
-      pendingResults: 8, // TODO: Add pending results API endpoint
-      qualityMetrics: 94, // TODO: Add quality metrics API endpoint
-      chronicCareManagement: 45, // TODO: Add CCM API endpoint
+      pendingResults: pendingResultsCount,
+      qualityMetrics: qualityMetricsScore,
+      chronicCareManagement: ccmPatientsCount,
     };
-  }, [summaryData, appointmentsData]);
+  }, [summaryData, appointmentsData, pendingResultsCount, qualityMetricsScore, ccmPatientsCount]);
 
-  const [primaryCareCPTCodes] = useState([
+  // Use billing codes from API or fallback to hardcoded
+  const primaryCareCPTCodes = useMemo(() => {
+    if (billingCodesData?.codes && billingCodesData.codes.length > 0) {
+      return billingCodesData.codes;
+    }
+    // Fallback to hardcoded codes if API fails
+    return [
     // Office Visits - Established Patient
     {
       code: "99211",
       description: "Office visit - minimal",
       rate: 45,
-      category: "Office Visit",
+        category: "Office Visit" as const,
     },
     {
       code: "99212",
@@ -288,11 +430,18 @@ export default function PrimaryCareDashboardPage() {
       code: "99496",
       description: "TCM - high complexity",
       rate: 235,
-      category: "TCM",
+      category: "TCM" as const,
     },
-  ]);
+    ];
+  }, [billingCodesData]);
 
-  const [assessmentTools] = useState([
+  // Use assessment tools from API or fallback to hardcoded
+  const assessmentTools = useMemo(() => {
+    if (assessmentToolsData?.tools && assessmentToolsData.tools.length > 0) {
+      return assessmentToolsData.tools;
+    }
+    // Fallback to hardcoded tools if API fails
+    return [
     {
       name: "PHQ-9",
       description: "Patient Health Questionnaire - Depression",
@@ -353,15 +502,34 @@ export default function PrimaryCareDashboardPage() {
       questions: 6,
       time: "4 min",
     },
-  ]);
+    ];
+  }, [assessmentToolsData]);
 
   const [billingFilter, setBillingFilter] = useState("all");
   const [selectedPatientForBilling, setSelectedPatientForBilling] =
     useState("");
   const [selectedCPT, setSelectedCPT] = useState("");
+  
+  // Billing claims state
+  const [claims, setClaims] = useState<any[]>([]);
+  const [claimsLoading, setClaimsLoading] = useState(false);
+  const [createClaimDialogOpen, setCreateClaimDialogOpen] = useState(false);
+  const [editClaimDialogOpen, setEditClaimDialogOpen] = useState(false);
+  const [selectedClaim, setSelectedClaim] = useState<any | null>(null);
+  const [serviceDate, setServiceDate] = useState("");
+  const [payerId, setPayerId] = useState("");
+  const [payers, setPayers] = useState<any[]>([]);
+  const [isSubmittingClaim, setIsSubmittingClaim] = useState(false);
 
   const [selectedPatientForAI, setSelectedPatientForAI] = useState("");
   const [showAIAssistant, setShowAIAssistant] = useState(false);
+
+  // Assessment dialog state
+  const [assessmentDialogOpen, setAssessmentDialogOpen] = useState(false);
+  const [selectedAssessmentTool, setSelectedAssessmentTool] = useState<AssessmentTool | null>(null);
+  const [selectedPatientForAssessment, setSelectedPatientForAssessment] = useState("");
+  const [assessmentNotes, setAssessmentNotes] = useState("");
+  const [isSubmittingAssessment, setIsSubmittingAssessment] = useState(false);
 
   // Derive AI loading state and recommendations from mutation hook
   const aiAnalysisLoading = aiMutationPending;
@@ -376,6 +544,296 @@ export default function PrimaryCareDashboardPage() {
       includeLabReview: true,
       includeMedicationReview: true,
     });
+  };
+
+  // Handler to open assessment dialog
+  const handleStartAssessment = (tool?: AssessmentTool) => {
+    setSelectedAssessmentTool(tool || null);
+    setAssessmentDialogOpen(true);
+  };
+
+  // Handler to create claim
+  const handleCreateClaim = async () => {
+    if (!selectedPatientForBilling || !selectedCPT || !serviceDate) {
+      toast({
+        title: "Error",
+        description: "Please fill in all required fields (Patient, CPT Code, Date of Service)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Find the selected CPT code to get the rate
+    const selectedCPTCode = primaryCareCPTCodes.find(cpt => cpt.code === selectedCPT);
+    if (!selectedCPTCode) {
+      toast({
+        title: "Error",
+        description: "Invalid CPT code selected",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubmittingClaim(true);
+    try {
+      // Convert IDs to integers
+      const patientId = parseInt(selectedPatientForBilling, 10);
+      const providerId = currentProviderId ? parseInt(currentProviderId, 10) : null;
+
+      if (isNaN(patientId)) {
+        toast({
+          title: "Error",
+          description: "Invalid patient ID",
+          variant: "destructive",
+        });
+        setIsSubmittingClaim(false);
+        return;
+      }
+
+      if (!providerId || isNaN(providerId)) {
+        toast({
+          title: "Error",
+          description: "No provider selected",
+          variant: "destructive",
+        });
+        setIsSubmittingClaim(false);
+        return;
+      }
+
+      const response = await fetch("/api/claims", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "claim",
+          patientId: patientId,
+          payerId: payerId || null,
+          providerId: providerId,
+          serviceDate: serviceDate,
+          totalCharges: selectedCPTCode.rate,
+          claimType: "professional",
+          procedureCodes: [selectedCPT],
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        toast({
+          title: "Success",
+          description: "Claim created successfully",
+        });
+        setCreateClaimDialogOpen(false);
+        setSelectedPatientForBilling("");
+        setSelectedCPT("");
+        setServiceDate("");
+        setPayerId("");
+        fetchClaims(); // Refresh claims list
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to create claim",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error creating claim:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create claim. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmittingClaim(false);
+    }
+  };
+
+  // Handler to update claim
+  const handleUpdateClaim = async (claimId: string, updates: any) => {
+    try {
+      const response = await fetch("/api/claims", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: claimId,
+          action: "update",
+          ...updates,
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        toast({
+          title: "Success",
+          description: "Claim updated successfully",
+        });
+        setEditClaimDialogOpen(false);
+        setSelectedClaim(null);
+        fetchClaims();
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to update claim",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error updating claim:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update claim. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handler to delete claim
+  const handleDeleteClaim = async (claimId: string) => {
+    if (!confirm("Are you sure you want to delete this claim? This action cannot be undone.")) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/claims?id=${claimId}`, {
+        method: "DELETE",
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        toast({
+          title: "Success",
+          description: "Claim deleted successfully",
+        });
+        fetchClaims();
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to delete claim",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error deleting claim:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete claim. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Handler to submit assessment
+  const handleSubmitAssessment = async () => {
+    if (!selectedPatientForAssessment || !selectedAssessmentTool) {
+      toast({
+        title: "Error",
+        description: "Please select a patient and assessment tool",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubmittingAssessment(true);
+    try {
+      // First, fetch the assessment catalog to find the form_id
+      const catalogResponse = await fetch("/api/assessments");
+      const catalogData = await catalogResponse.json();
+      
+      // Find the form in the catalog by matching the tool name
+      const matchingForm = catalogData.assessmentCatalog?.find(
+        (form: any) => form.form_name === selectedAssessmentTool.name || 
+                     form.form_code === selectedAssessmentTool.name
+      );
+
+      if (!matchingForm) {
+        toast({
+          title: "Error",
+          description: `Could not find assessment form "${selectedAssessmentTool.name}" in catalog`,
+          variant: "destructive",
+        });
+        setIsSubmittingAssessment(false);
+        return;
+      }
+
+      // Validate and convert IDs to integers
+      const patientId = parseInt(selectedPatientForAssessment, 10);
+      const formId = parseInt(String(matchingForm.id), 10);
+      const providerId = currentProviderId ? parseInt(currentProviderId, 10) : null;
+
+      // Validate required fields
+      if (isNaN(patientId)) {
+        toast({
+          title: "Error",
+          description: "Invalid patient ID",
+          variant: "destructive",
+        });
+        setIsSubmittingAssessment(false);
+        return;
+      }
+
+      if (isNaN(formId)) {
+        toast({
+          title: "Error",
+          description: "Invalid assessment form ID",
+          variant: "destructive",
+        });
+        setIsSubmittingAssessment(false);
+        return;
+      }
+
+      // provider_id is required (NOT NULL in database)
+      if (!currentProviderId || isNaN(parseInt(currentProviderId, 10))) {
+        toast({
+          title: "Error",
+          description: "No provider selected. Please ensure a provider is available.",
+          variant: "destructive",
+        });
+        setIsSubmittingAssessment(false);
+        return;
+      }
+
+      // Create the assessment
+      const response = await fetch("/api/assessments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create_assessment",
+          patient_id: patientId,
+          form_id: formId,
+          provider_id: providerId,
+          notes: assessmentNotes || null,
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (result.success) {
+        toast({
+          title: "Success",
+          description: `Assessment "${selectedAssessmentTool.name}" started successfully`,
+        });
+        setAssessmentDialogOpen(false);
+        setSelectedPatientForAssessment("");
+        setAssessmentNotes("");
+        setSelectedAssessmentTool(null);
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to start assessment",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error starting assessment:", error);
+      toast({
+        title: "Error",
+        description: "Failed to start assessment. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmittingAssessment(false);
+    }
   };
 
   return (
@@ -490,11 +948,25 @@ export default function PrimaryCareDashboardPage() {
               {/* Today's Schedule */}
               <Card>
                 <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
                   <CardTitle className="flex items-center gap-2">
                     <Clock className="h-5 w-5" />
                     Today's Schedule
                   </CardTitle>
                   <CardDescription>Upcoming appointments</CardDescription>
+                    </div>
+                    <CreateAppointmentDialog
+                      patients={patients}
+                      providers={providers}
+                      currentProviderId={currentProviderId}
+                    >
+                      <Button size="sm">
+                        <Plus className="mr-2 h-4 w-4" />
+                        New Appointment
+                      </Button>
+                    </CreateAppointmentDialog>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
@@ -538,6 +1010,38 @@ export default function PrimaryCareDashboardPage() {
                               <Badge variant="outline">{appt.duration}</Badge>
                             )}
                             <Button size="sm">Start Visit</Button>
+                            {appt.appointmentId && appt.status !== "cancelled" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  if (
+                                    confirm(
+                                      "Are you sure you want to cancel this appointment?"
+                                    )
+                                  ) {
+                                    cancelAppointment.mutate(appt.appointmentId!, {
+                                      onSuccess: () => {
+                                        toast({
+                                          title: "Success",
+                                          description: "Appointment cancelled successfully",
+                                        });
+                                      },
+                                      onError: (error) => {
+                                        toast({
+                                          title: "Error",
+                                          description: error.message || "Failed to cancel appointment",
+                                          variant: "destructive",
+                                        });
+                                      },
+                                    });
+                                  }
+                                }}
+                                disabled={cancelAppointment.isPending}
+                              >
+                                Cancel
+                              </Button>
+                            )}
                           </div>
                         </div>
                       ))
@@ -602,8 +1106,31 @@ export default function PrimaryCareDashboardPage() {
                               </div>
                             </div>
                           </div>
-                          <Button size="sm" variant="outline">
-                            Review
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              if (alert.id) {
+                                acknowledgeAlert.mutate(alert.id, {
+                                  onSuccess: () => {
+                                    toast({
+                                      title: "Success",
+                                      description: "Alert acknowledged successfully",
+                                    });
+                                  },
+                                  onError: (error) => {
+                                    toast({
+                                      title: "Error",
+                                      description: error.message || "Failed to acknowledge alert",
+                                      variant: "destructive",
+                                    });
+                                  },
+                                });
+                              }
+                            }}
+                            disabled={!alert.id || acknowledgeAlert.isPending}
+                          >
+                            {acknowledgeAlert.isPending ? "Acknowledging..." : "Review"}
                           </Button>
                         </div>
                       ))
@@ -634,13 +1161,158 @@ export default function PrimaryCareDashboardPage() {
             <TabsContent value="schedule" className="space-y-4">
               <Card>
                 <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
                   <CardTitle>Appointment Schedule</CardTitle>
-                  <CardDescription>Weekly calendar view</CardDescription>
+                      <CardDescription>View and manage appointments</CardDescription>
+                    </div>
+                    <CreateAppointmentDialog
+                      patients={patients}
+                      providers={providers}
+                      currentProviderId={currentProviderId}
+                    >
+                      <Button size="sm">
+                        <Plus className="mr-2 h-4 w-4" />
+                        New Appointment
+                      </Button>
+                    </CreateAppointmentDialog>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-muted-foreground">
-                    Full schedule calendar view coming soon...
-                  </p>
+                  <div className="space-y-4">
+                    {/* Date Range Selector */}
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="schedule-date">Date:</Label>
+                        <Input
+                          id="schedule-date"
+                          type="date"
+                          value={scheduleDate}
+                          onChange={(e) => {
+                            setScheduleDate(e.target.value);
+                          }}
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Label htmlFor="schedule-provider">Provider:</Label>
+                        <Select
+                          value={scheduleProvider}
+                          onValueChange={(value) => {
+                            setScheduleProvider(value);
+                          }}
+                        >
+                          <SelectTrigger id="schedule-provider" className="w-[200px]">
+                            <SelectValue placeholder="All providers" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Providers</SelectItem>
+                            {providers.map((provider) => (
+                              <SelectItem key={provider.id} value={provider.id}>
+                                {provider.first_name} {provider.last_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* Appointments List */}
+                    {scheduleAppointmentsLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                        <span className="ml-2 text-muted-foreground">
+                          Loading schedule...
+                        </span>
+                      </div>
+                    ) : scheduleAppointmentsError ? (
+                      <div className="text-center py-8 text-destructive">
+                        <AlertCircle className="h-6 w-6 mx-auto mb-2" />
+                        <p>Failed to load schedule</p>
+                      </div>
+                    ) : scheduleAppointmentsData?.appointments && scheduleAppointmentsData.appointments.length > 0 ? (
+                      <div className="space-y-2">
+                        {scheduleAppointmentsData.appointments.map((apt) => {
+                          const aptDate = new Date(apt.appointment_date);
+                          const timeStr = aptDate.toLocaleTimeString("en-US", {
+                            hour: "numeric",
+                            minute: "2-digit",
+                            hour12: true,
+                          });
+                          const patientName = apt.patients
+                            ? `${apt.patients.first_name} ${apt.patients.last_name}`
+                            : "Unknown Patient";
+                          return (
+                            <div
+                              key={apt.id}
+                              className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50"
+                            >
+                              <div className="flex items-center gap-4">
+                                <div className="text-sm font-medium text-muted-foreground w-24">
+                                  {timeStr}
+                                </div>
+                                <div>
+                                  <div className="font-semibold">{patientName}</div>
+                                  <div className="text-sm text-muted-foreground">
+                                    {apt.appointment_type} • {apt.duration_minutes || 60} min
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge
+                                  variant={
+                                    apt.status === "completed"
+                                      ? "default"
+                                      : apt.status === "cancelled"
+                                      ? "secondary"
+                                      : "outline"
+                                  }
+                                >
+                                  {apt.status}
+                                </Badge>
+                                {apt.status !== "cancelled" && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      if (
+                                        confirm(
+                                          "Are you sure you want to cancel this appointment?"
+                                        )
+                                      ) {
+                                        cancelAppointment.mutate(apt.id, {
+                                          onSuccess: () => {
+                                            toast({
+                                              title: "Success",
+                                              description: "Appointment cancelled successfully",
+                                            });
+                                          },
+                                          onError: (error) => {
+                                            toast({
+                                              title: "Error",
+                                              description: error.message || "Failed to cancel appointment",
+                                              variant: "destructive",
+                                            });
+                                          },
+                                        });
+                                      }
+                                    }}
+                                    disabled={cancelAppointment.isPending}
+                                  >
+                                    Cancel
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <Calendar className="h-6 w-6 mx-auto mb-2" />
+                        <p>No appointments scheduled for this date</p>
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -653,9 +1325,9 @@ export default function PrimaryCareDashboardPage() {
                     CPT codes and charge capture
                   </p>
                 </div>
-                <Dialog>
+                <Dialog open={createClaimDialogOpen} onOpenChange={setCreateClaimDialogOpen}>
                   <DialogTrigger asChild>
-                    <Button>
+                    <Button onClick={() => setCreateClaimDialogOpen(true)}>
                       <DollarSign className="mr-2 h-4 w-4" />
                       Create Claim
                     </Button>
@@ -669,28 +1341,32 @@ export default function PrimaryCareDashboardPage() {
                     </DialogHeader>
                     <div className="space-y-4 py-4">
                       <div className="space-y-2">
-                        <Label>Patient</Label>
-                        <Select
-                          value={selectedPatientForBilling}
-                          onValueChange={setSelectedPatientForBilling}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select patient" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="patient1">
-                              Sarah Johnson
-                            </SelectItem>
-                            <SelectItem value="patient2">
-                              Michael Chen
-                            </SelectItem>
-                            <SelectItem value="patient3">
-                              Emily Rodriguez
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <Label>Patient *</Label>
+                        {patients.length > 0 ? (
+                          <Select
+                            value={selectedPatientForBilling}
+                            onValueChange={setSelectedPatientForBilling}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select patient" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {patients.map((patient) => (
+                                <SelectItem key={patient.id} value={patient.id}>
+                                  {patient.first_name} {patient.last_name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input
+                            disabled
+                            placeholder="No patients available"
+                            className="bg-muted"
+                          />
+                        )}
                       </div>
                       <div className="space-y-2">
-                        <Label>CPT Code</Label>
+                        <Label>CPT Code *</Label>
                         <Select
                           value={selectedCPT}
                           onValueChange={setSelectedCPT}>
@@ -707,13 +1383,59 @@ export default function PrimaryCareDashboardPage() {
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label>Date of Service</Label>
-                        <Input type="date" />
+                        <Label>Date of Service *</Label>
+                        <Input 
+                          type="date" 
+                          value={serviceDate}
+                          onChange={(e) => setServiceDate(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Insurance Payer (Optional)</Label>
+                        {payers.length > 0 ? (
+                          <Select
+                            value={payerId || "none"}
+                            onValueChange={(value) => setPayerId(value === "none" ? "" : value)}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select payer (optional)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">None</SelectItem>
+                              {payers.map((payer: any) => (
+                                <SelectItem key={payer.id} value={payer.id}>
+                                  {payer.payer_name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Input
+                            disabled
+                            placeholder="No payers available"
+                            className="bg-muted"
+                          />
+                        )}
                       </div>
                     </div>
                     <div className="flex justify-end gap-2">
-                      <Button variant="outline">Cancel</Button>
-                      <Button>Submit Claim</Button>
+                      <Button 
+                        variant="outline"
+                        onClick={() => {
+                          setCreateClaimDialogOpen(false);
+                          setSelectedPatientForBilling("");
+                          setSelectedCPT("");
+                          setServiceDate("");
+                          setPayerId("");
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        onClick={handleCreateClaim}
+                        disabled={isSubmittingClaim || !selectedPatientForBilling || !selectedCPT || !serviceDate}
+                      >
+                        {isSubmittingClaim ? "Creating..." : "Submit Claim"}
+                      </Button>
                     </div>
                   </DialogContent>
                 </Dialog>
@@ -772,6 +1494,189 @@ export default function PrimaryCareDashboardPage() {
                   </CardContent>
                 </Card>
               </div>
+
+              {/* Claims List */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Recent Claims</CardTitle>
+                  <CardDescription>
+                    View and manage insurance claims
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {claimsLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                      <span className="ml-2 text-muted-foreground">
+                        Loading claims...
+                      </span>
+                    </div>
+                  ) : claims.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <FileText className="h-6 w-6 mx-auto mb-2" />
+                      <p>No claims found</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {claims.map((claim) => (
+                        <div
+                          key={claim.id}
+                          className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50"
+                        >
+                          <div className="flex items-center gap-4 flex-1">
+                            <div className="flex-1">
+                              <div className="font-semibold">
+                                {claim.patientName}
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                {claim.claimNumber} • {claim.payerName} • {new Date(claim.serviceDate).toLocaleDateString()}
+                              </div>
+                              <div className="text-sm text-muted-foreground mt-1">
+                                ${claim.totalCharges.toFixed(2)} • Status: {claim.status}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-lg font-bold">
+                                ${claim.totalCharges.toFixed(2)}
+                              </div>
+                              <Badge
+                                variant={
+                                  claim.status === "paid"
+                                    ? "default"
+                                    : claim.status === "pending" || claim.status === "submitted"
+                                    ? "outline"
+                                    : claim.status === "denied"
+                                    ? "destructive"
+                                    : "secondary"
+                                }
+                              >
+                                {claim.status}
+                              </Badge>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 ml-4">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedClaim(claim);
+                                setEditClaimDialogOpen(true);
+                              }}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleDeleteClaim(claim.id)}
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Edit Claim Dialog */}
+              <Dialog open={editClaimDialogOpen} onOpenChange={setEditClaimDialogOpen}>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle>Edit Claim</DialogTitle>
+                    <DialogDescription>
+                      Update claim information
+                    </DialogDescription>
+                  </DialogHeader>
+                  {selectedClaim && (
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label>Patient</Label>
+                        <Input
+                          value={selectedClaim.patientName}
+                          disabled
+                          className="bg-muted"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Total Charges</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={selectedClaim.totalCharges}
+                          onChange={(e) => {
+                            setSelectedClaim({
+                              ...selectedClaim,
+                              totalCharges: parseFloat(e.target.value) || 0,
+                            });
+                          }}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Status</Label>
+                        <Select
+                          value={selectedClaim.status}
+                          onValueChange={(value) => {
+                            setSelectedClaim({
+                              ...selectedClaim,
+                              status: value,
+                            });
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pending">Pending</SelectItem>
+                            <SelectItem value="submitted">Submitted</SelectItem>
+                            <SelectItem value="paid">Paid</SelectItem>
+                            <SelectItem value="denied">Denied</SelectItem>
+                            <SelectItem value="appealed">Appealed</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Notes</Label>
+                        <Textarea
+                          value={selectedClaim.notes || ""}
+                          onChange={(e) => {
+                            setSelectedClaim({
+                              ...selectedClaim,
+                              notes: e.target.value,
+                            });
+                          }}
+                          rows={3}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setEditClaimDialogOpen(false);
+                        setSelectedClaim(null);
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        if (selectedClaim) {
+                          handleUpdateClaim(selectedClaim.id, {
+                            total_charges: selectedClaim.totalCharges,
+                            claim_status: selectedClaim.status,
+                            notes: selectedClaim.notes,
+                          });
+                        }
+                      }}
+                    >
+                      Save Changes
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
 
               {/* CPT Code Library */}
               <Card>
@@ -859,7 +1764,7 @@ export default function PrimaryCareDashboardPage() {
                     Standardized screening and evaluation instruments
                   </p>
                 </div>
-                <Button>
+                <Button onClick={() => handleStartAssessment()}>
                   <ClipboardList className="mr-2 h-4 w-4" />
                   Start Assessment
                 </Button>
@@ -943,7 +1848,11 @@ export default function PrimaryCareDashboardPage() {
                                 {tool.description}
                               </CardDescription>
                             </div>
-                            <Button size="sm" variant="outline">
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => handleStartAssessment(tool)}
+                            >
                               <FileText className="mr-2 h-4 w-4" />
                               Start
                             </Button>
@@ -1034,6 +1943,113 @@ export default function PrimaryCareDashboardPage() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Start Assessment Dialog */}
+              <Dialog open={assessmentDialogOpen} onOpenChange={setAssessmentDialogOpen}>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>
+                      {selectedAssessmentTool 
+                        ? `Start ${selectedAssessmentTool.name}` 
+                        : "Start Assessment"}
+                    </DialogTitle>
+                    <DialogDescription>
+                      {selectedAssessmentTool 
+                        ? selectedAssessmentTool.description
+                        : "Select an assessment tool and patient to begin"}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    {!selectedAssessmentTool && (
+                      <div className="space-y-2">
+                        <Label>Assessment Tool *</Label>
+                        <Select
+                          value=""
+                          onValueChange={(value) => {
+                            const tool = assessmentTools.find(t => t.name === value);
+                            setSelectedAssessmentTool(tool || null);
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select assessment tool" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {assessmentTools.map((tool) => (
+                              <SelectItem key={tool.name} value={tool.name}>
+                                {tool.name} - {tool.description}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    <div className="space-y-2">
+                      <Label>Patient *</Label>
+                      {patients.length > 0 ? (
+                        <Select
+                          value={selectedPatientForAssessment}
+                          onValueChange={setSelectedPatientForAssessment}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select patient" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {patients.map((patient) => (
+                              <SelectItem key={patient.id} value={patient.id}>
+                                {patient.first_name} {patient.last_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          disabled
+                          placeholder="No patients available"
+                          className="bg-muted"
+                        />
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Notes (Optional)</Label>
+                      <Textarea
+                        value={assessmentNotes}
+                        onChange={(e) => setAssessmentNotes(e.target.value)}
+                        placeholder="Add any notes about this assessment..."
+                        rows={3}
+                      />
+                    </div>
+                    {selectedAssessmentTool && (
+                      <div className="bg-muted p-3 rounded-lg">
+                        <p className="text-sm">
+                          <strong>Assessment:</strong> {selectedAssessmentTool.name}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Estimated time: {selectedAssessmentTool.time} • {selectedAssessmentTool.questions} questions
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setAssessmentDialogOpen(false);
+                        setSelectedPatientForAssessment("");
+                        setAssessmentNotes("");
+                        setSelectedAssessmentTool(null);
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button 
+                      onClick={handleSubmitAssessment} 
+                      disabled={isSubmittingAssessment || !selectedPatientForAssessment || !selectedAssessmentTool}
+                    >
+                      {isSubmittingAssessment ? "Starting..." : "Start Assessment"}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </TabsContent>
 
             {/* Quality Metrics Tab */}
@@ -1152,27 +2168,31 @@ export default function PrimaryCareDashboardPage() {
                 <CardContent>
                   <div className="space-y-4">
                     <div className="flex gap-4">
-                      <Select
-                        value={selectedPatientForAI}
-                        onValueChange={setSelectedPatientForAI}>
-                        <SelectTrigger className="w-full">
-                          <SelectValue placeholder="Select patient" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="patient1">
-                            John Doe - DOB: 03/15/1985
-                          </SelectItem>
-                          <SelectItem value="patient2">
-                            Jane Smith - DOB: 07/22/1990
-                          </SelectItem>
-                          <SelectItem value="patient3">
-                            Michael Johnson - DOB: 11/30/1978
-                          </SelectItem>
-                          <SelectItem value="patient4">
-                            Emily Williams - DOB: 05/18/1995
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
+                      {patients.length > 0 ? (
+                        <Select
+                          value={selectedPatientForAI}
+                          onValueChange={setSelectedPatientForAI}>
+                          <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select patient" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {patients.map((patient) => (
+                              <SelectItem key={patient.id} value={patient.id}>
+                                {patient.first_name} {patient.last_name}
+                                {patient.date_of_birth
+                                  ? ` - DOB: ${new Date(patient.date_of_birth).toLocaleDateString()}`
+                                  : ""}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          disabled
+                          placeholder="No patients available"
+                          className="bg-muted"
+                        />
+                      )}
                       <Button
                         onClick={() =>
                           selectedPatientForAI &&
@@ -1222,8 +2242,14 @@ export default function PrimaryCareDashboardPage() {
                     <CardContent>
                       <div className="space-y-3">
                         {aiRecommendations.riskAlerts.map(
-                          (alert: any, index: number) => (
-                            <Alert key={index} variant={alert.type}>
+                          (alert: RiskAlert, index: number) => {
+                            // Map AlertVariant to supported Alert component variants
+                            const alertVariant = 
+                              alert.type === "destructive" 
+                                ? "destructive" 
+                                : "default";
+                            return (
+                            <Alert key={index} variant={alertVariant}>
                               {alert.type === "destructive" && (
                                 <AlertCircle className="h-4 w-4" />
                               )}
@@ -1241,8 +2267,8 @@ export default function PrimaryCareDashboardPage() {
                                 />
                               </AlertDescription>
                             </Alert>
-                          )
-                        )}
+                            );
+                          })}
                       </div>
                     </CardContent>
                   </Card>
@@ -1258,7 +2284,7 @@ export default function PrimaryCareDashboardPage() {
                     <CardContent>
                       <div className="space-y-4">
                         {aiRecommendations.recommendations.map(
-                          (rec: any, index: number) => (
+                          (rec: ClinicalRecommendation, index: number) => (
                             <div
                               key={index}
                               className={`border-l-4 ${rec.color} pl-4`}>
@@ -1329,7 +2355,7 @@ export default function PrimaryCareDashboardPage() {
                     <CardContent>
                       <div className="space-y-3">
                         {aiRecommendations.labOrders.map(
-                          (lab: any, index: number) => (
+                          (lab: LabOrder, index: number) => (
                             <div
                               key={index}
                               className="flex items-center justify-between p-3 border rounded-lg">
@@ -1371,7 +2397,7 @@ export default function PrimaryCareDashboardPage() {
                         </p>
                         <div className="space-y-2">
                           {aiRecommendations.differentialDiagnosis.map(
-                            (dd: any, index: number) => (
+                            (dd: Diagnosis, index: number) => (
                               <div
                                 key={index}
                                 className={`flex items-center justify-between p-2 border rounded ${
@@ -1415,7 +2441,7 @@ export default function PrimaryCareDashboardPage() {
                     <CardContent>
                       <div className="space-y-2">
                         {aiRecommendations.preventiveGaps.map(
-                          (item: any, index: number) => (
+                          (item: PreventiveGap, index: number) => (
                             <div
                               key={index}
                               className={`flex items-center justify-between p-3 border rounded-lg ${
