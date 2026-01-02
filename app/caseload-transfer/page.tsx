@@ -133,10 +133,11 @@ export default function CaseloadTransferPage() {
         transferred_by: currentUserId,
       }));
 
-      console.log("[v0] Caseload transfer:", transfers);
-
       // You would insert into a caseload_transfers audit table here
       // And update patients.assigned_counselor
+      // Example:
+      // await supabase.from('caseload_transfers').insert(transfers);
+      // await supabase.from('patients').update({ assigned_counselor: toStaffId }).in('id', selectedPatients);
 
       toast({
         title: "Transfer Complete",
