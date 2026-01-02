@@ -22,8 +22,11 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-// Mock global fetch for API tests
-global.fetch = vi.fn();
+// Mock global fetch for API tests with a safe default response
+global.fetch = vi.fn().mockResolvedValue({
+  ok: true,
+  json: async () => ({ notifications: [] }),
+});
 
 // Suppress console errors during tests (optional)
 const originalError = console.error;
@@ -42,4 +45,3 @@ beforeAll(() => {
 afterAll(() => {
   console.error = originalError;
 });
-
