@@ -7,6 +7,7 @@ import { AppointmentStats } from "@/components/appointment-stats"
 import { CreateAppointmentDialog } from "@/components/create-appointment-dialog"
 import { Button } from "@/components/ui/button"
 import { Plus } from "lucide-react"
+import type { AppointmentRecord } from "@/types/schedule"
 
 const DEFAULT_PROVIDER = {
   id: "00000000-0000-0000-0000-000000000001",
@@ -69,13 +70,14 @@ export default async function AppointmentsPage({
     .order("appointment_date", { ascending: true })
 
   // Transform appointments to include separate date and time fields
-  const todayAppointments = (todayAppointmentsRaw || []).map((apt: any) => {
+  const todayAppointments = (todayAppointmentsRaw || []).map((apt: AppointmentRecord & { mode?: string }) => {
     const dateTime = new Date(apt.appointment_date)
     return {
       ...apt,
       appointment_date: dateTime.toISOString().split("T")[0],
       appointment_time: dateTime.toTimeString().slice(0, 5), // HH:MM format
-      mode: apt.mode || "in_person", // Add default mode if missing
+      mode: (apt as { mode?: string }).mode || "in_person", // Add default mode if missing
+      notes: apt.notes ?? undefined, // Convert null to undefined
     }
   })
 
@@ -104,13 +106,14 @@ export default async function AppointmentsPage({
     .order("appointment_date", { ascending: true })
 
   // Transform appointments to include separate date and time fields
-  const upcomingAppointments = (upcomingAppointmentsRaw || []).map((apt: any) => {
+  const upcomingAppointments = (upcomingAppointmentsRaw || []).map((apt: AppointmentRecord & { mode?: string }) => {
     const dateTime = new Date(apt.appointment_date)
     return {
       ...apt,
       appointment_date: dateTime.toISOString().split("T")[0],
       appointment_time: dateTime.toTimeString().slice(0, 5), // HH:MM format
-      mode: apt.mode || "in_person", // Add default mode if missing
+      mode: (apt as { mode?: string }).mode || "in_person", // Add default mode if missing
+      notes: apt.notes ?? undefined, // Convert null to undefined
     }
   })
 
@@ -139,13 +142,14 @@ export default async function AppointmentsPage({
     .order("appointment_date", { ascending: false })
 
   // Transform appointments to include separate date and time fields
-  const pastAppointments = (pastAppointmentsRaw || []).map((apt: any) => {
+  const pastAppointments = (pastAppointmentsRaw || []).map((apt: AppointmentRecord & { mode?: string }) => {
     const dateTime = new Date(apt.appointment_date)
     return {
       ...apt,
       appointment_date: dateTime.toISOString().split("T")[0],
       appointment_time: dateTime.toTimeString().slice(0, 5), // HH:MM format
-      mode: apt.mode || "in_person", // Add default mode if missing
+      mode: (apt as { mode?: string }).mode || "in_person", // Add default mode if missing
+      notes: apt.notes ?? undefined, // Convert null to undefined
     }
   })
 
@@ -204,9 +208,9 @@ export default async function AppointmentsPage({
             {/* Appointments List */}
             <div className="lg:col-span-2">
               <AppointmentList
-                todayAppointments={todayAppointments || []}
-                upcomingAppointments={upcomingAppointments || []}
-                pastAppointments={pastAppointments || []}
+                todayAppointments={(todayAppointments || []) as any}
+                upcomingAppointments={(upcomingAppointments || []) as any}
+                pastAppointments={(pastAppointments || []) as any}
                 selectedDate={selectedDate}
                 currentProviderId={provider.id}
                 patients={patients || []}

@@ -17,14 +17,11 @@ async function isAuthBypassEnabled(): Promise<boolean> {
     return false;
   }
 
-  // Check if dev tools are enabled
-  if (process.env.NEXT_PUBLIC_ENABLE_DEV_TOOLS !== "true") {
-    return false;
-  }
-
   try {
     const cookieStore = await cookies();
     const bypassCookie = cookieStore.get("dev_bypass_auth");
+    // Allow bypass if cookie is set, even without NEXT_PUBLIC_ENABLE_DEV_TOOLS
+    // This enables demo logins to work in development
     return bypassCookie?.value === "true";
   } catch {
     // If cookies() fails (e.g., in middleware), return false

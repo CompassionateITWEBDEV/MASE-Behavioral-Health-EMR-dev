@@ -38,6 +38,8 @@ import {
   AlertTriangle,
   Pill,
   Activity,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react"
 
 interface Patient {
@@ -71,6 +73,7 @@ export default function PatientIntake() {
   const [completedItems, setCompletedItems] = useState<number[]>([])
   const [orientationProgress, setOrientationProgress] = useState(0)
   const [selectedPolicyId, setSelectedPolicyId] = useState<number | null>(null)
+  const [activeTab, setActiveTab] = useState("orientation")
 
   // PMP state
   const [pmpLoading, setPmpLoading] = useState(false)
@@ -755,6 +758,26 @@ MASE EMR documents follow-up planning, including scheduled appointments, patient
     }
   }
 
+  // Tab navigation
+  const tabOrder = ["orientation", "clinical", "documentation", "summary"]
+  
+  const handlePreviousTab = () => {
+    const currentIndex = tabOrder.indexOf(activeTab)
+    if (currentIndex > 0) {
+      setActiveTab(tabOrder[currentIndex - 1])
+    }
+  }
+
+  const handleNextTab = () => {
+    const currentIndex = tabOrder.indexOf(activeTab)
+    if (currentIndex < tabOrder.length - 1) {
+      setActiveTab(tabOrder[currentIndex + 1])
+    }
+  }
+
+  const isFirstTab = activeTab === tabOrder[0]
+  const isLastTab = activeTab === tabOrder[tabOrder.length - 1]
+
   return (
     <div className="flex min-h-screen bg-background">
       <DashboardSidebar />
@@ -1151,13 +1174,35 @@ MASE EMR documents follow-up planning, including scheduled appointments, patient
                   </CardContent>
                 </Card>
               ) : (
-                <Tabs defaultValue="orientation" className="space-y-4">
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
                   <TabsList className="grid grid-cols-4 w-full">
                     <TabsTrigger value="orientation">Orientation</TabsTrigger>
                     <TabsTrigger value="clinical">Clinical Assessment</TabsTrigger>
                     <TabsTrigger value="documentation">Documentation</TabsTrigger>
                     <TabsTrigger value="summary">Summary</TabsTrigger>
                   </TabsList>
+
+                  {/* Navigation Buttons */}
+                  <div className="flex items-center justify-between gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={handlePreviousTab}
+                      disabled={isFirstTab}
+                      className="flex items-center gap-2"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      Previous
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleNextTab}
+                      disabled={isLastTab}
+                      className="flex items-center gap-2"
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
 
                   {/* Orientation Tab */}
                   <TabsContent value="orientation">

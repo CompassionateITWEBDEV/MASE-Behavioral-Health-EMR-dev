@@ -1,3 +1,4 @@
+
 /**
  * Single Appointment API Route
  * Handles GET, PUT, DELETE for individual appointments

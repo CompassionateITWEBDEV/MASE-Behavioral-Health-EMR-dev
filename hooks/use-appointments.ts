@@ -88,7 +88,9 @@ export function useAppointments(options: UseAppointmentsOptions = {}) {
       const url = `/api/appointments${
         params.toString() ? `?${params.toString()}` : ""
       }`;
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        credentials: "include",
+      });
 
       if (!response.ok) {
         const error = await response.json();
@@ -120,7 +122,9 @@ export function useAppointment(
         throw new Error("Appointment ID is required");
       }
 
-      const response = await fetch(`/api/appointments/${appointmentId}`);
+      const response = await fetch(`/api/appointments/${appointmentId}`, {
+        credentials: "include",
+      });
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Failed to fetch appointment");
@@ -149,7 +153,9 @@ export function useScheduleSummary(date?: string, enabled = true) {
       }
       params.append("summary", "true");
 
-      const response = await fetch(`/api/appointments?${params.toString()}`);
+      const response = await fetch(`/api/appointments?${params.toString()}`, {
+        credentials: "include",
+      });
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Failed to fetch schedule summary");
@@ -180,6 +186,7 @@ export function useCreateAppointment() {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "include",
         body: JSON.stringify(appointmentData),
       });
 
@@ -217,6 +224,7 @@ export function useUpdateAppointment() {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: "include",
         body: JSON.stringify(data),
       });
 
@@ -254,6 +262,7 @@ export function useCancelAppointment() {
     mutationFn: async (appointmentId: string) => {
       const response = await fetch(`/api/appointments/${appointmentId}`, {
         method: "DELETE",
+        credentials: "include",
       });
 
       if (!response.ok) {

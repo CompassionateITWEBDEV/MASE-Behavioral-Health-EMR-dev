@@ -11,23 +11,21 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Search, Stethoscope, Syringe, Beaker, ClipboardCheck, FileText } from "lucide-react"
+import { Search, Stethoscope, Syringe, Beaker, ClipboardCheck, FileText, Loader2 } from "lucide-react"
+import { usePatientSearch } from "@/hooks/use-patients"
+import type { Patient } from "@/types/patient"
 
 export default function NursingAssessmentPage() {
-  const [selectedPatient, setSelectedPatient] = useState<string>("")
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
 
-  // Mock patient data
-  const patients = [
-    { id: "1", name: "Sarah Johnson", mrn: "MRN001", dob: "1985-03-15" },
-    { id: "2", name: "Michael Thompson", mrn: "OTP-000001", dob: "1978-11-22" },
-  ]
-
-  const filteredPatients = patients.filter(
-    (p) =>
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.mrn.toLowerCase().includes(searchQuery.toLowerCase()),
+  // Use the patient search hook
+  const { data: searchResults, isLoading: isSearching, error: searchError } = usePatientSearch(
+    searchQuery,
+    searchQuery.length > 0
   )
+
+  const filteredPatients = searchResults?.patients || []
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -62,7 +60,22 @@ export default function NursingAssessmentPage() {
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="pl-10"
                     />
+                    {isSearching && (
+                      <Loader2 className="absolute right-3 top-3 h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
                   </div>
+
+                  {searchError && (
+                    <div className="text-sm text-destructive p-2 border border-destructive rounded">
+                      Error searching patients: {searchError.message}
+                    </div>
+                  )}
+
+                  {searchQuery && !isSearching && filteredPatients.length === 0 && (
+                    <div className="text-sm text-muted-foreground p-2 border rounded">
+                      No patients found matching "{searchQuery}"
+                    </div>
+                  )}
 
                   {filteredPatients.length > 0 && searchQuery && (
                     <div className="border rounded-lg divide-y max-h-60 overflow-y-auto">
@@ -70,14 +83,18 @@ export default function NursingAssessmentPage() {
                         <button
                           key={patient.id}
                           onClick={() => {
-                            setSelectedPatient(patient.id)
+                            setSelectedPatient(patient)
                             setSearchQuery("")
                           }}
                           className="w-full px-4 py-3 text-left hover:bg-muted transition-colors"
                         >
-                          <div className="font-medium">{patient.name}</div>
+                          <div className="font-medium">
+                            {patient.first_name} {patient.last_name}
+                          </div>
                           <div className="text-sm text-muted-foreground">
-                            MRN: {patient.mrn} • DOB: {patient.dob}
+                            {patient.mrn && `MRN: ${patient.mrn}`}
+                            {patient.mrn && patient.date_of_birth && " • "}
+                            {patient.date_of_birth && `DOB: ${new Date(patient.date_of_birth).toLocaleDateString()}`}
                           </div>
                         </button>
                       ))}
@@ -87,12 +104,16 @@ export default function NursingAssessmentPage() {
                   {selectedPatient && (
                     <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
                       <div>
-                        <div className="font-medium">{patients.find((p) => p.id === selectedPatient)?.name}</div>
+                        <div className="font-medium">
+                          {selectedPatient.first_name} {selectedPatient.last_name}
+                        </div>
                         <div className="text-sm text-muted-foreground">
-                          MRN: {patients.find((p) => p.id === selectedPatient)?.mrn}
+                          {selectedPatient.mrn && `MRN: ${selectedPatient.mrn}`}
+                          {selectedPatient.mrn && selectedPatient.date_of_birth && " • "}
+                          {selectedPatient.date_of_birth && `DOB: ${new Date(selectedPatient.date_of_birth).toLocaleDateString()}`}
                         </div>
                       </div>
-                      <Button variant="outline" size="sm" onClick={() => setSelectedPatient("")}>
+                      <Button variant="outline" size="sm" onClick={() => setSelectedPatient(null)}>
                         Change Patient
                       </Button>
                     </div>
@@ -101,7 +122,7 @@ export default function NursingAssessmentPage() {
               </CardContent>
             </Card>
 
-            {selectedPatient && (
+            {selectedPatient && selectedPatient.id && (
               <Tabs defaultValue="rn-intake" className="space-y-6">
                 <TabsList className="grid w-full grid-cols-5">
                   <TabsTrigger value="rn-intake">

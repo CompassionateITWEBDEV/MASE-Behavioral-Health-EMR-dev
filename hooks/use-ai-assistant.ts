@@ -68,7 +68,9 @@ export function useAIAssistant(options: UseAIAssistantOptions) {
         params.append("chiefComplaint", context.chiefComplaint);
       }
 
-      const response = await fetch(`/api/ai-assistant?${params.toString()}`);
+      const response = await fetch(`/api/ai-assistant?${params.toString()}`, {
+        credentials: "include",
+      });
 
       if (!response.ok) {
         const error = await response.json();
@@ -149,6 +151,7 @@ export function useRequestAIAnalysis() {
       const response = await fetch("/api/ai-assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(request),
       });
 

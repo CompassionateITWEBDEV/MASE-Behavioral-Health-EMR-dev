@@ -1,3 +1,4 @@
+
 "use client"
 
 import type React from "react"
@@ -137,16 +138,15 @@ export function CreateAppointmentDialog({
         throw new Error(data.error || "Failed to create appointment");
       }
 
-      toast.success("Appointment created successfully")
-      setOpen(false)
-      // Form will be reset by the useEffect when dialog closes
-      router.refresh()
+      toast.success("Appointment created successfully");
+      setOpen(false);
+      router.refresh();
     } catch (error: unknown) {
       const err = error instanceof Error ? error : new Error("Unknown error");
-      console.error("Error creating appointment:", err)
-      toast.error(err.message || "Failed to create appointment")
+      console.error("Error creating appointment:", err);
+      toast.error(err.message || "Failed to create appointment");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
   }
 
@@ -164,11 +164,12 @@ export function CreateAppointmentDialog({
             <div className="space-y-2">
               <Label htmlFor="patient">Patient *</Label>
               <Select
+                name="patientId"
                 value={formData.patientId}
                 onValueChange={(value) => handleInputChange("patientId", value)}
                 required
               >
-                <SelectTrigger>
+                <SelectTrigger id="patient">
                   <SelectValue placeholder="Select patient" />
                 </SelectTrigger>
                 <SelectContent>
@@ -184,11 +185,12 @@ export function CreateAppointmentDialog({
               <Label htmlFor="provider">Provider *</Label>
               {providers.length > 0 ? (
                 <Select
+                  name="providerId"
                   value={formData.providerId || ""}
                   onValueChange={(value) => handleInputChange("providerId", value)}
                   required
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="provider">
                     <SelectValue placeholder="Select provider" />
                   </SelectTrigger>
                   <SelectContent>
@@ -202,6 +204,8 @@ export function CreateAppointmentDialog({
               ) : (
                 <div className="space-y-1">
                   <Input
+                    id="provider"
+                    name="providerId"
                     disabled
                     placeholder="Loading providers..."
                     className="bg-muted"
@@ -219,6 +223,7 @@ export function CreateAppointmentDialog({
               <Label htmlFor="appointmentDate">Date *</Label>
               <Input
                 id="appointmentDate"
+                name="appointmentDate"
                 type="date"
                 value={formData.appointmentDate}
                 onChange={(e) => handleInputChange("appointmentDate", e.target.value)}
@@ -229,6 +234,7 @@ export function CreateAppointmentDialog({
               <Label htmlFor="appointmentTime">Time *</Label>
               <Input
                 id="appointmentTime"
+                name="appointmentTime"
                 type="time"
                 value={formData.appointmentTime}
                 onChange={(e) => handleInputChange("appointmentTime", e.target.value)}
@@ -238,11 +244,12 @@ export function CreateAppointmentDialog({
             <div className="space-y-2">
               <Label htmlFor="duration">Duration (minutes) *</Label>
               <Select
+                name="durationMinutes"
                 value={formData.durationMinutes}
                 onValueChange={(value) => handleInputChange("durationMinutes", value)}
                 required
               >
-                <SelectTrigger>
+                <SelectTrigger id="duration">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -260,11 +267,12 @@ export function CreateAppointmentDialog({
             <div className="space-y-2">
               <Label htmlFor="appointmentType">Appointment Type *</Label>
               <Select
+                name="appointmentType"
                 value={formData.appointmentType}
                 onValueChange={(value) => handleInputChange("appointmentType", value)}
                 required
               >
-                <SelectTrigger>
+                <SelectTrigger id="appointmentType">
                   <SelectValue placeholder="Select type" />
                 </SelectTrigger>
                 <SelectContent>
@@ -281,8 +289,8 @@ export function CreateAppointmentDialog({
             </div>
             <div className="space-y-2">
               <Label htmlFor="mode">Mode *</Label>
-              <Select value={formData.mode} onValueChange={(value) => handleInputChange("mode", value)} required>
-                <SelectTrigger>
+              <Select name="mode" value={formData.mode} onValueChange={(value) => handleInputChange("mode", value)} required>
+                <SelectTrigger id="mode">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -296,8 +304,8 @@ export function CreateAppointmentDialog({
 
           <div className="space-y-2">
             <Label htmlFor="status">Status</Label>
-            <Select value={formData.status} onValueChange={(value) => handleInputChange("status", value)}>
-              <SelectTrigger>
+            <Select name="status" value={formData.status} onValueChange={(value) => handleInputChange("status", value)}>
+              <SelectTrigger id="status">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -311,6 +319,7 @@ export function CreateAppointmentDialog({
             <Label htmlFor="notes">Notes</Label>
             <Textarea
               id="notes"
+              name="notes"
               placeholder="Additional notes or special instructions"
               value={formData.notes}
               onChange={(e) => handleInputChange("notes", e.target.value)}

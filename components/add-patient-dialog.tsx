@@ -195,7 +195,19 @@ export function AddPatientDialog({ children, providerId, onSuccess }: AddPatient
                 required
                 placeholder="(555) 123-4567"
                 value={formData.phone}
-                onChange={(e) => handleInputChange("phone", e.target.value)}
+                onChange={(e) => {
+                  // Remove all non-digit characters
+                  const value = e.target.value.replace(/\D/g, "");
+                  // Format as (XXX) XXX-XXXX
+                  const formatted =
+                    value.length > 6
+                      ? `(${value.slice(0, 3)}) ${value.slice(3, 6)}-${value.slice(6, 10)}`
+                      : value.length > 3
+                      ? `(${value.slice(0, 3)}) ${value.slice(3)}`
+                      : value;
+                  handleInputChange("phone", formatted);
+                }}
+                maxLength={14} // (XXX) XXX-XXXX format
               />
             </div>
             <div className="space-y-2">
@@ -237,7 +249,19 @@ export function AddPatientDialog({ children, providerId, onSuccess }: AddPatient
                 type="tel"
                 placeholder="(555) 123-4567"
                 value={formData.emergencyContactPhone}
-                onChange={(e) => handleInputChange("emergencyContactPhone", e.target.value)}
+                onChange={(e) => {
+                  // Remove all non-digit characters
+                  const value = e.target.value.replace(/\D/g, "");
+                  // Format as (XXX) XXX-XXXX
+                  const formatted =
+                    value.length > 6
+                      ? `(${value.slice(0, 3)}) ${value.slice(3, 6)}-${value.slice(6, 10)}`
+                      : value.length > 3
+                      ? `(${value.slice(0, 3)}) ${value.slice(3)}`
+                      : value;
+                  handleInputChange("emergencyContactPhone", formatted);
+                }}
+                maxLength={14} // (XXX) XXX-XXXX format
               />
             </div>
           </div>

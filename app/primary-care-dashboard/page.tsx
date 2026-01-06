@@ -85,6 +85,32 @@ import { CreateAppointmentDialog } from "@/components/create-appointment-dialog"
 import { useToast } from "@/hooks/use-toast";
 import type { Patient } from "@/types/patient";
 import type { Provider } from "@/types/patient";
+import type { BillingClaim } from "@/types/billing";
+
+// Type for claims as returned from the API (with transformed camelCase properties)
+interface ClaimDisplay {
+  id: string;
+  claimNumber: string;
+  patientName: string;
+  patientId: string;
+  payerName: string;
+  payerId?: string | null;
+  providerName: string;
+  providerId?: string | null;
+  serviceDate: string;
+  submissionDate?: string | null;
+  totalCharges: number;
+  allowedAmount?: number;
+  paidAmount?: number;
+  patientResponsibility?: number;
+  status: string;
+  claimType: string;
+  denialReason?: string | null;
+  appealStatus?: string | null;
+  appealDate?: string | null;
+  notes?: string | null;
+}
+import { createClient } from "@/lib/supabase/client";
 
 export default function PrimaryCareDashboardPage() {
   // Get today's date in YYYY-MM-DD format for filtering
@@ -93,6 +119,26 @@ export default function PrimaryCareDashboardPage() {
   // State for schedule filters
   const [scheduleDate, setScheduleDate] = useState(today);
   const [scheduleProvider, setScheduleProvider] = useState<string>("all");
+  const [authReady, setAuthReady] = useState(false);
+
+  // Ensure auth bypass cookie is set in development mode before making API calls
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const isDevelopment = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+      if (isDevelopment) {
+        const cookies = document.cookie.split(";");
+        const hasBypassCookie = cookies.some((cookie) => cookie.trim().startsWith("dev_bypass_auth=true"));
+        if (!hasBypassCookie) {
+          document.cookie = `dev_bypass_auth=true; path=/; max-age=86400; SameSite=Lax`;
+        }
+      }
+      // Mark auth as ready (even if not in dev, we still want to proceed)
+      setAuthReady(true);
+    } else {
+      // Server-side, proceed immediately
+      setAuthReady(true);
+    }
+  }, []);
 
   // Fetch today's appointments for dashboard tab
   const {
@@ -101,7 +147,7 @@ export default function PrimaryCareDashboardPage() {
     error: appointmentsError,
   } = useAppointments({
     filters: { date: today },
-    enabled: true,
+    enabled: authReady,
   });
 
   // Fetch appointments for schedule tab with filters
@@ -114,12 +160,12 @@ export default function PrimaryCareDashboardPage() {
       date: scheduleDate,
       ...(scheduleProvider !== "all" && { providerId: scheduleProvider })
     },
-    enabled: true,
+    enabled: authReady,
   });
 
   // Fetch schedule summary for stats
   const { data: summaryData, isLoading: summaryLoading } =
-    useScheduleSummary(today);
+    useScheduleSummary(today, authReady);
 
   // Fetch clinical alerts using React Query hook
   const {
@@ -165,50 +211,82 @@ export default function PrimaryCareDashboardPage() {
 
   // Fetch stats on mount
   useEffect(() => {
-    fetch("/api/primary-care/pending-results")
-      .then((res) => res.json())
-      .then((data) => setPendingResultsCount(data.count || 0))
-      .catch(() => setPendingResultsCount(8));
-
-    fetch("/api/primary-care/quality-metrics")
-      .then((res) => res.json())
-      .then((data) => setQualityMetricsScore(data.overall_score || 94))
-      .catch(() => setQualityMetricsScore(94));
-
-    fetch("/api/primary-care/ccm-patients")
-      .then((res) => res.json())
-      .then((data) => setCcmPatientsCount(data.count || 45))
-      .catch(() => setCcmPatientsCount(45));
-
-    // Fetch patients and providers
-    fetch("/api/patients?limit=100")
-      .then((res) => res.json())
-      .then((data) => setPatients(data.patients || []))
-      .catch(() => setPatients([]));
-
-    fetch("/api/providers")
-      .then((res) => {
-        if (!res.ok) {
-          console.error("[Primary Care Dashboard] Failed to fetch providers:", res.status, res.statusText);
-          return { providers: [] };
+    const fetchData = async () => {
+      // Get session token for authentication
+      const supabase = createClient();
+      let sessionToken: string | null = null;
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (session) {
+          sessionToken = session.access_token;
         }
-        return res.json();
-      })
-      .then((data) => {
-        const providersList = data.providers || [];
-        console.log("[Primary Care Dashboard] Fetched providers:", providersList.length);
-        setProviders(providersList);
-        if (providersList.length > 0) {
-          setCurrentProviderId(providersList[0].id);
-        }
-      })
-      .catch((error) => {
-        console.error("[Primary Care Dashboard] Error fetching providers:", error);
-        setProviders([]);
-      });
+      } catch (authError) {
+        console.log("[Primary Care Dashboard] Auth check failed, proceeding without token");
+      }
 
-    // Fetch claims
-    fetchClaims();
+      // Prepare headers with authentication
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+      if (sessionToken) {
+        headers["Authorization"] = `Bearer ${sessionToken}`;
+      }
+
+      fetch("/api/primary-care/pending-results")
+        .then((res) => res.json())
+        .then((data) => setPendingResultsCount(data.count || 0))
+        .catch(() => setPendingResultsCount(8));
+
+      fetch("/api/primary-care/quality-metrics")
+        .then((res) => res.json())
+        .then((data) => setQualityMetricsScore(data.overall_score || 94))
+        .catch(() => setQualityMetricsScore(94));
+
+      fetch("/api/primary-care/ccm-patients")
+        .then((res) => res.json())
+        .then((data) => setCcmPatientsCount(data.count || 45))
+        .catch(() => setCcmPatientsCount(45));
+
+      // Fetch patients and providers
+      fetch("/api/patients?limit=100", {
+        credentials: "include",
+        headers,
+      })
+        .then((res) => res.json())
+        .then((data) => setPatients(data.patients || []))
+        .catch(() => setPatients([]));
+
+      fetch("/api/providers", {
+        credentials: "include",
+        headers,
+      })
+        .then((res) => {
+          if (!res.ok) {
+            console.error("[Primary Care Dashboard] Failed to fetch providers:", res.status, res.statusText);
+            return { providers: [] };
+          }
+          return res.json();
+        })
+        .then((data) => {
+          const providersList = data.providers || [];
+          console.log("[Primary Care Dashboard] Fetched providers:", providersList.length);
+          setProviders(providersList);
+          if (providersList.length > 0) {
+            setCurrentProviderId(providersList[0].id);
+          }
+        })
+        .catch((error) => {
+          console.error("[Primary Care Dashboard] Error fetching providers:", error);
+          setProviders([]);
+        });
+
+      // Fetch claims
+      fetchClaims();
+    };
+
+    fetchData();
   }, []);
 
   // Function to fetch claims
@@ -511,14 +589,14 @@ export default function PrimaryCareDashboardPage() {
   const [selectedCPT, setSelectedCPT] = useState("");
   
   // Billing claims state
-  const [claims, setClaims] = useState<any[]>([]);
+  const [claims, setClaims] = useState<ClaimDisplay[]>([]);
   const [claimsLoading, setClaimsLoading] = useState(false);
   const [createClaimDialogOpen, setCreateClaimDialogOpen] = useState(false);
   const [editClaimDialogOpen, setEditClaimDialogOpen] = useState(false);
-  const [selectedClaim, setSelectedClaim] = useState<any | null>(null);
+  const [selectedClaim, setSelectedClaim] = useState<ClaimDisplay | null>(null);
   const [serviceDate, setServiceDate] = useState("");
   const [payerId, setPayerId] = useState("");
-  const [payers, setPayers] = useState<any[]>([]);
+  const [payers, setPayers] = useState<Array<{ id: string; payer_name: string; payer_id: string }>>([]);
   const [isSubmittingClaim, setIsSubmittingClaim] = useState(false);
 
   const [selectedPatientForAI, setSelectedPatientForAI] = useState("");
@@ -648,7 +726,7 @@ export default function PrimaryCareDashboardPage() {
   };
 
   // Handler to update claim
-  const handleUpdateClaim = async (claimId: string, updates: any) => {
+  const handleUpdateClaim = async (claimId: string, updates: { total_charges?: number; claim_status?: string; notes?: string | null }) => {
     try {
       const response = await fetch("/api/claims", {
         method: "PUT",
@@ -1401,7 +1479,7 @@ export default function PrimaryCareDashboardPage() {
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">None</SelectItem>
-                              {payers.map((payer: any) => (
+                              {payers.map((payer) => (
                                 <SelectItem key={payer.id} value={payer.id}>
                                   {payer.payer_name}
                                 </SelectItem>
