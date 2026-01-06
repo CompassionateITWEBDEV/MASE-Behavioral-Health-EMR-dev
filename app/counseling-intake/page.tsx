@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,20 +9,73 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Brain, ClipboardCheck, Search } from "lucide-react"
+import { Brain, ClipboardCheck, Search, Loader2 } from "lucide-react"
 import { toast } from "sonner"
+import { DashboardSidebar } from "@/components/dashboard-sidebar"
 
 export default function CounselingIntakePage() {
   const [selectedPatient, setSelectedPatient] = useState<any>(null)
   const [asamLevel, setAsamLevel] = useState("")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+
+  // Search patients from database using API route
+  const searchPatients = async (term: string) => {
+    if (!term || term.length < 2) {
+      setSearchResults([])
+      return
+    }
+
+    setIsSearching(true)
+    try {
+      const response = await fetch(`/api/patients?search=${encodeURIComponent(term)}&limit=10`)
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to search patients")
+      }
+
+      const data = await response.json()
+      setSearchResults(data.patients || [])
+    } catch (err) {
+      console.error("Error searching patients:", err)
+      setSearchResults([])
+      toast.error(err instanceof Error ? err.message : "Failed to search patients. Please try again.")
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  // Handle patient selection from search results
+  const handleSelectPatient = (patient: any) => {
+    setSelectedPatient(patient)
+    setSearchResults([])
+    setSearchQuery("")
+  }
+
+  // Debounced search on input change
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (searchQuery) {
+        searchPatients(searchQuery)
+      } else {
+        setSearchResults([])
+      }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
   const handleSubmitIntake = () => {
     toast.success("Counseling intake completed and added to Intake Queue")
   }
 
   return (
-    <div className="flex-1 p-8 ml-64">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-background">
+      <DashboardSidebar />
+      <div className="ml-64">
+        <div className="flex-1 p-8">
+          <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div>
           <h1 className="text-3xl font-bold">Counseling Intake</h1>
@@ -37,13 +90,71 @@ export default function CounselingIntakePage() {
               Patient Lookup
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
             <div className="flex gap-4">
-              <div className="flex-1">
-                <Input placeholder="Search by name, client number, or DOB..." />
+              <div className="flex-1 relative">
+                <Input 
+                  placeholder="Search by name, client number, or DOB..." 
+                  value={searchQuery || ""}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+                {isSearching && (
+                  <Loader2 className="absolute right-3 top-3 h-4 w-4 animate-spin text-muted-foreground" />
+                )}
               </div>
-              <Button>Search</Button>
+              <Button onClick={() => searchPatients(searchQuery)} disabled={isSearching || !searchQuery}>
+                Search
+              </Button>
             </div>
+
+            {/* Search Results */}
+            {searchResults.length > 0 && !selectedPatient && (
+              <div className="border rounded-lg divide-y max-h-48 overflow-y-auto">
+                {searchResults.map((patient) => (
+                  <div
+                    key={patient.id}
+                    className="p-3 hover:bg-muted/50 cursor-pointer transition-colors"
+                    onClick={() => handleSelectPatient(patient)}
+                  >
+                    <p className="font-medium">
+                      {patient.first_name} {patient.last_name}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {patient.phone || patient.mrn || `ID: ${patient.id.slice(0, 8)}`}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Selected Patient Info */}
+            {selectedPatient && (
+              <div className="border rounded-lg p-4 bg-muted/50">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-lg">
+                      {selectedPatient.first_name} {selectedPatient.last_name}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {selectedPatient.phone && `Phone: ${selectedPatient.phone}`}
+                      {selectedPatient.mrn && ` • MRN: ${selectedPatient.mrn}`}
+                      {selectedPatient.date_of_birth && ` • DOB: ${new Date(selectedPatient.date_of_birth).toLocaleDateString()}`}
+                    </p>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      setSelectedPatient(null)
+                      setSearchQuery("")
+                      setSearchResults([])
+                    }}
+                  >
+                    Clear
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -381,6 +492,8 @@ export default function CounselingIntakePage() {
             <ClipboardCheck className="mr-2 h-4 w-4" />
             Complete Intake & Add to Queue
           </Button>
+        </div>
+          </div>
         </div>
       </div>
     </div>

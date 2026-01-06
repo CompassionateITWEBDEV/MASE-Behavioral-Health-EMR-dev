@@ -98,6 +98,15 @@ export async function GET(request: Request) {
  */
 export async function POST(request: Request) {
   try {
+    // Check authentication
+    const { user, error: authError } = await getAuthenticatedUser();
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const supabase = await createClient();
     const body: AIAssistantRequest = await request.json();
 

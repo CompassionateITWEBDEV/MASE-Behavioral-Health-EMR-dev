@@ -31,6 +31,7 @@ import {
   Mail,
   MapPin,
   FileCheck,
+  FileText,
   Syringe,
   Shield,
   Brain,
@@ -47,6 +48,9 @@ import {
   ClipboardList,
   Activity,
   Scale,
+  Database,
+  CheckCircle,
+  History,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
@@ -168,6 +172,10 @@ export default function PatientChartPage() {
   const [udsResults, setUdsResults] = useState<any[]>([]);
   const [progressNotes, setProgressNotes] = useState<any[]>([]);
   const [courtOrders, setCourtOrders] = useState<any[]>([]);
+  const [pmpData, setPmpData] = useState<any>(null);
+  const [pmpLoading, setPmpLoading] = useState(false);
+  const [billingClaims, setBillingClaims] = useState<any[]>([]);
+  const [billingLoading, setBillingLoading] = useState(false);
 
   useEffect(() => {
     fetchPatients();
@@ -375,6 +383,113 @@ export default function PatientChartPage() {
     }
   };
 
+  const fetchPMPData = async (patientId: string) => {
+    setPmpLoading(true);
+    try {
+      const supabase = createClient();
+      
+      // Get session token for authentication
+      let sessionToken: string | null = null;
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (session) {
+          sessionToken = session.access_token;
+        }
+      } catch (authError) {
+        console.log("[v0] Auth check failed, proceeding without token");
+      }
+
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+      
+      if (sessionToken) {
+        headers["Authorization"] = `Bearer ${sessionToken}`;
+      }
+
+      // Fetch PMP requests for this patient
+      const { data: pdmpRequests } = await supabase
+        .from("pdmp_requests")
+        .select("*")
+        .eq("patient_id", patientId)
+        .order("request_date", { ascending: false })
+        .limit(10);
+
+      if (pdmpRequests && pdmpRequests.length > 0) {
+        // Get the most recent request
+        const latestRequest = pdmpRequests[0];
+        
+        // Fetch prescriptions for the latest request
+        const { data: prescriptions } = await supabase
+          .from("pdmp_prescriptions")
+          .select("*")
+          .eq("pdmp_request_id", latestRequest.id)
+          .order("fill_date", { ascending: false })
+          .limit(20);
+
+        setPmpData({
+          latestRequest,
+          prescriptions: prescriptions || [],
+          allRequests: pdmpRequests,
+        });
+      } else {
+        setPmpData(null);
+      }
+    } catch (error) {
+      console.error("Error fetching PMP data:", error);
+      setPmpData(null);
+    } finally {
+      setPmpLoading(false);
+    }
+  };
+
+  const fetchBillingData = async (patientId: string) => {
+    setBillingLoading(true);
+    try {
+      const supabase = createClient();
+      
+      // Fetch claims for this patient directly from database
+      const { data: claims, error } = await supabase
+        .from("insurance_claims")
+        .select(`
+          *,
+          insurance_payers (payer_name)
+        `)
+        .eq("patient_id", patientId)
+        .order("service_date", { ascending: false })
+        .limit(50);
+
+      if (error) {
+        console.error("Error fetching billing claims:", error);
+        setBillingClaims([]);
+      } else {
+        // Transform claims to match expected format
+        const formattedClaims = (claims || []).map((claim: any) => ({
+          id: claim.id,
+          claimNumber: claim.claim_number || `CLM-${claim.id.slice(0, 8)}`,
+          patientId: claim.patient_id,
+          payerName: claim.insurance_payers?.payer_name || "Unknown Payer",
+          payerId: claim.payer_id,
+          serviceDate: claim.service_date,
+          submissionDate: claim.submission_date,
+          totalCharges: Number(claim.total_charges) || 0,
+          paidAmount: claim.paid_amount ? Number(claim.paid_amount) : undefined,
+          status: claim.claim_status || "pending",
+          claimType: claim.claim_type || "professional",
+          denialReason: claim.denial_reason,
+        }));
+        setBillingClaims(formattedClaims);
+      }
+    } catch (error) {
+      console.error("Error fetching billing data:", error);
+      setBillingClaims([]);
+    } finally {
+      setBillingLoading(false);
+    }
+  };
+
   const fetchPatientData = async (patientId: string) => {
     console.log("[v0] fetchPatientData called with patientId:", patientId);
     setLoading(true);
@@ -467,6 +582,10 @@ export default function PatientChartPage() {
 
       // Fetch clinical alerts for this patient
       await fetchClinicalAlerts(patientId);
+
+      // Fetch PMP and billing data
+      await fetchPMPData(patientId);
+      await fetchBillingData(patientId);
 
       // Check for critical vitals
       const criticalVitals = (data.vitalSigns || []).filter(
@@ -749,26 +868,26 @@ export default function PatientChartPage() {
               )}
 
               <Tabs defaultValue="demographics" className="space-y-6">
-                <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-9 2xl:grid-cols-17 gap-1">
-                  <TabsTrigger value="demographics">Demographics</TabsTrigger>
-                  <TabsTrigger value="insurance">Insurance</TabsTrigger>
-                  <TabsTrigger value="medication">Medication</TabsTrigger>
-                  <TabsTrigger value="asam">ASAM Criteria</TabsTrigger>
-                  <TabsTrigger value="precaution">Precaution</TabsTrigger>
-                  <TabsTrigger value="pre-alert">Pre-Alert</TabsTrigger>
-                  <TabsTrigger value="alerts">Alerts & Tags</TabsTrigger>
-                  <TabsTrigger value="clinical-notes">
-                    Clinical Notes
-                  </TabsTrigger>
-                  <TabsTrigger value="consents">Consents</TabsTrigger>
-                  <TabsTrigger value="documents">Documents</TabsTrigger>
-                  <TabsTrigger value="history">History</TabsTrigger>
-                  <TabsTrigger value="dosing">Dosing</TabsTrigger>
-                  <TabsTrigger value="nursing">Nursing</TabsTrigger>
-                  <TabsTrigger value="labs-uds">Labs/UDS</TabsTrigger>
-                  <TabsTrigger value="medical-notes">Medical Notes</TabsTrigger>
-                  <TabsTrigger value="patient-vitals">Patient Vitals</TabsTrigger>
-                  <TabsTrigger value="court-orders">Court Orders</TabsTrigger>
+                <TabsList className="flex w-full overflow-x-auto gap-1 pb-2 [&::-webkit-scrollbar]:h-2 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-gray-300 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:hover:bg-gray-400">
+                  <TabsTrigger value="demographics" className="whitespace-nowrap flex-shrink-0">Demographics</TabsTrigger>
+                  <TabsTrigger value="insurance" className="whitespace-nowrap flex-shrink-0">Insurance</TabsTrigger>
+                  <TabsTrigger value="medication" className="whitespace-nowrap flex-shrink-0">Medication</TabsTrigger>
+                  <TabsTrigger value="asam" className="whitespace-nowrap flex-shrink-0">ASAM Criteria</TabsTrigger>
+                  <TabsTrigger value="precaution" className="whitespace-nowrap flex-shrink-0">Precaution</TabsTrigger>
+                  <TabsTrigger value="pre-alert" className="whitespace-nowrap flex-shrink-0">Pre-Alert</TabsTrigger>
+                  <TabsTrigger value="clinical-notes" className="whitespace-nowrap flex-shrink-0">Clinical Notes</TabsTrigger>
+                  <TabsTrigger value="consents" className="whitespace-nowrap flex-shrink-0">Consents</TabsTrigger>
+                  <TabsTrigger value="documents" className="whitespace-nowrap flex-shrink-0">Documents</TabsTrigger>
+                  <TabsTrigger value="history" className="whitespace-nowrap flex-shrink-0">History</TabsTrigger>
+                  <TabsTrigger value="dosing" className="whitespace-nowrap flex-shrink-0">Dosing</TabsTrigger>
+                  <TabsTrigger value="nursing" className="whitespace-nowrap flex-shrink-0">Nursing</TabsTrigger>
+                  <TabsTrigger value="labs-uds" className="whitespace-nowrap flex-shrink-0">Labs/UDS</TabsTrigger>
+                  <TabsTrigger value="medical-notes" className="whitespace-nowrap flex-shrink-0">Medical Notes</TabsTrigger>
+                  <TabsTrigger value="patient-vitals" className="whitespace-nowrap flex-shrink-0">Patient Vitals</TabsTrigger>
+                  <TabsTrigger value="court-orders" className="whitespace-nowrap flex-shrink-0">Court Orders</TabsTrigger>
+                  <TabsTrigger value="pmp" className="whitespace-nowrap flex-shrink-0">PMP</TabsTrigger>
+                  <TabsTrigger value="eligibility" className="whitespace-nowrap flex-shrink-0">Patient Eligibility</TabsTrigger>
+                  <TabsTrigger value="billing" className="whitespace-nowrap flex-shrink-0">Billing</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="demographics" className="space-y-4">
@@ -1338,44 +1457,6 @@ export default function PatientChartPage() {
                   </div>
                 </TabsContent>
 
-                <TabsContent value="alerts" className="space-y-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Alerts & Tags</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {alerts.length > 0 ? (
-                        <div className="space-y-2">
-                          {alerts.map((alert) => (
-                            <div
-                              key={alert.id}
-                              className="flex items-center justify-between p-4 border border-red-200 bg-red-50 rounded-lg">
-                              <div className="flex items-center gap-3">
-                                <AlertTriangle className="h-5 w-5 text-red-600" />
-                                <div>
-                                  <p className="font-medium text-red-900">
-                                    {alert.type}
-                                  </p>
-                                  <p className="text-sm text-red-700">
-                                    {alert.message}
-                                  </p>
-                                </div>
-                              </div>
-                              <Badge variant="destructive">
-                                {alert.severity}
-                              </Badge>
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="text-center text-gray-500 py-8">
-                          No active alerts
-                        </p>
-                      )}
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
                 <TabsContent value="clinical-notes" className="space-y-4">
                   <Card>
                     <CardHeader>
@@ -1385,42 +1466,51 @@ export default function PatientChartPage() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      {encounters.length > 0 ? (
+                      {progressNotes.length > 0 ? (
                         <div className="space-y-2">
-                          {encounters.map((encounter) => (
+                          {progressNotes.map((note) => (
                             <div
-                              key={encounter.id}
+                              key={note.id}
                               className="p-4 border rounded-lg">
                               <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-3">
-                                  <Clock className="h-5 w-5 text-purple-600" />
-                                  <p className="font-medium">
-                                    {encounter.encounter_type ||
-                                      "Clinical Note"}
+                                  <FileText className="h-5 w-5 text-purple-600" />
+                                  <p className="font-medium capitalize">
+                                    {note.note_type?.replace(/_/g, " ") || "Progress Note"}
                                   </p>
                                   <Badge variant="outline">
-                                    {encounter.status || "Completed"}
+                                    {note.plan ? "Completed" : "Draft"}
                                   </Badge>
                                 </div>
                                 <div className="text-sm text-gray-600">
                                   {new Date(
-                                    encounter.encounter_date ||
-                                      encounter.created_at
+                                    note.note_date ||
+                                    note.created_at
                                   ).toLocaleDateString()}
                                 </div>
                               </div>
-                              {encounter.chief_complaint && (
-                                <p className="text-sm text-gray-700 mt-2">
-                                  <span className="font-medium">
-                                    Chief Complaint:
-                                  </span>{" "}
-                                  {encounter.chief_complaint}
-                                </p>
+                              {note.subjective && (
+                                <div className="text-sm text-gray-700 mt-2">
+                                  <p className="whitespace-pre-wrap">{note.subjective}</p>
+                                </div>
                               )}
-                              {encounter.notes && (
-                                <p className="text-sm text-gray-700 mt-2">
-                                  {encounter.notes}
-                                </p>
+                              {note.objective && (
+                                <div className="text-sm text-gray-700 mt-2">
+                                  <p className="font-medium">Objective:</p>
+                                  <p className="whitespace-pre-wrap">{note.objective}</p>
+                                </div>
+                              )}
+                              {note.assessment && (
+                                <div className="text-sm text-gray-700 mt-2">
+                                  <p className="font-medium">Assessment:</p>
+                                  <p className="whitespace-pre-wrap">{note.assessment}</p>
+                                </div>
+                              )}
+                              {note.plan && (
+                                <div className="text-sm text-gray-700 mt-2">
+                                  <p className="font-medium">Plan:</p>
+                                  <p className="whitespace-pre-wrap">{note.plan}</p>
+                                </div>
                               )}
                             </div>
                           ))}
@@ -2072,6 +2162,244 @@ export default function PatientChartPage() {
                         <p className="text-center text-gray-500 py-8">
                           No court orders on file
                         </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="pmp" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Database className="h-5 w-5" />
+                        Prescription Monitoring Program (PMP)
+                      </CardTitle>
+                      <CardDescription>
+                        Controlled substance prescription history and monitoring
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {pmpLoading ? (
+                        <div className="text-center py-8">
+                          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
+                          <p className="text-muted-foreground">Loading PMP data...</p>
+                        </div>
+                      ) : !pmpData ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <Database className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                          <p>No PMP queries have been performed for this patient</p>
+                          <p className="text-sm mt-2">Query the PMP database to view prescription history</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {pmpData.latestRequest && (
+                            <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="font-medium">Latest Query</p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {new Date(pmpData.latestRequest.request_date).toLocaleString()}
+                                  </p>
+                                </div>
+                                <Badge
+                                  variant={
+                                    pmpData.latestRequest.alert_level === "critical"
+                                      ? "destructive"
+                                      : pmpData.latestRequest.alert_level === "high"
+                                        ? "default"
+                                        : "secondary"
+                                  }>
+                                  {pmpData.latestRequest.alert_level || "No Alert"}
+                                </Badge>
+                              </div>
+                              
+                              {pmpData.latestRequest.red_flags && Object.keys(pmpData.latestRequest.red_flags).length > 0 && (
+                                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                                  <h4 className="font-medium text-red-800 mb-2 flex items-center gap-2">
+                                    <AlertTriangle className="h-4 w-4" />
+                                    Red Flags Detected
+                                  </h4>
+                                  <ul className="list-disc list-inside text-sm text-red-700 space-y-1">
+                                    {Object.entries(pmpData.latestRequest.red_flags).map(
+                                      ([key, value]: [string, any]) => (
+                                        <li key={key}>
+                                          {key}: {String(value)}
+                                        </li>
+                                      )
+                                    )}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {pmpData.prescriptions && pmpData.prescriptions.length > 0 && (
+                                <div>
+                                  <h4 className="font-medium mb-2">Recent Prescriptions ({pmpData.prescriptions.length})</h4>
+                                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                                    {pmpData.prescriptions.map((rx: any) => (
+                                      <div
+                                        key={rx.id}
+                                        className="p-3 border rounded-lg">
+                                        <div className="flex items-center justify-between mb-1">
+                                          <p className="font-medium">{rx.medication_name}</p>
+                                          <Badge variant="outline">{rx.dea_schedule}</Badge>
+                                        </div>
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-muted-foreground">
+                                          <div>Fill Date: {rx.fill_date}</div>
+                                          <div>Qty: {rx.quantity}</div>
+                                          <div>Days: {rx.days_supply}</div>
+                                          {rx.morphine_equivalent_dose && (
+                                            <div>MME: {rx.morphine_equivalent_dose}</div>
+                                          )}
+                                        </div>
+                                        <div className="text-sm text-muted-foreground mt-1">
+                                          Prescriber: {rx.prescriber_name} • Pharmacy: {rx.pharmacy_name}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {pmpData.allRequests && pmpData.allRequests.length > 1 && (
+                                <div className="pt-2 border-t">
+                                  <p className="text-sm text-muted-foreground">
+                                    Total queries: {pmpData.allRequests.length}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="eligibility" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Shield className="h-5 w-5" />
+                        Patient Eligibility & Insurance Verification
+                      </CardTitle>
+                      <CardDescription>
+                        Verify insurance coverage and benefits for this patient
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {selectedPatient ? (
+                        <div className="space-y-4">
+                          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                            <p className="text-sm text-blue-800">
+                              <strong>Patient:</strong> {selectedPatient.first_name} {selectedPatient.last_name}
+                            </p>
+                            <p className="text-sm text-blue-700 mt-1">
+                              Use the eligibility verification tool below to check coverage status and benefits.
+                            </p>
+                          </div>
+                          <div className="border rounded-lg p-4">
+                            <p className="text-sm text-muted-foreground mb-4">
+                              Insurance eligibility verification component will be integrated here.
+                              This will show coverage status, copays, deductibles, and PMP monitoring results.
+                            </p>
+                            <Button variant="outline" onClick={() => {
+                              // Navigate to eligibility check or open dialog
+                              toast.info("Eligibility verification feature coming soon");
+                            }}>
+                              <Shield className="mr-2 h-4 w-4" />
+                              Verify Eligibility
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-center text-gray-500 py-8">
+                          Select a patient to view eligibility information
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                <TabsContent value="billing" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <CreditCard className="h-5 w-5" />
+                        Patient Billing & Claims
+                      </CardTitle>
+                      <CardDescription>
+                        View billing claims, payments, and financial information for this patient
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {billingLoading ? (
+                        <div className="text-center py-8">
+                          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
+                          <p className="text-muted-foreground">Loading billing data...</p>
+                        </div>
+                      ) : billingClaims.length === 0 ? (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <CreditCard className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                          <p>No billing claims found for this patient</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between mb-4">
+                            <p className="text-sm font-medium">
+                              Total Claims: {billingClaims.length}
+                            </p>
+                            <Badge variant="outline">
+                              Total: ${billingClaims.reduce((sum, claim) => sum + (claim.totalCharges || 0), 0).toFixed(2)}
+                            </Badge>
+                          </div>
+                          {billingClaims.map((claim) => (
+                            <div
+                              key={claim.id}
+                              className="flex items-start justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <p className="font-medium">{claim.claimNumber || `CLM-${claim.id.slice(0, 8)}`}</p>
+                                  <Badge
+                                    variant={
+                                      claim.status === "paid"
+                                        ? "default"
+                                        : claim.status === "denied"
+                                          ? "destructive"
+                                          : "secondary"
+                                    }>
+                                    {claim.status || "pending"}
+                                  </Badge>
+                                </div>
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm text-muted-foreground">
+                                  <div>
+                                    <span className="font-medium">Service Date:</span> {new Date(claim.serviceDate).toLocaleDateString()}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Payer:</span> {claim.payerName || "Unknown"}
+                                  </div>
+                                  <div>
+                                    <span className="font-medium">Charges:</span> ${(claim.totalCharges || 0).toFixed(2)}
+                                  </div>
+                                  {claim.paidAmount && (
+                                    <div>
+                                      <span className="font-medium">Paid:</span> ${claim.paidAmount.toFixed(2)}
+                                    </div>
+                                  )}
+                                  {claim.submissionDate && (
+                                    <div>
+                                      <span className="font-medium">Submitted:</span> {new Date(claim.submissionDate).toLocaleDateString()}
+                                    </div>
+                                  )}
+                                </div>
+                                {claim.denialReason && (
+                                  <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                                    <span className="font-medium">Denial Reason:</span> {claim.denialReason}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </CardContent>
                   </Card>

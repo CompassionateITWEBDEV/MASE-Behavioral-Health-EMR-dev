@@ -1202,7 +1202,7 @@ export default function EncountersPage() {
           {/* New Encounter Dialog */}
           <Dialog open={showNewEncounter} onOpenChange={setShowNewEncounter}>
             <DialogContent className="max-w-[95vw] max-h-[95vh] overflow-hidden flex flex-col">
-              <DialogHeader>
+              <DialogHeader className="shrink-0">
                 <DialogTitle className="flex items-center gap-2">
                   <Stethoscope className="h-5 w-5" />
                   New Patient Encounter
@@ -1216,22 +1216,23 @@ export default function EncountersPage() {
               <Tabs
                 value={encounterTab}
                 onValueChange={setEncounterTab}
-                className="flex-1 overflow-hidden flex flex-col"
+                className="flex-1 overflow-hidden flex flex-col min-h-0"
               >
-                <TabsList className="grid grid-cols-8 w-full">
-                  <TabsTrigger value="chief-complaint">CC/HPI</TabsTrigger>
-                  <TabsTrigger value="vitals">Vitals</TabsTrigger>
-                  <TabsTrigger value="ros">ROS</TabsTrigger>
-                  <TabsTrigger value="exam">Physical Exam</TabsTrigger>
-                  <TabsTrigger value="assessment">Assessment</TabsTrigger>
-                  <TabsTrigger value="plan">Plan</TabsTrigger>
-                  <TabsTrigger value="diagnoses">Diagnoses</TabsTrigger>
-                  <TabsTrigger value="review">Review</TabsTrigger>
+                <TabsList className="flex overflow-x-auto w-full shrink-0 mb-4">
+                  <TabsTrigger value="chief-complaint" className="whitespace-nowrap">CC/HPI</TabsTrigger>
+                  <TabsTrigger value="vitals" className="whitespace-nowrap">Vitals</TabsTrigger>
+                  <TabsTrigger value="ros" className="whitespace-nowrap">ROS</TabsTrigger>
+                  <TabsTrigger value="exam" className="whitespace-nowrap">Physical Exam</TabsTrigger>
+                  <TabsTrigger value="assessment" className="whitespace-nowrap">Assessment</TabsTrigger>
+                  <TabsTrigger value="plan" className="whitespace-nowrap">Plan</TabsTrigger>
+                  <TabsTrigger value="diagnoses" className="whitespace-nowrap">Diagnoses</TabsTrigger>
+                  <TabsTrigger value="review" className="whitespace-nowrap">Review</TabsTrigger>
                 </TabsList>
 
-                <ScrollArea className="flex-1 pr-4">
-                  {/* Chief Complaint / HPI Tab */}
-                  <TabsContent value="chief-complaint" className="space-y-4 mt-4">
+                {/* Chief Complaint / HPI Tab */}
+                <TabsContent value="chief-complaint" className="flex-1 overflow-hidden mt-0">
+                  <ScrollArea className="h-full pr-4">
+                    <div className="space-y-4 py-4">
                     <div className="grid grid-cols-3 gap-4">
                       <div className="space-y-2">
                         <Label>Patient *</Label>
@@ -1414,10 +1415,14 @@ export default function EncountersPage() {
                         rows={4}
                       />
                     </div>
-                  </TabsContent>
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
 
-                  {/* Vitals Tab */}
-                  <TabsContent value="vitals" className="space-y-4 mt-4">
+                {/* Vitals Tab */}
+                <TabsContent value="vitals" className="flex-1 overflow-hidden mt-0">
+                  <ScrollArea className="h-full pr-4">
+                    <div className="space-y-4 py-4">
                     <Card>
                       <CardHeader className="pb-3">
                         <CardTitle className="text-base flex items-center gap-2">
@@ -1646,10 +1651,14 @@ export default function EncountersPage() {
                         </div>
                       </CardContent>
                     </Card>
-                  </TabsContent>
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
 
-                  {/* ROS Tab */}
-                  <TabsContent value="ros" className="space-y-4 mt-4">
+                {/* ROS Tab */}
+                <TabsContent value="ros" className="flex-1 overflow-hidden mt-0">
+                  <ScrollArea className="h-full pr-4">
+                    <div className="space-y-4 py-4">
                     <div className="flex items-center justify-between">
                       <div>
                         <h3 className="text-lg font-medium">Review of Systems</h3>
@@ -1723,10 +1732,14 @@ export default function EncountersPage() {
                         </Card>
                       ))}
                     </div>
-                  </TabsContent>
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
 
-                  {/* Physical Exam Tab */}
-                  <TabsContent value="exam" className="space-y-4 mt-4">
+                {/* Physical Exam Tab */}
+                <TabsContent value="exam" className="flex-1 overflow-hidden mt-0">
+                  <ScrollArea className="h-full pr-4">
+                    <div className="space-y-4 py-4">
                     <div className="flex items-center justify-between">
                       <div>
                         <h3 className="text-lg font-medium">Physical Examination</h3>
@@ -1832,10 +1845,14 @@ export default function EncountersPage() {
                         rows={3}
                       />
                     </div>
-                  </TabsContent>
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
 
-                  {/* Assessment Tab */}
-                  <TabsContent value="assessment" className="space-y-4 mt-4">
+                {/* Assessment Tab */}
+                <TabsContent value="assessment" className="flex-1 overflow-hidden mt-0">
+                  <ScrollArea className="h-full pr-4">
+                    <div className="space-y-4 py-4">
                     <div className="flex items-center justify-between">
                       <Label>Clinical Assessment</Label>
                       <div className="flex gap-2">
@@ -1860,10 +1877,14 @@ export default function EncountersPage() {
                       placeholder="Clinical impressions, diagnosis rationale, differential diagnoses..."
                       rows={8}
                     />
-                  </TabsContent>
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
 
-                  {/* Plan Tab */}
-                  <TabsContent value="plan" className="space-y-4 mt-4">
+                {/* Plan Tab */}
+                <TabsContent value="plan" className="flex-1 overflow-hidden mt-0">
+                  <ScrollArea className="h-full pr-4">
+                    <div className="space-y-4 py-4">
                     <div className="flex items-center justify-between">
                       <Label>Treatment Plan</Label>
                       <div className="flex gap-2">
@@ -1888,10 +1909,14 @@ export default function EncountersPage() {
                       placeholder="Treatment plan, medications, follow-up instructions, referrals..."
                       rows={8}
                     />
-                  </TabsContent>
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
 
-                  {/* Diagnoses Tab */}
-                  <TabsContent value="diagnoses" className="space-y-4 mt-4">
+                {/* Diagnoses Tab */}
+                <TabsContent value="diagnoses" className="flex-1 overflow-hidden mt-0">
+                  <ScrollArea className="h-full pr-4">
+                    <div className="space-y-4 py-4">
                     <div className="space-y-2">
                       <Label>Search ICD-10 Diagnosis Codes</Label>
                       <div className="relative">
@@ -1987,10 +2012,14 @@ export default function EncountersPage() {
                         </div>
                       )}
                     </div>
-                  </TabsContent>
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
 
-                  {/* Review Tab */}
-                  <TabsContent value="review" className="space-y-4 mt-4">
+                {/* Review Tab */}
+                <TabsContent value="review" className="flex-1 overflow-hidden mt-0">
+                  <ScrollArea className="h-full pr-4">
+                    <div className="space-y-4 py-4">
                     <Card>
                       <CardHeader>
                         <CardTitle>Encounter Summary</CardTitle>
@@ -2045,11 +2074,12 @@ export default function EncountersPage() {
                         </div>
                       </CardContent>
                     </Card>
-                  </TabsContent>
-                </ScrollArea>
+                    </div>
+                  </ScrollArea>
+                </TabsContent>
               </Tabs>
 
-              <DialogFooter className="flex justify-between border-t pt-4">
+              <DialogFooter className="flex justify-between border-t pt-4 shrink-0">
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={() => setShowNewEncounter(false)}>
                     Cancel
