@@ -54,6 +54,8 @@ import {
   Eye,
   UserCircle,
   FileCheck2,
+  ArrowRight,
+  Microscope,
   type LucideIcon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -115,6 +117,11 @@ const getNavigationCategories = (isSuperAdmin: boolean): NavCategory[] => {
         { icon: Baby, label: "Pregnant Women (Priority)", href: "/pregnant-women", count: 8, highlight: "alert" },
         { icon: Users, label: "Patient Portal", href: "/patient-portal" },
         { icon: Users, label: "Care Teams", href: "/care-teams", count: 8 },
+        { icon: Package, label: "Property Tracking", href: "/patient-property", count: 7, highlight: "alert" },
+        { icon: Truck, label: "Transportation", href: "/transportation-requests", count: 18 },
+        { icon: AlertTriangle, label: "AWOL/Runaway", href: "/awol-tracking", count: 7, highlight: "alert" },
+        { icon: ArrowRight, label: "Caseload Transfer", href: "/caseload-transfer" },
+        { icon: Send, label: "Patient Transfer", href: "/patient-transfer" },
       ],
     },
     {
@@ -151,6 +158,7 @@ const getNavigationCategories = (isSuperAdmin: boolean): NavCategory[] => {
         { icon: Send, label: "E-Prescribing", href: "/e-prescribing", count: 3 },
         { icon: Syringe, label: "Dosing Window", href: "/dosing-window", count: 15, highlight: "alert" },
         { icon: FileCheck2, label: "Order Management", href: "/order-management", count: 8, highlight: "alert" },
+        { icon: UserCheck, label: "Guest Dosing", href: "/guest-dosing", count: 3, highlight: "alert" },
         { icon: Syringe, label: "Methadone Dispensing", href: "/dispensing", count: 12 },
         { icon: PackageCheck, label: "Take-Home Mgmt", href: "/takehome", count: 8 },
         { icon: Package, label: "Take-Home Bottles", href: "/dispensing/takehome-bottles", count: 12 },
@@ -209,6 +217,7 @@ const getNavigationCategories = (isSuperAdmin: boolean): NavCategory[] => {
         { icon: TrendingUp, label: "Advanced Reports", href: "/reports" },
         { icon: BarChart3, label: "Analytics", href: "/analytics" },
         { icon: Target, label: "MIPS Quality", href: "/quality-dashboard" },
+        { icon: Microscope, label: "Research & Data Science", href: "/research-dashboard", count: 4 },
       ],
     },
     {
