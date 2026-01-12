@@ -1,70 +1,139 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Mock patient data
-const mockPatient = {
-  id: "p1",
-  first_name: "John",
-  last_name: "Doe",
-  date_of_birth: "1970-01-15",
-  gender: "male",
-};
-
-// Mock medications
-const mockMedications = [
-  {
-    id: "m1",
-    medication_name: "Lisinopril",
-    dosage: "10mg",
-    frequency: "daily",
-    status: "active",
-  },
-];
-
-const { mockQueryBuilder, mockFrom, setMockResponses } = vi.hoisted(() => {
-  let singleResponse: { data: unknown; error: unknown } = {
-    data: null,
-    error: null,
-  };
-  let limitResponse: { data: unknown[]; error: unknown } = {
-    data: [],
-    error: null,
+// Use vi.hoisted to define mock data before mocks are hoisted
+const { mockAIResponse, mockPatientContext, mockNoteSummary, mockComplianceResult } = vi.hoisted(() => {
+  const mockAIResponse = {
+    summary: "Patient assessment completed",
+    riskAlerts: [],
+    recommendations: [
+      {
+        text: "Continue current medication regimen",
+        priority: "medium" as const,
+        category: "medication" as const,
+      },
+    ],
+    drugInteractions: {
+      status: "no_major" as const,
+      message: "No major drug interactions detected",
+    },
+    labOrders: [],
+    differentialDiagnosis: [],
+    preventiveGaps: [],
+    educationTopics: [],
   };
 
-  const builder: Record<string, ReturnType<typeof vi.fn>> = {};
-  const methods = [
-    "select",
-    "insert",
-    "update",
-    "delete",
-    "order",
-    "eq",
-    "single",
-    "limit",
-  ];
-  methods.forEach((method) => {
-    builder[method] = vi.fn().mockImplementation(() => builder);
-  });
-
-  // single() returns patient data
-  builder.single.mockImplementation(() => Promise.resolve(singleResponse));
-  // limit() returns medications
-  builder.limit.mockImplementation(() => Promise.resolve(limitResponse));
-
-  return {
-    mockQueryBuilder: builder,
-    mockFrom: vi.fn().mockReturnValue(builder),
-    setMockResponses: (
-      single: { data: unknown; error: unknown },
-      limit: { data: unknown[]; error: unknown }
-    ) => {
-      singleResponse = single;
-      limitResponse = limit;
+  const mockPatientContext = {
+    structured: {
+      demographics: {
+        id: "p1",
+        first_name: "John",
+        last_name: "Doe",
+        date_of_birth: "1970-01-15",
+        gender: "male",
+        age: 54,
+      },
+      medications: [
+        {
+          id: "m1",
+          medication_name: "Lisinopril",
+          dosage: "10mg",
+          frequency: "daily",
+          status: "active",
+        },
+      ],
+      problems: [],
+      allergies: [],
+      labResults: [],
+      vitalSigns: [],
+      encounters: [],
+      treatmentPlans: [],
+    },
+    unstructured: {
+      recentNotes: [],
     },
   };
+
+  const mockNoteSummary = {
+    summary: "No significant findings",
+    keyFindings: [],
+    diagnoses: [],
+    concerns: [],
+    assessmentScores: {},
+    missingDocumentation: [],
+  };
+
+  const mockComplianceResult = {
+    overallCompliant: true,
+    checks: [],
+    summary: "All compliance checks passed",
+  };
+
+  return { mockAIResponse, mockPatientContext, mockNoteSummary, mockComplianceResult };
 });
 
-vi.mock("@/lib/supabase/server", () => ({
-  createClient: vi.fn().mockResolvedValue({ from: mockFrom }),
+// Mock all service functions
+vi.mock("@/lib/services/patient-data-aggregator", () => ({
+  aggregatePatientContext: vi.fn().mockResolvedValue(mockPatientContext),
+  formatPatientDataForPrompt: vi.fn().mockReturnValue("Mock patient data"),
+}));
+
+vi.mock("@/lib/services/note-processor", () => ({
+  processClinicalNotes: vi.fn().mockResolvedValue({
+    summary: mockNoteSummary,
+  }),
+}));
+
+vi.mock("@/lib/services/specialty-recommendations", () => ({
+  generateSpecialtyRecommendations: vi.fn().mockReturnValue([]),
+  formatSpecialtyRecommendations: vi.fn().mockReturnValue(""),
+}));
+
+vi.mock("@/lib/services/risk-calculators", () => ({
+  calculateAllRiskScores: vi.fn().mockReturnValue({}),
+  formatRiskScores: vi.fn().mockReturnValue(""),
+}));
+
+vi.mock("@/lib/services/rate-limiter", () => ({
+  checkRateLimit: vi.fn().mockResolvedValue({
+    allowed: true,
+    remaining: 100,
+    resetAt: new Date(Date.now() + 3600000),
+    limit: 100,
+  }),
+  recordRequest: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/lib/services/ai-cache", () => ({
+  getCachedAnalysis: vi.fn().mockResolvedValue(null),
+  cacheAnalysis: vi.fn().mockResolvedValue(undefined),
+  generateDataHash: vi.fn().mockReturnValue("mock-hash"),
+}));
+
+vi.mock("@/lib/services/ai-feedback", () => ({
+  logRecommendation: vi.fn().mockResolvedValue("mock-recommendation-id"),
+}));
+
+vi.mock("@/lib/services/compliance-checker", () => ({
+  checkCompliance: vi.fn().mockReturnValue(mockComplianceResult),
+}));
+
+vi.mock("@/lib/services/role-context", () => ({
+  normalizeRole: vi.fn().mockReturnValue("provider"),
+  getRoleFocusAreas: vi.fn().mockReturnValue([]),
+  getRoleSystemPromptAddition: vi.fn().mockReturnValue(""),
+}));
+
+vi.mock("@/lib/prompts/specialty-prompts", () => ({
+  generateSpecialtyPrompt: vi.fn().mockReturnValue({
+    systemPrompt: "Mock system prompt",
+    userPrompt: "Mock user prompt",
+  }),
+}));
+
+vi.mock("ai", () => ({
+  generateText: vi.fn().mockResolvedValue({
+    text: JSON.stringify(mockAIResponse),
+  }),
 }));
 
 vi.mock("@/lib/auth/middleware", () => ({
@@ -75,11 +144,13 @@ vi.mock("@/lib/auth/middleware", () => ({
 }));
 
 import { GET, POST } from "@/app/api/ai-assistant/route";
+import { aggregatePatientContext } from "@/lib/services/patient-data-aggregator";
 
 describe("GET /api/ai-assistant", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockFrom.mockReturnValue(mockQueryBuilder);
+    // Reset mocks to default behavior
+    vi.mocked(aggregatePatientContext).mockResolvedValue(mockPatientContext);
   });
 
   it("should return 400 if patientId is missing", async () => {
@@ -92,11 +163,6 @@ describe("GET /api/ai-assistant", () => {
   });
 
   it("should fetch AI recommendations successfully", async () => {
-    setMockResponses(
-      { data: mockPatient, error: null },
-      { data: mockMedications, error: null }
-    );
-
     const request = new Request(
       "http://localhost/api/ai-assistant?patientId=p1"
     );
@@ -110,10 +176,11 @@ describe("GET /api/ai-assistant", () => {
   });
 
   it("should return 404 if patient not found", async () => {
-    setMockResponses(
-      { data: null, error: { code: "PGRST116", message: "No rows found" } },
-      { data: [], error: null }
-    );
+    // Mock aggregatePatientContext to throw an error when patient doesn't exist
+    vi.mocked(aggregatePatientContext).mockRejectedValue({
+      code: "PGRST116",
+      message: "No rows found",
+    });
 
     const request = new Request(
       "http://localhost/api/ai-assistant?patientId=invalid"
@@ -129,7 +196,8 @@ describe("GET /api/ai-assistant", () => {
 describe("POST /api/ai-assistant", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockFrom.mockReturnValue(mockQueryBuilder);
+    // Reset mocks to default behavior
+    vi.mocked(aggregatePatientContext).mockResolvedValue(mockPatientContext);
   });
 
   it("should return 400 if patientId is missing", async () => {
@@ -146,11 +214,6 @@ describe("POST /api/ai-assistant", () => {
   });
 
   it("should request AI analysis successfully", async () => {
-    setMockResponses(
-      { data: mockPatient, error: null },
-      { data: mockMedications, error: null }
-    );
-
     const request = new Request("http://localhost/api/ai-assistant", {
       method: "POST",
       body: JSON.stringify({
@@ -170,10 +233,11 @@ describe("POST /api/ai-assistant", () => {
   });
 
   it("should return 404 if patient not found", async () => {
-    setMockResponses(
-      { data: null, error: { code: "PGRST116", message: "No rows found" } },
-      { data: [], error: null }
-    );
+    // Mock aggregatePatientContext to throw an error when patient doesn't exist
+    vi.mocked(aggregatePatientContext).mockRejectedValue({
+      code: "PGRST116",
+      message: "No rows found",
+    });
 
     const request = new Request("http://localhost/api/ai-assistant", {
       method: "POST",

@@ -144,7 +144,7 @@ export function useDrugInteractions(
 export function useRequestAIAnalysis() {
   const queryClient = useQueryClient();
 
-  return useMutation<AIAssistantResponse, Error, AIAssistantRequest>({
+  return useMutation<AIAssistantResponse, Error, AIAssistantRequest & { specialtyId?: string }>({
     mutationFn: async (request) => {
       const response = await fetch("/api/ai-assistant", {
         method: "POST",

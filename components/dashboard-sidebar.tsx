@@ -218,6 +218,7 @@ const getNavigationCategories = (isSuperAdmin: boolean): NavCategory[] => {
         { icon: BarChart3, label: "Analytics", href: "/analytics" },
         { icon: Target, label: "MIPS Quality", href: "/quality-dashboard" },
         { icon: Microscope, label: "Research & Data Science", href: "/research-dashboard", count: 4 },
+        { icon: Brain, label: "AI Assistant Analytics", href: "/ai-assistant/analytics" },
       ],
     },
     {

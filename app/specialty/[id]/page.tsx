@@ -38,6 +38,7 @@ import {
 import type { SpecialtyConfigMap } from "@/types/specialty";
 import { useSpecialtyConfig } from "@/hooks/use-specialty-config";
 import { useQualityMeasures } from "@/hooks/use-quality-measures";
+import { AIClinicalAssistant } from "@/components/ai-clinical-assistant";
 
 // Specialty configurations with proper typing
 const specialtyConfigs: SpecialtyConfigMap = {
@@ -841,6 +842,7 @@ export default function SpecialtyPage() {
               <TabsTrigger value="templates">Templates</TabsTrigger>
               <TabsTrigger value="billing">Billing Codes</TabsTrigger>
               <TabsTrigger value="quality">Quality Measures</TabsTrigger>
+              <TabsTrigger value="ai-assistant">AI Assistant</TabsTrigger>
             </TabsList>
 
             <TabsContent value="features">
@@ -957,6 +959,13 @@ export default function SpecialtyPage() {
                   </div>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="ai-assistant">
+              <AIClinicalAssistant
+                specialtyId={specialtyId}
+                showPatientSelector={true}
+              />
             </TabsContent>
 
             <TabsContent value="quality">
