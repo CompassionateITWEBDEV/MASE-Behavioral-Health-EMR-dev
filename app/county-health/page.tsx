@@ -24,7 +24,6 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useToast } from "@/hooks/use-toast"
-import { createBrowserClient } from "@/lib/supabase/client"
 import {
   Baby,
   Syringe,
@@ -46,7 +45,6 @@ import {
 
 export default function CountyHealthPage() {
   const { toast } = useToast()
-  const supabase = createBrowserClient()
 
   // State for data
   const [loading, setLoading] = useState(true)
@@ -160,130 +158,115 @@ export default function CountyHealthPage() {
   }
 
   const fetchStats = async () => {
-    // Fetch real counts from database
-    const [wic, vacc, sti, disease, tb, mch, env] = await Promise.all([
-      supabase.from("wic_enrollments").select("id", { count: "exact", head: true }).eq("status", "active"),
-      supabase
-        .from("vaccinations")
-        .select("id", { count: "exact", head: true })
-        .gte("administration_date", new Date(new Date().setDate(1)).toISOString().split("T")[0]),
-      supabase
-        .from("sti_clinic_visits")
-        .select("id", { count: "exact", head: true })
-        .gte("visit_date", new Date(new Date().setDate(1)).toISOString().split("T")[0]),
-      supabase
-        .from("communicable_disease_reports")
-        .select("id", { count: "exact", head: true })
-        .gte("reported_date", new Date(new Date().getFullYear(), 0, 1).toISOString().split("T")[0]),
-      supabase.from("tb_cases").select("id", { count: "exact", head: true }).eq("status", "active"),
-      supabase
-        .from("maternal_child_health_visits")
-        .select("id", { count: "exact", head: true })
-        .gte("visit_date", new Date(new Date().setDate(1)).toISOString().split("T")[0]),
-      supabase
-        .from("environmental_health_inspections")
-        .select("id", { count: "exact", head: true })
-        .gte("inspection_date", new Date(new Date().setDate(1)).toISOString().split("T")[0]),
-    ])
-
-    setStats({
-      wicParticipants: wic.count || 0,
-      immunizations: vacc.count || 0,
-      stdVisits: sti.count || 0,
-      diseaseReports: disease.count || 0,
-      tbCases: tb.count || 0,
-      mchCases: mch.count || 0,
-      envInspections: env.count || 0,
-    })
+    try {
+      const response = await fetch("/api/county-health?action=stats")
+      const result = await response.json()
+      if (result.stats) {
+        setStats(result.stats)
+      }
+    } catch (error) {
+      console.error("Error fetching stats:", error)
+    }
   }
 
   const fetchPatients = async () => {
-    const { data } = await supabase
-      .from("patients")
-      .select("id, first_name, last_name, date_of_birth")
-      .order("last_name")
-    setPatients(data || [])
+    try {
+      const response = await fetch("/api/county-health?action=list&type=patients")
+      const result = await response.json()
+      setPatients(result.data || [])
+    } catch (error) {
+      console.error("Error fetching patients:", error)
+    }
   }
 
   const fetchWicEnrollments = async () => {
-    const { data } = await supabase
-      .from("wic_enrollments")
-      .select("*, patients(first_name, last_name, date_of_birth)")
-      .order("enrollment_date", { ascending: false })
-      .limit(50)
-    setWicEnrollments(data || [])
+    try {
+      const response = await fetch("/api/county-health?action=list&type=wic")
+      const result = await response.json()
+      setWicEnrollments(result.data || [])
+    } catch (error) {
+      console.error("Error fetching WIC enrollments:", error)
+    }
   }
 
   const fetchVaccinations = async () => {
-    const { data } = await supabase
-      .from("vaccinations")
-      .select("*, patients(first_name, last_name)")
-      .order("administration_date", { ascending: false })
-      .limit(50)
-    setVaccinations(data || [])
+    try {
+      const response = await fetch("/api/county-health?action=list&type=vaccinations")
+      const result = await response.json()
+      setVaccinations(result.data || [])
+    } catch (error) {
+      console.error("Error fetching vaccinations:", error)
+    }
   }
 
   const fetchStiVisits = async () => {
-    const { data } = await supabase
-      .from("sti_clinic_visits")
-      .select("*, patients(first_name, last_name)")
-      .order("visit_date", { ascending: false })
-      .limit(50)
-    setStiVisits(data || [])
+    try {
+      const response = await fetch("/api/county-health?action=list&type=sti")
+      const result = await response.json()
+      setStiVisits(result.data || [])
+    } catch (error) {
+      console.error("Error fetching STI visits:", error)
+    }
   }
 
   const fetchMchVisits = async () => {
-    const { data } = await supabase
-      .from("maternal_child_health_visits")
-      .select("*, patients(first_name, last_name)")
-      .order("visit_date", { ascending: false })
-      .limit(50)
-    setMchVisits(data || [])
+    try {
+      const response = await fetch("/api/county-health?action=list&type=mch")
+      const result = await response.json()
+      setMchVisits(result.data || [])
+    } catch (error) {
+      console.error("Error fetching MCH visits:", error)
+    }
   }
 
   const fetchDiseaseReports = async () => {
-    const { data } = await supabase
-      .from("communicable_disease_reports")
-      .select("*, patients(first_name, last_name)")
-      .order("reported_date", { ascending: false })
-      .limit(50)
-    setDiseaseReports(data || [])
+    try {
+      const response = await fetch("/api/county-health?action=list&type=disease")
+      const result = await response.json()
+      setDiseaseReports(result.data || [])
+    } catch (error) {
+      console.error("Error fetching disease reports:", error)
+    }
   }
 
   const fetchTbCases = async () => {
-    const { data } = await supabase
-      .from("tb_cases")
-      .select("*, patients(first_name, last_name)")
-      .order("diagnosis_date", { ascending: false })
-      .limit(50)
-    setTbCases(data || [])
+    try {
+      const response = await fetch("/api/county-health?action=list&type=tb")
+      const result = await response.json()
+      setTbCases(result.data || [])
+    } catch (error) {
+      console.error("Error fetching TB cases:", error)
+    }
   }
 
   const fetchEnvInspections = async () => {
-    const { data } = await supabase
-      .from("environmental_health_inspections")
-      .select("*")
-      .order("inspection_date", { ascending: false })
-      .limit(50)
-    setEnvInspections(data || [])
+    try {
+      const response = await fetch("/api/county-health?action=list&type=environmental")
+      const result = await response.json()
+      setEnvInspections(result.data || [])
+    } catch (error) {
+      console.error("Error fetching environmental inspections:", error)
+    }
   }
 
   const fetchEducationResources = async () => {
-    const { data } = await supabase
-      .from("county_family_education_resources")
-      .select("*")
-      .eq("is_active", true)
-      .order("title")
-    setEducationResources(data || [])
+    try {
+      const response = await fetch("/api/county-health/education")
+      const result = await response.json()
+      setEducationResources(result.resources || [])
+    } catch (error) {
+      console.error("Error fetching education resources:", error)
+    }
   }
 
   const fetchStaffModules = async () => {
-    const { data } = await supabase
-      .from("county_staff_education_modules")
-      .select("*")
-      .eq("is_active", true)
-      .order("module_code")
-    setStaffModules(data || [])
+    try {
+      const response = await fetch("/api/county-health/staff-education")
+      const result = await response.json()
+      setStaffModules(result.modules || [])
+    } catch (error) {
+      console.error("Error fetching staff modules:", error)
+    }
   }
 
   // WIC Functions

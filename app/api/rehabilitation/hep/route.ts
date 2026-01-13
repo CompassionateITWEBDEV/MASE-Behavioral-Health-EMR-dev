@@ -7,6 +7,42 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const therapistId = searchParams.get("therapist_id");
     const patientId = searchParams.get("patient_id");
+    const action = searchParams.get("action");
+
+    // Handle specific action requests
+    if (action === "logs") {
+      const { data: logs, error } = await supabase
+        .from("hep_patient_logs")
+        .select(
+          `
+          *,
+          patients(first_name, last_name),
+          hep_programs(program_name)
+        `
+        )
+        .order("log_date", { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+      return NextResponse.json({ logs: logs || [] });
+    }
+
+    if (action === "rtm") {
+      const { data: sessions, error } = await supabase
+        .from("rtm_billing_sessions")
+        .select(
+          `
+          *,
+          patients(first_name, last_name),
+          hep_programs(program_name)
+        `
+        )
+        .order("service_month", { ascending: false })
+        .limit(20);
+
+      if (error) throw error;
+      return NextResponse.json({ sessions: sessions || [] });
+    }
 
     // Fetch HEP programs
     let programsQuery = supabase
@@ -15,7 +51,7 @@ export async function GET(request: NextRequest) {
         `
         *,
         patients(id, first_name, last_name, phone, email),
-        staff(id, first_name, last_name)
+        providers:therapist_id(id, first_name, last_name)
       `
       )
       .order("created_at", { ascending: false });
@@ -50,6 +86,32 @@ export async function GET(request: NextRequest) {
       .order("created_at", { ascending: false })
       .limit(20);
 
+    // Fetch compliance logs
+    const { data: logs, error: logsError } = await supabase
+      .from("hep_patient_logs")
+      .select(
+        `
+        *,
+        patients(first_name, last_name),
+        hep_programs(program_name)
+      `
+      )
+      .order("log_date", { ascending: false })
+      .limit(50);
+
+    // Fetch RTM sessions
+    const { data: rtmSessions, error: rtmError } = await supabase
+      .from("rtm_billing_sessions")
+      .select(
+        `
+        *,
+        patients(first_name, last_name),
+        hep_programs(program_name)
+      `
+      )
+      .order("service_month", { ascending: false })
+      .limit(20);
+
     // Calculate stats
     const activePrograms =
       programs?.filter((p) => p.status === "active").length || 0;
@@ -60,6 +122,8 @@ export async function GET(request: NextRequest) {
       programs: programs || [],
       exercises: exercises || [],
       alerts: alerts || [],
+      logs: logs || [],
+      rtmSessions: rtmSessions || [],
       stats: {
         activePrograms,
         completedPrograms,
@@ -126,39 +190,98 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, program });
     }
 
-    if (action === "log_exercise") {
-      // Patient logs exercise completion
+    if (action === "log_exercise" || action === "log_compliance") {
+      // Patient logs exercise completion or compliance
       const { data: log, error } = await supabase
         .from("hep_patient_logs")
         .insert({
           program_id: data.program_id,
-          exercise_id: data.exercise_id,
+          exercise_id: data.exercise_id || null,
           patient_id: data.patient_id,
           log_date: data.log_date,
-          log_time: data.log_time,
-          sets_completed: data.sets_completed,
-          reps_completed: data.reps_completed,
+          log_time: data.log_time || new Date().toISOString(),
+          sets_completed: data.sets_completed || null,
+          reps_completed: data.reps_completed || null,
           duration_minutes: data.duration_minutes,
           pain_level: data.pain_level,
           difficulty_rating: data.difficulty_rating,
-          notes: data.notes,
-          completed: true,
+          notes: data.notes || null,
+          completed: data.completed !== undefined ? data.completed : true,
         })
         .select()
         .single();
 
       if (error) throw error;
 
-      // Update RTM billing minutes
-      const currentMonth = new Date().toISOString().slice(0, 7) + "-01";
-      await supabase.rpc("increment_rtm_minutes", {
-        p_patient_id: data.patient_id,
-        p_program_id: data.program_id,
-        p_service_month: currentMonth,
-        p_minutes: data.duration_minutes || 0,
-      });
+      // Update RTM billing minutes if function exists
+      try {
+        const currentMonth = new Date().toISOString().slice(0, 7) + "-01";
+        await supabase.rpc("increment_rtm_minutes", {
+          p_patient_id: data.patient_id,
+          p_program_id: data.program_id,
+          p_service_month: currentMonth,
+          p_minutes: data.duration_minutes || 0,
+        });
+      } catch (rpcError) {
+        // RPC function might not exist, continue without it
+        console.warn("RTM minutes increment failed:", rpcError);
+      }
 
       return NextResponse.json({ success: true, log });
+    }
+
+    if (action === "create_exercise") {
+      // Create new exercise in library
+      const { data: exercise, error } = await supabase
+        .from("hep_exercises")
+        .insert({
+          exercise_name: data.exercise_name,
+          exercise_category: data.exercise_category,
+          body_part: data.body_part || null,
+          description: data.description || null,
+          instructions: data.instructions || null,
+          difficulty_level: data.difficulty_level || "moderate",
+          duration_minutes: data.duration_minutes || 10,
+          equipment_needed: data.equipment_needed || [],
+          is_active: data.is_active !== undefined ? data.is_active : true,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return NextResponse.json({ success: true, exercise });
+    }
+
+    if (action === "acknowledge_alert") {
+      // Acknowledge compliance alert
+      const { data: alert, error } = await supabase
+        .from("hep_compliance_alerts")
+        .update({
+          is_acknowledged: true,
+          acknowledged_at: new Date().toISOString(),
+        })
+        .eq("id", data.alert_id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return NextResponse.json({ success: true, alert });
+    }
+
+    if (action === "update_program_status") {
+      // Update HEP program status
+      const { data: program, error } = await supabase
+        .from("hep_programs")
+        .update({
+          status: data.status,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", data.program_id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return NextResponse.json({ success: true, program });
     }
 
     if (action === "create_progress_review") {
