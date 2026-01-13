@@ -1,6 +1,7 @@
 "use client"
 
 import { DashboardSidebar } from "@/components/dashboard-sidebar"
+import { DashboardHeader } from "@/components/dashboard-header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Plus, FileCheck, Dumbbell, AlertTriangle, TrendingUp, Eye, RefreshCw } from "lucide-react"
@@ -390,10 +391,10 @@ export default function RehabilitationPage() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="min-h-screen bg-background">
       <DashboardSidebar />
-
-      <div className="flex-1 overflow-auto">
+      <div className="pl-64">
+        <DashboardHeader />
         <div className="p-8">
           <div className="mb-6 flex items-center justify-between">
             <div>
@@ -1092,9 +1093,8 @@ export default function RehabilitationPage() {
             </TabsContent>
           </Tabs>
         </div>
-      </div>
 
-      {/* View Program Dialog */}
+        {/* View Program Dialog */}
       <Dialog open={viewProgramOpen} onOpenChange={setViewProgramOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -1154,6 +1154,7 @@ export default function RehabilitationPage() {
           )}
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   )
 }

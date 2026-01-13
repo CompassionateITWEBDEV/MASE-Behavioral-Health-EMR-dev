@@ -516,84 +516,68 @@ export default function CountyHealthPage() {
   )
 
   return (
-    <div className="flex h-screen overflow-hidden bg-slate-50">
+    <div className="min-h-screen bg-background">
       <DashboardSidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="pl-64">
         <DashboardHeader />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+        <div className="p-8">
           {/* Header */}
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="mb-6 flex items-center justify-between">
             <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-slate-900">County Health Department</h1>
-              <p className="text-sm text-slate-600 mt-1">Public Health Services & Population Management</p>
+              <h1 className="text-3xl font-bold">County Health Department</h1>
+              <p className="text-muted-foreground">Public Health Services & Population Management</p>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={fetchAllData} disabled={loading}>
-                <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={fetchAllData} disabled={loading}>
+                <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
                 Refresh
               </Button>
             </div>
           </div>
 
           {/* Key Statistics Dashboard */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-slate-600">WIC Participants</CardTitle>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">WIC Participants</CardTitle>
+                <Baby className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-2xl font-bold text-slate-900">{loading ? "..." : stats.wicParticipants}</p>
-                    <p className="text-xs text-slate-500">Active enrollments</p>
-                  </div>
-                  <Baby className="h-8 w-8 text-pink-500" />
-                </div>
+                <div className="text-2xl font-bold">{loading ? "..." : stats.wicParticipants}</div>
+                <p className="text-xs text-muted-foreground">Active enrollments</p>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-slate-600">Immunizations</CardTitle>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">Immunizations</CardTitle>
+                <Syringe className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-2xl font-bold text-slate-900">{loading ? "..." : stats.immunizations}</p>
-                    <p className="text-xs text-slate-500">This month</p>
-                  </div>
-                  <Syringe className="h-8 w-8 text-blue-500" />
-                </div>
+                <div className="text-2xl font-bold">{loading ? "..." : stats.immunizations}</div>
+                <p className="text-xs text-muted-foreground">This month</p>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-slate-600">STI Visits</CardTitle>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">STI Visits</CardTitle>
+                <Heart className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-2xl font-bold text-slate-900">{loading ? "..." : stats.stdVisits}</p>
-                    <p className="text-xs text-slate-500">This month</p>
-                  </div>
-                  <Heart className="h-8 w-8 text-red-500" />
-                </div>
+                <div className="text-2xl font-bold">{loading ? "..." : stats.stdVisits}</div>
+                <p className="text-xs text-muted-foreground">This month</p>
               </CardContent>
             </Card>
 
             <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-slate-600">Disease Reports</CardTitle>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">Disease Reports</CardTitle>
+                <AlertTriangle className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-2xl font-bold text-slate-900">{loading ? "..." : stats.diseaseReports}</p>
-                    <p className="text-xs text-slate-500">This year</p>
-                  </div>
-                  <AlertTriangle className="h-8 w-8 text-orange-500" />
-                </div>
+                <div className="text-2xl font-bold">{loading ? "..." : stats.diseaseReports}</div>
+                <p className="text-xs text-muted-foreground">This year</p>
               </CardContent>
             </Card>
           </div>
@@ -659,7 +643,7 @@ export default function CountyHealthPage() {
                     <TableBody>
                       {wicEnrollments.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={5} className="text-center text-slate-500 py-8">
+                          <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                             No WIC enrollments found. Click "Enroll Participant" to add one.
                           </TableCell>
                         </TableRow>
@@ -731,7 +715,7 @@ export default function CountyHealthPage() {
                     <TableBody>
                       {vaccinations.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={5} className="text-center text-slate-500 py-8">
+                          <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                             No vaccinations recorded. Click "Record Vaccination" to add one.
                           </TableCell>
                         </TableRow>
@@ -794,7 +778,7 @@ export default function CountyHealthPage() {
                     <TableBody>
                       {stiVisits.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={4} className="text-center text-slate-500 py-8">
+                          <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                             No STI clinic visits recorded.
                           </TableCell>
                         </TableRow>
@@ -860,7 +844,7 @@ export default function CountyHealthPage() {
                     <TableBody>
                       {mchVisits.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={4} className="text-center text-slate-500 py-8">
+                          <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                             No MCH visits recorded.
                           </TableCell>
                         </TableRow>
@@ -909,7 +893,7 @@ export default function CountyHealthPage() {
                     <TableBody>
                       {diseaseReports.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={5} className="text-center text-slate-500 py-8">
+                          <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                             No disease reports found.
                           </TableCell>
                         </TableRow>
@@ -980,7 +964,7 @@ export default function CountyHealthPage() {
                     <TableBody>
                       {tbCases.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={5} className="text-center text-slate-500 py-8">
+                          <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                             No TB cases found.
                           </TableCell>
                         </TableRow>
@@ -1034,7 +1018,7 @@ export default function CountyHealthPage() {
                     <TableBody>
                       {envInspections.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={5} className="text-center text-slate-500 py-8">
+                          <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                             No inspections found.
                           </TableCell>
                         </TableRow>
@@ -1081,8 +1065,8 @@ export default function CountyHealthPage() {
                   <ScrollArea className="flex-1 pr-4 mb-4">
                     <div className="space-y-4">
                       {messages.length === 0 ? (
-                        <div className="text-center text-slate-500 py-8">
-                          <Bot className="h-12 w-12 mx-auto mb-2 text-slate-300" />
+                        <div className="text-center text-muted-foreground py-8">
+                          <Bot className="h-12 w-12 mx-auto mb-2 text-muted-foreground opacity-50" />
                           <p>
                             Ask me about WIC guidelines, immunization schedules, disease reporting, or public health
                             protocols.
@@ -1093,7 +1077,7 @@ export default function CountyHealthPage() {
                           <div key={msg.id} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                             <div
                               className={`max-w-[80%] rounded-lg px-4 py-2 ${
-                                msg.role === "user" ? "bg-teal-600 text-white" : "bg-slate-100 text-slate-900"
+                                msg.role === "user" ? "bg-teal-600 text-white" : "bg-muted text-foreground"
                               }`}
                             >
                               {msg.content}
@@ -1103,7 +1087,7 @@ export default function CountyHealthPage() {
                       )}
                       {isAiLoading && (
                         <div className="flex justify-start">
-                          <div className="bg-slate-100 rounded-lg px-4 py-2">
+                          <div className="bg-muted rounded-lg px-4 py-2">
                             <Loader2 className="h-5 w-5 animate-spin text-teal-600" />
                           </div>
                         </div>
@@ -1139,12 +1123,12 @@ export default function CountyHealthPage() {
                   <CardContent>
                     <div className="space-y-3">
                       {educationResources.length === 0 ? (
-                        <p className="text-center text-slate-500 py-4">No education resources available.</p>
+                        <p className="text-center text-muted-foreground py-4">No education resources available.</p>
                       ) : (
                         educationResources.slice(0, 5).map((resource) => (
                           <div
                             key={resource.id}
-                            className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50"
+                            className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50"
                           >
                             <div className="flex items-center gap-3">
                               {resource.resource_type === "video" ? (
@@ -1154,7 +1138,7 @@ export default function CountyHealthPage() {
                               )}
                               <div>
                                 <p className="font-medium text-sm">{resource.title}</p>
-                                <p className="text-xs text-slate-500">{resource.target_audience}</p>
+                                <p className="text-xs text-muted-foreground">{resource.target_audience}</p>
                               </div>
                             </div>
                             <Button variant="ghost" size="sm">
@@ -1178,16 +1162,16 @@ export default function CountyHealthPage() {
                   <CardContent>
                     <div className="space-y-3">
                       {staffModules.length === 0 ? (
-                        <p className="text-center text-slate-500 py-4">No training modules available.</p>
+                        <p className="text-center text-muted-foreground py-4">No training modules available.</p>
                       ) : (
                         staffModules.slice(0, 5).map((module) => (
                           <div
                             key={module.id}
-                            className="flex items-center justify-between p-3 border rounded-lg hover:bg-slate-50"
+                            className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50"
                           >
                             <div>
                               <p className="font-medium text-sm">{module.module_name}</p>
-                              <p className="text-xs text-slate-500">
+                              <p className="text-xs text-muted-foreground">
                                 {module.duration_minutes} min • {module.ceu_hours} CEU
                               </p>
                             </div>
@@ -1587,7 +1571,7 @@ export default function CountyHealthPage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-        </main>
+        </div>
       </div>
     </div>
   )

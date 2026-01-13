@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { DashboardSidebar } from "@/components/dashboard-sidebar"
+import { DashboardHeader } from "@/components/dashboard-header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -327,10 +328,10 @@ export default function FacilityInventoryPage() {
   const categories = ["all", "medical", "vaccines", "cleaning", "medications", "wound-care"]
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="min-h-screen bg-background">
       <DashboardSidebar />
-
-      <div className="flex-1 overflow-auto">
+      <div className="pl-64">
+        <DashboardHeader />
         <div className="p-8">
           <div className="mb-6 flex items-center justify-between">
             <div>
@@ -631,9 +632,8 @@ export default function FacilityInventoryPage() {
             </Card>
           )}
         </div>
-      </div>
 
-      {/* Edit Item Dialog */}
+        {/* Edit Item Dialog */}
       <Dialog open={editItemOpen} onOpenChange={setEditItemOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -755,6 +755,7 @@ export default function FacilityInventoryPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   )
 }

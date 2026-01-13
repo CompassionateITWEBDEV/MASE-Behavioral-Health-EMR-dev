@@ -96,6 +96,15 @@ export default function LandingPage() {
       textColor: "text-emerald-600",
     },
     {
+      title: "Community Outreach Portal",
+      description: "Access educational resources, submit referrals, and connect with care",
+      icon: Users,
+      href: "/community-outreach",
+      color: "bg-violet-500",
+      textColor: "text-violet-600",
+      featured: true,
+    },
+    {
       title: "PIHP Portal",
       description: "Managed care - Mental health & OTP data access",
       icon: Building,
@@ -192,7 +201,11 @@ export default function LandingPage() {
               const Icon = option.icon
               return (
                 <Link key={index} href={option.href}>
-                  <Card className="h-full hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer border-2 hover:border-primary">
+                  <Card
+                    className={`h-full hover:shadow-lg transition-all duration-300 hover:-translate-y-1 cursor-pointer border-2 hover:border-primary ${
+                      option.featured ? "ring-2 ring-violet-500 ring-offset-2" : ""
+                    }`}
+                  >
                     <CardHeader>
                       <div className={`w-12 h-12 rounded-lg ${option.color} flex items-center justify-center mb-3`}>
                         <Icon className="h-6 w-6 text-white" />

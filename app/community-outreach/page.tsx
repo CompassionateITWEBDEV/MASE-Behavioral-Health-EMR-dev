@@ -94,6 +94,16 @@ export default function CommunityOutreachLanding() {
       if (shelterType !== "all") params.append("type", shelterType)
 
       const response = await fetch(`/api/community-outreach/shelters?${params}`)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const contentType = response.headers.get("content-type")
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error("Response is not JSON")
+      }
+      
       const data = await response.json()
 
       if (data.shelters && data.shelters.length > 0) {
@@ -120,6 +130,16 @@ export default function CommunityOutreachLanding() {
       if (foodBankType !== "all") params.append("type", foodBankType)
 
       const response = await fetch(`/api/community-outreach/food-banks?${params}`)
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      
+      const contentType = response.headers.get("content-type")
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error("Response is not JSON")
+      }
+      
       const data = await response.json()
 
       if (data.foodBanks && data.foodBanks.length > 0) {
@@ -614,9 +634,9 @@ export default function CommunityOutreachLanding() {
   const filteredFoodBanks = foodBanks.filter((foodBank) => {
     const matchesSearch =
       foodBankSearch === "" ||
-      foodBank.name.toLowerCase().includes(foodBankSearch.toLowerCase()) ||
-      foodBank.address.toLowerCase().includes(foodBankSearch.toLowerCase())
-    const matchesType = foodBankType === "all" || foodBank.type === foodBankType
+      foodBank.name?.toLowerCase().includes(foodBankSearch.toLowerCase()) ||
+      foodBank.address?.toLowerCase().includes(foodBankSearch.toLowerCase())
+    const matchesType = foodBankType === "all" || (foodBank.type && foodBank.type === foodBankType)
     return matchesSearch && matchesType
   })
 
@@ -1111,7 +1131,7 @@ export default function CommunityOutreachLanding() {
                               <CardTitle className="text-xl mb-1">{shelter.name}</CardTitle>
                               <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
                                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-violet-100 text-violet-700 capitalize">
-                                  {shelter.type}
+                                  {shelter.type || "Shelter"}
                                 </span>
                                 {shelter.bedsAvailable > 0 ? (
                                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-700">
@@ -1320,9 +1340,9 @@ export default function CommunityOutreachLanding() {
                           </CardTitle>
                           <CardDescription className="mt-1">
                             <span className="inline-block bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded-full">
-                              {foodBank.type.replace("_", " ").toUpperCase()}
+                              {foodBank.type ? foodBank.type.replace("_", " ").toUpperCase() : "FOOD BANK"}
                             </span>
-                            <span className="ml-2 text-sm">{foodBank.servesPerMonth} people/month</span>
+                            <span className="ml-2 text-sm">{foodBank.servesPerMonth || 0} people/month</span>
                           </CardDescription>
                         </div>
                         {selectedFoodBank === foodBank.id ? (
@@ -1595,7 +1615,7 @@ export default function CommunityOutreachLanding() {
                             <CardTitle className="text-xl mb-1">{site.name}</CardTitle>
                             <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
                               <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-red-100 text-red-700 capitalize">
-                                {site.type.replace(/_/g, " ")}
+                                {site.type ? site.type.replace(/_/g, " ") : "Resource"}
                               </span>
                               {site.walkInsWelcome && (
                                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-700">
