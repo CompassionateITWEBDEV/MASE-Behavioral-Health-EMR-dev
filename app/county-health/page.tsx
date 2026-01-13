@@ -293,30 +293,43 @@ export default function CountyHealthPage() {
       return
     }
 
-    const { error } = await supabase.from("wic_enrollments").insert({
-      patient_id: wicForm.patient_id,
-      category: wicForm.category,
-      due_date: wicForm.due_date || null,
-      income_verified: wicForm.income_verified,
-      medicaid_recipient: wicForm.medicaid_recipient,
-      enrollment_date: new Date().toISOString().split("T")[0],
-      status: "active",
-    })
-
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" })
-    } else {
-      toast({ title: "Success", description: "WIC participant enrolled successfully" })
-      setShowWicDialog(false)
-      setWicForm({
-        patient_id: "",
-        category: "pregnant",
-        due_date: "",
-        income_verified: false,
-        medicaid_recipient: false,
+    try {
+      const response = await fetch("/api/county-health", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "wic_enrollment",
+          data: {
+            patient_id: wicForm.patient_id,
+            category: wicForm.category,
+            due_date: wicForm.due_date || null,
+            income_verified: wicForm.income_verified,
+            medicaid_recipient: wicForm.medicaid_recipient,
+            enrollment_date: new Date().toISOString().split("T")[0],
+            status: "active",
+          },
+        }),
       })
-      fetchWicEnrollments()
-      fetchStats()
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        toast({ title: "Error", description: result.error || "Failed to enroll WIC participant", variant: "destructive" })
+      } else {
+        toast({ title: "Success", description: "WIC participant enrolled successfully" })
+        setShowWicDialog(false)
+        setWicForm({
+          patient_id: "",
+          category: "pregnant",
+          due_date: "",
+          income_verified: false,
+          medicaid_recipient: false,
+        })
+        fetchWicEnrollments()
+        fetchStats()
+      }
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to enroll WIC participant", variant: "destructive" })
     }
   }
 
@@ -327,31 +340,44 @@ export default function CountyHealthPage() {
       return
     }
 
-    const { error } = await supabase.from("vaccinations").insert({
-      patient_id: vaccinationForm.patient_id,
-      vaccine_name: vaccinationForm.vaccine_name,
-      vaccine_code: vaccinationForm.vaccine_code,
-      lot_number: vaccinationForm.lot_number,
-      dose_number: vaccinationForm.dose_number,
-      administration_site: vaccinationForm.administration_site,
-      administration_date: new Date().toISOString().split("T")[0],
-    })
-
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" })
-    } else {
-      toast({ title: "Success", description: "Vaccination recorded successfully" })
-      setShowVaccinationDialog(false)
-      setVaccinationForm({
-        patient_id: "",
-        vaccine_name: "",
-        vaccine_code: "",
-        lot_number: "",
-        dose_number: 1,
-        administration_site: "left_arm",
+    try {
+      const response = await fetch("/api/county-health", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "vaccination",
+          data: {
+            patient_id: vaccinationForm.patient_id,
+            vaccine_name: vaccinationForm.vaccine_name,
+            vaccine_code: vaccinationForm.vaccine_code,
+            lot_number: vaccinationForm.lot_number,
+            dose_number: vaccinationForm.dose_number,
+            administration_site: vaccinationForm.administration_site,
+            administration_date: new Date().toISOString().split("T")[0],
+          },
+        }),
       })
-      fetchVaccinations()
-      fetchStats()
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        toast({ title: "Error", description: result.error || "Failed to record vaccination", variant: "destructive" })
+      } else {
+        toast({ title: "Success", description: "Vaccination recorded successfully" })
+        setShowVaccinationDialog(false)
+        setVaccinationForm({
+          patient_id: "",
+          vaccine_name: "",
+          vaccine_code: "",
+          lot_number: "",
+          dose_number: 1,
+          administration_site: "left_arm",
+        })
+        fetchVaccinations()
+        fetchStats()
+      }
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to record vaccination", variant: "destructive" })
     }
   }
 
@@ -362,21 +388,34 @@ export default function CountyHealthPage() {
       return
     }
 
-    const { error } = await supabase.from("sti_clinic_visits").insert({
-      patient_id: stiForm.patient_id,
-      visit_date: new Date().toISOString().split("T")[0],
-      chief_complaint: stiForm.chief_complaint,
-      tests_ordered: stiForm.tests_ordered,
-    })
+    try {
+      const response = await fetch("/api/county-health", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "sti_visit",
+          data: {
+            patient_id: stiForm.patient_id,
+            visit_date: new Date().toISOString().split("T")[0],
+            chief_complaint: stiForm.chief_complaint,
+            tests_ordered: stiForm.tests_ordered,
+          },
+        }),
+      })
 
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" })
-    } else {
-      toast({ title: "Success", description: "STI clinic visit recorded" })
-      setShowStiDialog(false)
-      setStiForm({ patient_id: "", chief_complaint: "", tests_ordered: [] })
-      fetchStiVisits()
-      fetchStats()
+      const result = await response.json()
+
+      if (!response.ok) {
+        toast({ title: "Error", description: result.error || "Failed to record STI visit", variant: "destructive" })
+      } else {
+        toast({ title: "Success", description: "STI clinic visit recorded" })
+        setShowStiDialog(false)
+        setStiForm({ patient_id: "", chief_complaint: "", tests_ordered: [] })
+        fetchStiVisits()
+        fetchStats()
+      }
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to record STI visit", variant: "destructive" })
     }
   }
 
@@ -387,23 +426,36 @@ export default function CountyHealthPage() {
       return
     }
 
-    const { error } = await supabase.from("communicable_disease_reports").insert({
-      patient_id: diseaseForm.patient_id,
-      disease_name: diseaseForm.disease_name,
-      diagnosis_date: diseaseForm.diagnosis_date || new Date().toISOString().split("T")[0],
-      reported_date: new Date().toISOString().split("T")[0],
-      case_status: diseaseForm.case_status,
-      investigation_status: "pending",
-    })
+    try {
+      const response = await fetch("/api/county-health", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "disease_report",
+          data: {
+            patient_id: diseaseForm.patient_id,
+            disease_name: diseaseForm.disease_name,
+            diagnosis_date: diseaseForm.diagnosis_date || new Date().toISOString().split("T")[0],
+            reported_date: new Date().toISOString().split("T")[0],
+            case_status: diseaseForm.case_status,
+            investigation_status: "pending",
+          },
+        }),
+      })
 
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" })
-    } else {
-      toast({ title: "Success", description: "Disease report submitted" })
-      setShowDiseaseDialog(false)
-      setDiseaseForm({ patient_id: "", disease_name: "", diagnosis_date: "", case_status: "suspected" })
-      fetchDiseaseReports()
-      fetchStats()
+      const result = await response.json()
+
+      if (!response.ok) {
+        toast({ title: "Error", description: result.error || "Failed to submit disease report", variant: "destructive" })
+      } else {
+        toast({ title: "Success", description: "Disease report submitted" })
+        setShowDiseaseDialog(false)
+        setDiseaseForm({ patient_id: "", disease_name: "", diagnosis_date: "", case_status: "suspected" })
+        fetchDiseaseReports()
+        fetchStats()
+      }
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to submit disease report", variant: "destructive" })
     }
   }
 
@@ -414,22 +466,35 @@ export default function CountyHealthPage() {
       return
     }
 
-    const { error } = await supabase.from("environmental_health_inspections").insert({
-      facility_name: envForm.facility_name,
-      facility_type: envForm.facility_type,
-      inspection_type: envForm.inspection_type,
-      inspection_date: new Date().toISOString().split("T")[0],
-      result: "pending",
-    })
+    try {
+      const response = await fetch("/api/county-health", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "environmental_inspection",
+          data: {
+            facility_name: envForm.facility_name,
+            facility_type: envForm.facility_type,
+            inspection_type: envForm.inspection_type,
+            inspection_date: new Date().toISOString().split("T")[0],
+            result: "pending",
+          },
+        }),
+      })
 
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" })
-    } else {
-      toast({ title: "Success", description: "Inspection scheduled" })
-      setShowEnvDialog(false)
-      setEnvForm({ facility_name: "", facility_type: "restaurant", inspection_type: "routine" })
-      fetchEnvInspections()
-      fetchStats()
+      const result = await response.json()
+
+      if (!response.ok) {
+        toast({ title: "Error", description: result.error || "Failed to schedule inspection", variant: "destructive" })
+      } else {
+        toast({ title: "Success", description: "Inspection scheduled" })
+        setShowEnvDialog(false)
+        setEnvForm({ facility_name: "", facility_type: "restaurant", inspection_type: "routine" })
+        fetchEnvInspections()
+        fetchStats()
+      }
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to schedule inspection", variant: "destructive" })
     }
   }
 

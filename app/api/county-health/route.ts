@@ -115,19 +115,38 @@ export async function POST(request: Request) {
 
     switch (type) {
       case "wic_participant":
+      case "wic_enrollment":
+        // Try wic_participants first (schema standard), fallback to wic_enrollments if needed
         result = await supabase.from("wic_participants").insert(data).select().single()
+        if (result.error && result.error.code === "42P01") {
+          // Table doesn't exist, try alternative name
+          result = await supabase.from("wic_enrollments").insert(data).select().single()
+        }
         break
 
       case "immunization_clinic":
-        result = await supabase.from("immunization_clinics").insert(data).select().single()
+      case "vaccination":
+        // Try patient_vaccinations first (schema standard), fallback to vaccinations if needed
+        result = await supabase.from("patient_vaccinations").insert(data).select().single()
+        if (result.error && result.error.code === "42P01") {
+          // Table doesn't exist, try alternative name
+          result = await supabase.from("vaccinations").insert(data).select().single()
+        }
         break
 
       case "std_visit":
-        result = await supabase.from("std_clinic_visits").insert(data).select().single()
+      case "sti_visit":
+        result = await supabase.from("sti_clinic_visits").insert(data).select().single()
         break
 
       case "mch_program":
+      case "mch_visit":
+        // Try mch_programs first, fallback to maternal_child_health_visits if needed
         result = await supabase.from("mch_programs").insert(data).select().single()
+        if (result.error && result.error.code === "42P01") {
+          // Table doesn't exist, try alternative name
+          result = await supabase.from("maternal_child_health_visits").insert(data).select().single()
+        }
         break
 
       case "disease_report":

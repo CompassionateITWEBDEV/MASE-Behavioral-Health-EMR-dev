@@ -40,7 +40,7 @@ export function SerialDeviceMonitor() {
         setIsConnected(status.status !== "offline");
         setLastUpdate(new Date());
       } catch (error) {
-        console.error("[v0] Device status polling error:", error);
+        console.error("[Serial Device Monitor] Device status polling error:", error);
         setIsConnected(false);
       }
     }, 5000);

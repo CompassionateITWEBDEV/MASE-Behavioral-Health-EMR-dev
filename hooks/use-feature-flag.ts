@@ -79,6 +79,13 @@ export function useFeatureFlags(): Record<FeatureFlag, boolean> {
       "ai-assistant",
       "advanced-analytics",
       "predictive-insights",
+      "community-outreach",
+      "research-dashboard",
+      "patient-credits",
+      "facility-inventory",
+      "county-health",
+      "chw-encounters",
+      "pt-ot-dashboard",
     ]
 
     const newFlags = {} as Record<FeatureFlag, boolean>

@@ -184,6 +184,7 @@ const getNavigationCategories = (isSuperAdmin: boolean): NavCategory[] => {
         { icon: Truck, label: "DME Management", href: "/dme-management", count: 5 },
         { icon: Dumbbell, label: "Rehabilitation", href: "/rehabilitation", count: 8 },
         { icon: Building2, label: "County Health System", href: "/county-health", count: 12 },
+        { icon: Archive, label: "Facility Inventory", href: "/facility-inventory" },
       ],
     },
     {
@@ -227,6 +228,19 @@ const getNavigationCategories = (isSuperAdmin: boolean): NavCategory[] => {
       items: [
         { icon: Shield, label: "Compliance Dashboard", href: "/compliance" },
         { icon: Shield, label: "Regulatory Portal", href: "/regulatory/dashboard", count: 2 },
+        { icon: Shield, label: "CCBHC Compliance", href: "/research/ccbhc-compliance" },
+      ],
+    },
+    {
+      label: "Community Outreach",
+      icon: Heart,
+      items: [
+        { icon: Heart, label: "MASE Access Portal", href: "/mase-access", count: 5, highlight: "alert" },
+        { icon: Users, label: "Outreach Dashboard", href: "/outreach", count: 8 },
+        { icon: ClipboardList, label: "Public Screening", href: "/screening" },
+        { icon: Send, label: "Referral Gateway", href: "/referral" },
+        { icon: Building2, label: "CHW Encounters", href: "/chw-encounter" },
+        { icon: Dumbbell, label: "PT/OT Dashboard", href: "/pt-ot-dashboard" },
       ],
     },
     {
