@@ -96,7 +96,7 @@ You must respond with a valid JSON object matching this structure:
   ]
 }
 
-IMPORTANT: Return ONLY valid JSON, no additional text or markdown formatting.`;
+IMPORTANT: Return ONLY valid JSON. Enclose the JSON within a markdown code block labelled 'json' and do not include any explanatory text outside of the JSON code block.`;
 }
 
 /**

@@ -1,9 +1,16 @@
 /**
  * Drug Interactions API Route
- * Checks for potential drug-drug interactions
+ * Checks for potential drug-drug interactions.
  *
- * Note: This is a mock implementation. In production, integrate with
- * a drug interaction database like DrugBank, RxNorm, or similar.
+ * This route first attempts to use an external drug interaction service if
+ * configured via the DRUG_INTERACTION_API_URL environment variable. The
+ * external service should accept a comma-separated list of medication
+ * names via a `medications` query parameter and return a JSON object
+ * matching the DrugInteractionResult interface. If the external service
+ * is not configured or the call fails, the route falls back to a local
+ * mock implementation based on simple heuristics. Integrate with a
+ * database like DrugBank or RxNorm in production for comprehensive
+ * results.
  */
 
 import { createClient } from "@/lib/supabase/server";
@@ -15,7 +22,8 @@ import type {
 
 /**
  * GET /api/ai-assistant/drug-interactions
- * Check drug interactions for a patient's medications
+ * Check drug interactions for a patient's medications or a list of medication
+ * IDs. Accepts either a `patientId` or `medicationIds` query parameter.
  */
 export async function GET(request: Request) {
   try {
@@ -35,13 +43,12 @@ export async function GET(request: Request) {
     let medications: Array<{ id: string; medication_name: string }> = [];
 
     if (patientId) {
-      // Fetch active medications for patient
+      // Fetch active medications for the given patient
       const { data, error } = await supabase
         .from("medications")
         .select("id, medication_name")
         .eq("patient_id", patientId)
         .eq("status", "active");
-
       if (error) {
         console.error("[API] Error fetching medications:", error);
         return NextResponse.json(
@@ -56,7 +63,6 @@ export async function GET(request: Request) {
         .from("medications")
         .select("id, medication_name")
         .in("id", medicationIds);
-
       if (error) {
         console.error("[API] Error fetching medications:", error);
         return NextResponse.json(
@@ -67,9 +73,37 @@ export async function GET(request: Request) {
       medications = data || [];
     }
 
-    // Generate mock drug interaction check
-    const result = checkDrugInteractions(medications);
+    // Attempt to call an external drug interaction API if configured.
+    const externalUrl = process.env.DRUG_INTERACTION_API_URL;
+    if (externalUrl && medications.length > 0) {
+      try {
+        // Build query string using medication names. We use lowercase names
+        // to avoid case-sensitivity issues. Spaces are replaced with
+        // underscores to improve URL encoding readability.
+        const medicationNames = medications
+          .map((m) => m.medication_name.toLowerCase().replace(/\s+/g, "_"))
+          .join(",");
+        const url = `${externalUrl}?medications=${encodeURIComponent(medicationNames)}`;
+        const response = await fetch(url);
+        if (response.ok) {
+          const data = (await response.json()) as DrugInteractionResult;
+          return NextResponse.json(data);
+        } else {
+          console.warn(
+            `[API] External drug interaction service returned ${response.status}: ${response.statusText}`
+          );
+        }
+      } catch (error) {
+        console.error(
+          "[API] Error calling external drug interaction service:",
+          error
+        );
+        // Continue to fallback implementation below
+      }
+    }
 
+    // Fallback to mock interaction detection
+    const result = checkDrugInteractions(medications);
     return NextResponse.json(result);
   } catch (error: unknown) {
     const err = error as Error;
@@ -83,7 +117,7 @@ export async function GET(request: Request) {
 
 /**
  * Mock drug interaction checker
- * In production, this would query a drug interaction database
+ * In production, integrate this with a comprehensive drug database.
  */
 function checkDrugInteractions(
   medications: Array<{ id: string; medication_name: string }>
@@ -96,11 +130,9 @@ function checkDrugInteractions(
   }
 
   const interactions: DrugInteraction[] = [];
-
-  // Mock interaction detection based on common drug pairs
   const drugNames = medications.map((m) => m.medication_name.toLowerCase());
 
-  // Check for common mock interactions
+  // Example mock interactions. Extend this as needed.
   if (drugNames.some((d) => d.includes("warfarin"))) {
     if (drugNames.some((d) => d.includes("aspirin"))) {
       interactions.push({
@@ -112,12 +144,15 @@ function checkDrugInteractions(
           "Monitor INR closely, consider alternative antiplatelet if possible",
       });
     }
-    if (drugNames.some((d) => d.includes("ibuprofen") || d.includes("nsaid"))) {
+    if (
+      drugNames.some((d) => d.includes("ibuprofen") || d.includes("nsaid"))
+    ) {
       interactions.push({
         drug1: "Warfarin",
         drug2: "NSAID",
         severity: "major",
-        description: "NSAIDs increase anticoagulant effect and bleeding risk",
+        description:
+          "NSAIDs increase anticoagulant effect and bleeding risk",
         action: "Avoid combination if possible, monitor closely",
       });
     }
@@ -138,7 +173,6 @@ function checkDrugInteractions(
   // Determine overall status
   let status: DrugInteractionResult["status"] = "no_major";
   let message = "No significant drug interactions detected";
-
   if (interactions.some((i) => i.severity === "contraindicated")) {
     status = "critical";
     message =

@@ -40,12 +40,34 @@ import { checkRateLimit, recordRequest } from "@/lib/services/rate-limiter";
 import { checkCompliance } from "@/lib/services/compliance-checker";
 
 /**
+ * Helper to get specialty name from ID
+ */
+function getSpecialtyName(specialtyId: string): string {
+  const specialtyNames: Record<string, string> = {
+    "behavioral-health": "Behavioral Health / Substance Use Disorder",
+    "primary-care": "Primary Care / Family Medicine",
+    "psychiatry": "Psychiatry / Mental Health",
+    "obgyn": "OB/GYN (Women's Health)",
+    "cardiology": "Cardiology",
+    "dermatology": "Dermatology",
+    "urgent-care": "Urgent Care",
+    "pediatrics": "Pediatrics",
+    "podiatry": "Podiatry",
+    "physical-therapy": "Physical Therapy",
+    "occupational-therapy": "Occupational Therapy",
+    "speech-therapy": "Speech Therapy",
+    "chiropractic": "Chiropractic",
+  };
+  return specialtyNames[specialtyId] || "Primary Care";
+}
+
+/**
  * GET /api/ai-assistant
  * Fetch AI recommendations for a patient
  */
 export async function GET(request: Request) {
   try {
-    // Check authentication
+    // Authentication
     const { user, error: authError } = await getAuthenticatedUser();
     if (authError || !user) {
       return NextResponse.json(
@@ -54,14 +76,11 @@ export async function GET(request: Request) {
       );
     }
 
-    // Get user role for role-based filtering
+    // Role normalization and rate limiting
     const userRole = (user as any)?.role || (user as any)?.staff?.role || null;
     const normalizedRole = normalizeRole(userRole);
-
-    // Check rate limits
     const clinicId = (user as any)?.clinic_id || (user as any)?.staff?.clinic_id || null;
     const rateLimit = await checkRateLimit(user.id, clinicId, "ai_assistant");
-
     if (!rateLimit.allowed) {
       return NextResponse.json(
         {
@@ -82,11 +101,14 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-
     const patientId = searchParams.get("patientId");
     const specialtyId = searchParams.get("specialtyId") || "primary-care";
     const encounterType = searchParams.get("encounterType");
     const chiefComplaint = searchParams.get("chiefComplaint");
+    // Analysis type and focus areas
+    const analysisType = (searchParams.get("analysisType") as "full" | "quick" | "specific") || "full";
+    const focusAreasParam = searchParams.get("focusAreas");
+    const focusAreas = focusAreasParam ? focusAreasParam.split(",").map((s) => s.trim()) : undefined;
 
     if (!patientId) {
       return NextResponse.json(
@@ -95,12 +117,13 @@ export async function GET(request: Request) {
       );
     }
 
+    // Determine whether to include detailed note analysis
+    const includeNotes = analysisType !== "quick";
     // Aggregate patient data
     let patientContext;
     try {
-      patientContext = await aggregatePatientContext(patientId, true, 5);
+      patientContext = await aggregatePatientContext(patientId, includeNotes, 5);
     } catch (error: any) {
-      // Check if error indicates patient not found
       if (
         error?.code === "PGRST116" ||
         error?.message?.includes("No rows found") ||
@@ -111,14 +134,13 @@ export async function GET(request: Request) {
           { status: 404 }
         );
       }
-      // Re-throw other errors
       throw error;
     }
-    
-    // Process clinical notes to extract insights
+
+    // Process clinical notes if included
     let noteInsights = "";
     let noteSummary;
-    if (patientContext.unstructured.recentNotes.length > 0) {
+    if (includeNotes && patientContext.unstructured.recentNotes.length > 0) {
       try {
         const processed = await processClinicalNotes(
           patientContext.unstructured.recentNotes,
@@ -128,42 +150,39 @@ export async function GET(request: Request) {
         noteInsights = `\n\nCLINICAL NOTES ANALYSIS:\n${processed.summary.summary}\n\nKey Findings: ${processed.summary.keyFindings.join(", ")}\nDiagnoses from Notes: ${processed.summary.diagnoses.join(", ")}\nConcerns: ${processed.summary.concerns.join(", ")}\nAssessment Scores: ${JSON.stringify(processed.summary.assessmentScores)}\nMissing Documentation: ${processed.summary.missingDocumentation.join(", ")}`;
       } catch (error) {
         console.error("Error processing notes:", error);
-        // Continue without note insights
       }
     }
-    
-    // Generate specialty-specific recommendations
+
+    // Generate specialty-specific context
     const specialtyRecs = generateSpecialtyRecommendations(
       specialtyId,
       patientContext.structured,
       noteSummary
     );
     const specialtyRecsText = formatSpecialtyRecommendations(specialtyRecs);
-    
-    // Calculate risk scores
     const riskScores = calculateAllRiskScores(
       specialtyId,
       patientContext.structured,
       noteSummary
     );
     const riskScoresText = formatRiskScores(riskScores);
-    
-    const patientDataText = formatPatientDataForPrompt(patientContext) + noteInsights + specialtyRecsText + riskScoresText;
+    const patientDataText =
+      formatPatientDataForPrompt(patientContext) + noteInsights + specialtyRecsText + riskScoresText;
 
-    // Check cache first (generate hash for cache key)
-    const dataHash = generateDataHash(patientId, specialtyId, patientDataText);
+    // Generate cache key including analysisType and focusAreas
+    const cacheKeyContext = patientDataText + JSON.stringify({ analysisType, focusAreas });
+    const dataHash = generateDataHash(patientId, specialtyId, cacheKeyContext);
     const cached = await getCachedAnalysis(patientId, specialtyId, dataHash);
-
     if (cached) {
-      // For cached responses, still check compliance (data might have changed)
       const complianceResult = checkCompliance(
         cached.recommendations,
         patientContext.structured,
         specialtyId
       );
-      
       return NextResponse.json({
         patientId,
+        analysisType,
+        focusAreas,
         recommendations: cached.recommendations,
         compliance: complianceResult,
         generatedAt: cached.generated_at,
@@ -172,10 +191,9 @@ export async function GET(request: Request) {
       });
     }
 
-    // Generate specialty-specific prompts with role context
+    // Build prompts with role context
     const roleFocusAreas = getRoleFocusAreas(normalizedRole);
     const rolePromptAddition = getRoleSystemPromptAddition(normalizedRole);
-    
     const { systemPrompt, userPrompt } = generateSpecialtyPrompt({
       patientData: patientDataText,
       specialtyId,
@@ -188,8 +206,6 @@ export async function GET(request: Request) {
         focusAreas: roleFocusAreas,
       },
     });
-
-    // Add role-specific context to system prompt
     const enhancedSystemPrompt = systemPrompt + "\n\n" + rolePromptAddition;
 
     // Call AI service
@@ -198,24 +214,23 @@ export async function GET(request: Request) {
       model: "anthropic/claude-sonnet-4-20250514",
       system: enhancedSystemPrompt,
       prompt: userPrompt,
-      temperature: 0.3, // Lower temperature for more consistent, clinical responses
+      temperature: 0.3,
     });
-
     const processingTime = Date.now() - startTime;
 
-    // Parse AI response (should be JSON)
+    // Parse AI response
     let recommendations: AIRecommendation;
     try {
-      // Extract JSON from response (handle markdown code blocks if present)
       const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/) || text.match(/\{[\s\S]*\}/);
       const jsonText = jsonMatch ? (jsonMatch[1] || jsonMatch[0]) : text;
       recommendations = JSON.parse(jsonText);
     } catch (parseError) {
       console.error("[API] Failed to parse AI response:", parseError);
       console.error("[API] AI response text:", text);
-      // Fallback to structured error response
       return NextResponse.json({
         patientId,
+        analysisType,
+        focusAreas,
         recommendations: {
           summary: "AI analysis completed but response format was invalid. Please try again.",
           riskAlerts: [
@@ -238,22 +253,40 @@ export async function GET(request: Request) {
       });
     }
 
-    // Cache the results
-    await cacheAnalysis(patientId, specialtyId, dataHash, recommendations, 5);
+    // Apply filters based on analysisType and focusAreas
+    let finalRecommendations: AIRecommendation = recommendations;
+    if (analysisType === "quick") {
+      finalRecommendations = {
+        ...finalRecommendations,
+        labOrders: [],
+        differentialDiagnosis: [],
+        preventiveGaps: [],
+        educationTopics: [],
+      };
+    }
+    if (analysisType === "specific" && focusAreas && focusAreas.length > 0) {
+      finalRecommendations = {
+        ...finalRecommendations,
+        recommendations: finalRecommendations.recommendations.filter((rec) =>
+          focusAreas.includes(rec.category)
+        ),
+      };
+    }
+    recommendations = finalRecommendations;
 
-    // Record request for rate limiting
+    // Cache and record
+    await cacheAnalysis(patientId, specialtyId, dataHash, recommendations, 5);
     await recordRequest(user.id, clinicId, "ai_assistant");
 
-    // Check compliance
+    // Compliance check
     const complianceResult = checkCompliance(
       recommendations,
       patientContext.structured,
       specialtyId
     );
 
-    // Log all recommendations for clinical review
+    // Log recommendations
     try {
-      // Log risk alerts
       for (const alert of recommendations.riskAlerts) {
         await logRecommendation(
           patientId,
@@ -264,8 +297,6 @@ export async function GET(request: Request) {
           alert
         );
       }
-
-      // Log recommendations
       for (const rec of recommendations.recommendations) {
         await logRecommendation(
           patientId,
@@ -276,8 +307,6 @@ export async function GET(request: Request) {
           rec
         );
       }
-
-      // Log lab orders
       for (const lab of recommendations.labOrders) {
         await logRecommendation(
           patientId,
@@ -288,8 +317,6 @@ export async function GET(request: Request) {
           lab
         );
       }
-
-      // Log differential diagnoses
       for (const dx of recommendations.differentialDiagnosis) {
         await logRecommendation(
           patientId,
@@ -301,13 +328,15 @@ export async function GET(request: Request) {
         );
       }
     } catch (logError) {
-      // Don't fail the request if logging fails
+      // Don't fail if logging fails
       console.error("[API] Error logging recommendations:", logError);
     }
 
     return NextResponse.json(
       {
         patientId,
+        analysisType,
+        focusAreas,
         recommendations,
         compliance: complianceResult,
         generatedAt: new Date().toISOString(),
@@ -334,34 +363,12 @@ export async function GET(request: Request) {
 }
 
 /**
- * Helper to get specialty name from ID
- */
-function getSpecialtyName(specialtyId: string): string {
-  const specialtyNames: Record<string, string> = {
-    "behavioral-health": "Behavioral Health / Substance Use Disorder",
-    "primary-care": "Primary Care / Family Medicine",
-    "psychiatry": "Psychiatry / Mental Health",
-    "obgyn": "OB/GYN (Women's Health)",
-    "cardiology": "Cardiology",
-    "dermatology": "Dermatology",
-    "urgent-care": "Urgent Care",
-    "pediatrics": "Pediatrics",
-    "podiatry": "Podiatry",
-    "physical-therapy": "Physical Therapy",
-    "occupational-therapy": "Occupational Therapy",
-    "speech-therapy": "Speech Therapy",
-    "chiropractic": "Chiropractic",
-  };
-  return specialtyNames[specialtyId] || "Primary Care";
-}
-
-/**
  * POST /api/ai-assistant
  * Request new AI analysis for a patient encounter
  */
 export async function POST(request: Request) {
   try {
-    // Check authentication
+    // Authentication
     const { user, error: authError } = await getAuthenticatedUser();
     if (authError || !user) {
       return NextResponse.json(
@@ -370,14 +377,10 @@ export async function POST(request: Request) {
       );
     }
 
-    // Get user role for role-based filtering
     const userRole = (user as any)?.role || (user as any)?.staff?.role || null;
     const normalizedRole = normalizeRole(userRole);
-
-    // Check rate limits
     const clinicId = (user as any)?.clinic_id || (user as any)?.staff?.clinic_id || null;
     const rateLimit = await checkRateLimit(user.id, clinicId, "ai_assistant");
-
     if (!rateLimit.allowed) {
       return NextResponse.json(
         {
@@ -398,7 +401,6 @@ export async function POST(request: Request) {
     }
 
     const body: AIAssistantRequest = await request.json();
-
     if (!body.patientId) {
       return NextResponse.json(
         { error: "Patient ID is required" },
@@ -406,11 +408,13 @@ export async function POST(request: Request) {
       );
     }
 
-    // Determine specialty (default to primary-care if not specified)
     const specialtyId = (body as any).specialtyId || "primary-care";
+    const analysisType = (body.analysisType as "full" | "quick" | "specific") || "full";
+    const focusAreas = body.focusAreas;
 
-    // Aggregate patient data
-    const includeNotes = body.includeLabReview !== false; // Include notes by default
+    // Determine whether to include detailed note analysis
+    const includeNotes = analysisType !== "quick" && body.includeLabReview !== false;
+
     let patientContext;
     try {
       patientContext = await aggregatePatientContext(
@@ -419,7 +423,6 @@ export async function POST(request: Request) {
         5
       );
     } catch (error: any) {
-      // Check if error indicates patient not found
       if (
         error?.code === "PGRST116" ||
         error?.message?.includes("No rows found") ||
@@ -430,14 +433,13 @@ export async function POST(request: Request) {
           { status: 404 }
         );
       }
-      // Re-throw other errors
       throw error;
     }
-    
-    // Process clinical notes to extract insights
+
+    // Process clinical notes if included
     let noteInsights = "";
     let noteSummary;
-    if (patientContext.unstructured.recentNotes.length > 0) {
+    if (includeNotes && patientContext.unstructured.recentNotes.length > 0) {
       try {
         const processed = await processClinicalNotes(
           patientContext.unstructured.recentNotes,
@@ -447,43 +449,39 @@ export async function POST(request: Request) {
         noteInsights = `\n\nCLINICAL NOTES ANALYSIS:\n${processed.summary.summary}\n\nKey Findings: ${processed.summary.keyFindings.join(", ")}\nDiagnoses from Notes: ${processed.summary.diagnoses.join(", ")}\nConcerns: ${processed.summary.concerns.join(", ")}\nAssessment Scores: ${JSON.stringify(processed.summary.assessmentScores)}\nMissing Documentation: ${processed.summary.missingDocumentation.join(", ")}`;
       } catch (error) {
         console.error("Error processing notes:", error);
-        // Continue without note insights
       }
     }
-    
-    // Generate specialty-specific recommendations
+
+    // Generate specialty-specific context
     const specialtyRecs = generateSpecialtyRecommendations(
       specialtyId,
       patientContext.structured,
       noteSummary
     );
     const specialtyRecsText = formatSpecialtyRecommendations(specialtyRecs);
-    
-    // Calculate risk scores
     const riskScores = calculateAllRiskScores(
       specialtyId,
       patientContext.structured,
       noteSummary
     );
     const riskScoresText = formatRiskScores(riskScores);
-    
-    const patientDataText = formatPatientDataForPrompt(patientContext) + noteInsights + specialtyRecsText + riskScoresText;
+    const patientDataText =
+      formatPatientDataForPrompt(patientContext) + noteInsights + specialtyRecsText + riskScoresText;
 
-    // Check cache first (generate hash for cache key)
-    const dataHash = generateDataHash(body.patientId, specialtyId, patientDataText);
+    // Cache key includes analysisType and focusAreas
+    const cacheKeyContext = patientDataText + JSON.stringify({ analysisType, focusAreas });
+    const dataHash = generateDataHash(body.patientId, specialtyId, cacheKeyContext);
     const cached = await getCachedAnalysis(body.patientId, specialtyId, dataHash);
-
     if (cached) {
-      // For cached responses, still check compliance (data might have changed)
       const complianceResult = checkCompliance(
         cached.recommendations,
         patientContext.structured,
         specialtyId
       );
-      
       return NextResponse.json({
         patientId: body.patientId,
-        analysisType: body.analysisType || "quick",
+        analysisType,
+        focusAreas,
         recommendations: cached.recommendations,
         compliance: complianceResult,
         generatedAt: cached.generated_at,
@@ -492,10 +490,9 @@ export async function POST(request: Request) {
       });
     }
 
-    // Generate specialty-specific prompts with role context
+    // Build prompts with role context
     const roleFocusAreas = getRoleFocusAreas(normalizedRole);
     const rolePromptAddition = getRoleSystemPromptAddition(normalizedRole);
-    
     const { systemPrompt, userPrompt } = generateSpecialtyPrompt({
       patientData: patientDataText,
       specialtyId,
@@ -508,8 +505,6 @@ export async function POST(request: Request) {
         focusAreas: roleFocusAreas,
       },
     });
-
-    // Add role-specific context to system prompt
     const enhancedSystemPrompt = systemPrompt + "\n\n" + rolePromptAddition;
 
     // Call AI service
@@ -520,7 +515,6 @@ export async function POST(request: Request) {
       prompt: userPrompt,
       temperature: 0.3,
     });
-
     const processingTime = Date.now() - startTime;
 
     // Parse AI response
@@ -534,7 +528,8 @@ export async function POST(request: Request) {
       console.error("[API] AI response text:", text);
       return NextResponse.json({
         patientId: body.patientId,
-        analysisType: body.analysisType || "quick",
+        analysisType,
+        focusAreas,
         recommendations: {
           summary: "AI analysis completed but response format was invalid. Please try again.",
           riskAlerts: [
@@ -557,22 +552,40 @@ export async function POST(request: Request) {
       });
     }
 
-    // Cache the results
-    await cacheAnalysis(body.patientId, specialtyId, dataHash, recommendations, 5);
+    // Apply filters based on analysisType and focusAreas
+    let finalRecommendations: AIRecommendation = recommendations;
+    if (analysisType === "quick") {
+      finalRecommendations = {
+        ...finalRecommendations,
+        labOrders: [],
+        differentialDiagnosis: [],
+        preventiveGaps: [],
+        educationTopics: [],
+      };
+    }
+    if (analysisType === "specific" && focusAreas && focusAreas.length > 0) {
+      finalRecommendations = {
+        ...finalRecommendations,
+        recommendations: finalRecommendations.recommendations.filter((rec) =>
+          focusAreas.includes(rec.category)
+        ),
+      };
+    }
+    recommendations = finalRecommendations;
 
-    // Record request for rate limiting
+    // Cache and record
+    await cacheAnalysis(body.patientId, specialtyId, dataHash, recommendations, 5);
     await recordRequest(user.id, clinicId, "ai_assistant");
 
-    // Check compliance
+    // Compliance check
     const complianceResult = checkCompliance(
       recommendations,
       patientContext.structured,
       specialtyId
     );
 
-    // Log all recommendations for clinical review
+    // Log recommendations
     try {
-      // Log risk alerts
       for (const alert of recommendations.riskAlerts) {
         await logRecommendation(
           body.patientId,
@@ -583,8 +596,6 @@ export async function POST(request: Request) {
           alert
         );
       }
-
-      // Log recommendations
       for (const rec of recommendations.recommendations) {
         await logRecommendation(
           body.patientId,
@@ -595,8 +606,6 @@ export async function POST(request: Request) {
           rec
         );
       }
-
-      // Log lab orders
       for (const lab of recommendations.labOrders) {
         await logRecommendation(
           body.patientId,
@@ -607,8 +616,6 @@ export async function POST(request: Request) {
           lab
         );
       }
-
-      // Log differential diagnoses
       for (const dx of recommendations.differentialDiagnosis) {
         await logRecommendation(
           body.patientId,
@@ -620,14 +627,14 @@ export async function POST(request: Request) {
         );
       }
     } catch (logError) {
-      // Don't fail the request if logging fails
       console.error("[API] Error logging recommendations:", logError);
     }
 
     return NextResponse.json(
       {
         patientId: body.patientId,
-        analysisType: body.analysisType || "quick",
+        analysisType,
+        focusAreas,
         recommendations,
         compliance: complianceResult,
         generatedAt: new Date().toISOString(),
@@ -652,4 +659,3 @@ export async function POST(request: Request) {
     );
   }
 }
-
