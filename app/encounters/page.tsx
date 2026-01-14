@@ -930,7 +930,7 @@ export default function EncountersPage() {
   return (
     <div className="min-h-screen bg-background">
       <DashboardSidebar />
-      <div className="pl-64">
+      <div className="lg:pl-64">
         <main className="p-6">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">

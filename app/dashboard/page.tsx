@@ -217,7 +217,7 @@ export default function BehavioralHealthDashboard() {
   return (
     <div className="min-h-screen bg-background">
       <DashboardSidebar />
-      <div className="pl-64">
+      <div className="lg:pl-64">
         <DashboardHeader />
         <main className="p-6">
           <div className="mb-6">

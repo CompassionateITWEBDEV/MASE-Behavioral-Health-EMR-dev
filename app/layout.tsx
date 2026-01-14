@@ -6,7 +6,9 @@ import { Suspense } from "react";
 import { ReactQueryProvider } from "@/lib/react-query/provider";
 import { AuthToggleProvider } from "@/lib/dev-tools/auth-toggle-context";
 import { AuthTogglePanel } from "@/components/dev-tools/auth-toggle-panel";
+import { FeatureFlagToggle } from "@/components/dev-tools/feature-flag-toggle";
 import { Toaster } from "@/components/ui/toaster";
+import { SkipToContent } from "@/components/skip-to-content";
 import "./globals.css";
 
 const inter = Inter({
@@ -48,9 +50,11 @@ export default function RootLayout({
         }}>
         <AuthToggleProvider>
           <ReactQueryProvider>
+            {/* Accessibility: Skip to main content link */}
+            <SkipToContent />
             <Suspense
               fallback={
-                <div style={{ padding: "20px", color: "#0a0a0a" }}>
+                <div style={{ padding: "20px", color: "#0a0a0a" }} role="status" aria-label="Loading application">
                   Loading...
                 </div>
               }>
@@ -58,6 +62,7 @@ export default function RootLayout({
             </Suspense>
           </ReactQueryProvider>
           <AuthTogglePanel />
+          <FeatureFlagToggle />
           <Toaster />
           <Analytics />
         </AuthToggleProvider>

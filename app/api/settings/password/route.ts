@@ -1,47 +1,44 @@
 import { NextResponse } from "next/server"
-import bcrypt from "bcryptjs"
-import { neon } from "@neondatabase/serverless"
+import { createClient } from "@/lib/supabase/server"
 
 export async function POST(request: Request) {
   try {
-    const sql = neon(process.env.NEON_DATABASE_URL!)
+    const supabase = await createClient()
+    
+    // Get authenticated user
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     const body = await request.json()
     const { currentPassword, newPassword } = body
 
-    console.log("[v0] Password change request received")
+    console.log("[v0] Password change request for user:", user.email)
 
-    // Get user from session (for now using super admin email as example)
-    const userEmail = "admin@maseemr.com" // TODO: Get from session/auth
+    // Verify current password by attempting to sign in
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: user.email!,
+      password: currentPassword,
+    })
 
-    // Verify current password
-    const result = await sql`
-      SELECT id, password_hash 
-      FROM super_admins 
-      WHERE email = ${userEmail}
-    `
-
-    if (!result || result.length === 0) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
-
-    const user = result[0]
-    const isPasswordValid = await bcrypt.compare(currentPassword, user.password_hash)
-
-    if (!isPasswordValid) {
+    if (signInError) {
+      console.error("[v0] Current password verification failed:", signInError.message)
       return NextResponse.json({ error: "Current password is incorrect" }, { status: 401 })
     }
 
-    // Hash new password
-    const newPasswordHash = await bcrypt.hash(newPassword, 10)
+    // Update password using Supabase Auth
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword,
+    })
 
-    // Update password
-    await sql`
-      UPDATE super_admins 
-      SET password_hash = ${newPasswordHash}
-      WHERE id = ${user.id}
-    `
+    if (updateError) {
+      console.error("[v0] Password update error:", updateError.message)
+      return NextResponse.json({ error: "Failed to update password" }, { status: 500 })
+    }
 
-    console.log("[v0] Password changed successfully for:", userEmail)
+    console.log("[v0] Password changed successfully for:", user.email)
 
     return NextResponse.json({
       success: true,

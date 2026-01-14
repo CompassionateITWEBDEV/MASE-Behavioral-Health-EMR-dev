@@ -518,7 +518,7 @@ export default function CountyHealthPage() {
   return (
     <div className="min-h-screen bg-background">
       <DashboardSidebar />
-      <div className="pl-64">
+      <div className="lg:pl-64">
         <DashboardHeader />
         <div className="p-8">
           {/* Header */}

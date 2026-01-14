@@ -162,7 +162,7 @@ export default function PatientsPage() {
     return (
       <div className="min-h-screen bg-background">
         <DashboardSidebar />
-        <div className="pl-64">
+        <div className="lg:pl-64">
           <DashboardHeader />
           <main className="p-6">
             <div className="text-center py-12">Loading patients...</div>
@@ -175,7 +175,7 @@ export default function PatientsPage() {
   return (
     <div className="min-h-screen bg-background">
       <DashboardSidebar />
-      <div className="pl-64">
+      <div className="lg:pl-64">
         <DashboardHeader />
         <main className="p-6 space-y-6">
           <div className="flex justify-between items-center">

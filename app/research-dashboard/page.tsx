@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { DashboardSidebar } from "@/components/dashboard-sidebar"
 import { DashboardHeader } from "@/components/dashboard-header"
+import { FeatureGate } from "@/components/feature-gate"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
@@ -308,9 +309,10 @@ export default function ResearchDashboardPage() {
   }
 
   return (
+    <FeatureGate feature="research-dashboard">
     <div className="flex min-h-screen bg-gray-50">
       <DashboardSidebar />
-      <div className="flex-1 ml-64">
+      <div className="flex-1 lg:ml-64">
         <DashboardHeader
           title="Research & Data Science Dashboard"
           description="Implementation science, quality improvement, and learning health system"
@@ -1782,5 +1784,6 @@ export default function ResearchDashboardPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </FeatureGate>
   )
 }

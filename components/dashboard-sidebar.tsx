@@ -56,10 +56,13 @@ import {
   FileCheck2,
   ArrowRight,
   Microscope,
+  Menu,
+  X,
   type LucideIcon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -185,6 +188,7 @@ const getNavigationCategories = (isSuperAdmin: boolean): NavCategory[] => {
         { icon: Dumbbell, label: "Rehabilitation", href: "/rehabilitation", count: 8 },
         { icon: Building2, label: "County Health System", href: "/county-health", count: 12 },
         { icon: Archive, label: "Facility Inventory", href: "/facility-inventory" },
+        { icon: Building2, label: "Bed Occupancy", href: "/occupancy", count: 3 },
       ],
     },
     {
@@ -193,6 +197,7 @@ const getNavigationCategories = (isSuperAdmin: boolean): NavCategory[] => {
       items: [
         { icon: CreditCard, label: "Billing Center", href: "/billing-center" },
         { icon: CreditCard, label: "Insurance Mgmt", href: "/insurance", count: 4 },
+        { icon: Shield, label: "Insurance Verification", href: "/insurance-verification", count: 3 },
         { icon: Workflow, label: "Clearinghouse", href: "/clearinghouse", count: 5 },
         { icon: FileCheck, label: "Prior Authorization", href: "/prior-auth", count: 12 },
         { icon: UserCheck, label: "NPI Verification", href: "/npi-verification", count: 2 },
@@ -250,6 +255,8 @@ const getNavigationCategories = (isSuperAdmin: boolean): NavCategory[] => {
         { icon: UserCheck, label: "Staff Management", href: "/staff", count: 24 },
         { icon: Activity, label: "Staff Workflows", href: "/workflows", count: 3 },
         { icon: Building2, label: "Facility Mgmt", href: "/facility", count: 4 },
+        { icon: Network, label: "Integrations", href: "/integrations-dashboard" },
+        { icon: ClipboardCheck, label: "Clinic Onboarding", href: "/clinic-onboarding" },
         { icon: Crown, label: "Subscription", href: "/subscription", highlight: "premium" },
         { icon: Headphones, label: "IT Support", href: "/it-support", highlight: "premium" },
         { icon: FileBarChart, label: "System Report", href: "/system-report", highlight: "premium" },
@@ -338,6 +345,8 @@ export function DashboardSidebar() {
     })
   }, [pathname])
 
+  const [mobileOpen, setMobileOpen] = useState(false)
+
   const toggleCategory = (label: string) => {
     setExpandedCategories((prev) => ({
       ...prev,
@@ -345,119 +354,161 @@ export function DashboardSidebar() {
     }))
   }
 
-  return (
-    <aside
-      className="fixed left-0 top-0 h-full w-64 border-r overflow-y-auto"
-      style={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0" }}
-    >
-      <div className="p-4">
-        {/* Logo */}
-        <div className="flex items-center space-x-2 mb-6 px-2">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: "#0891b2" }}>
-            <Stethoscope className="h-5 w-5" style={{ color: "#ffffff" }} />
-          </div>
-          <span className="font-bold text-lg" style={{ color: "#334155" }}>
-            MASE EMR
-          </span>
-          {isSuperAdmin && (
-            <Badge variant="outline" className="ml-1 text-xs" style={{ borderColor: "#7c3aed", color: "#7c3aed" }}>
-              Admin
-            </Badge>
-          )}
+  // Close mobile menu when route changes
+  useEffect(() => {
+    setMobileOpen(false)
+  }, [pathname])
+
+  // Render sidebar content - shared between mobile and desktop
+  const renderSidebarContent = () => (
+    <div className="p-4">
+      {/* Logo */}
+      <div className="flex items-center space-x-2 mb-6 px-2">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: "#0891b2" }}>
+          <Stethoscope className="h-5 w-5" style={{ color: "#ffffff" }} />
         </div>
-
-        {/* Navigation Categories */}
-        <nav className="space-y-1">
-          {navigationCategories.map((category) => {
-            const isExpanded = expandedCategories[category.label]
-            const hasActiveItem = category.items.some(
-              (item) => pathname === item.href || pathname.startsWith(item.href + "/"),
-            )
-            const totalCount = category.items.reduce((sum, item) => sum + (item.count || 0), 0)
-            const hasAlerts = category.items.some((item) => item.highlight === "alert" && item.count)
-
-            return (
-              <div key={category.label}>
-                {/* Category Header */}
-                <button
-                  onClick={() => toggleCategory(category.label)}
-                  className={cn(
-                    "w-full flex items-center justify-between px-2 py-2 rounded-md text-sm font-medium transition-colors",
-                    hasActiveItem ? "bg-cyan-50" : "hover:bg-gray-100",
-                  )}
-                  style={{ color: hasAlerts ? "#dc2626" : hasActiveItem ? "#0891b2" : "#475569" }}
-                >
-                  <div className="flex items-center gap-2">
-                    <category.icon className="h-4 w-4" />
-                    <span>{category.label}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {totalCount > 0 && (
-                      <Badge variant={hasAlerts ? "destructive" : "secondary"} className="text-xs px-1.5 py-0">
-                        {totalCount}
-                      </Badge>
-                    )}
-                    {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                  </div>
-                </button>
-
-                {/* Category Items */}
-                {isExpanded && (
-                  <div className="ml-4 mt-1 space-y-0.5 border-l pl-2" style={{ borderColor: "#e2e8f0" }}>
-                    {category.items.map((item) => {
-                      const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
-                      const isAlert = item.highlight === "alert" && item.count
-                      const isPremium = item.highlight === "premium"
-
-                      return (
-                        <Link key={item.href} href={item.href}>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className={cn(
-                              "w-full justify-start h-8 text-sm",
-                              isActive && "bg-cyan-600 text-white hover:bg-cyan-700",
-                            )}
-                            style={
-                              isActive
-                                ? { backgroundColor: "#0891b2", color: "#ffffff" }
-                                : isAlert
-                                  ? { color: "#dc2626", fontWeight: 500 }
-                                  : isPremium
-                                    ? { color: "#7c3aed", fontWeight: 500 }
-                                    : { color: "#64748b" }
-                            }
-                          >
-                            <item.icon
-                              className="mr-2 h-3.5 w-3.5"
-                              style={
-                                isAlert && !isActive
-                                  ? { color: "#dc2626" }
-                                  : isPremium && !isActive
-                                    ? { color: "#7c3aed" }
-                                    : undefined
-                              }
-                            />
-                            <span className="truncate">{item.label}</span>
-                            {item.count && (
-                              <Badge
-                                variant={isAlert ? "destructive" : "secondary"}
-                                className="ml-auto text-xs px-1.5 py-0"
-                              >
-                                {item.count}
-                              </Badge>
-                            )}
-                          </Button>
-                        </Link>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </nav>
+        <span className="font-bold text-lg" style={{ color: "#334155" }}>
+          MASE EMR
+        </span>
+        {isSuperAdmin && (
+          <Badge variant="outline" className="ml-1 text-xs" style={{ borderColor: "#7c3aed", color: "#7c3aed" }}>
+            Admin
+          </Badge>
+        )}
       </div>
-    </aside>
+
+      {/* Navigation Categories */}
+      <nav className="space-y-1" aria-label="Main navigation">
+        {navigationCategories.map((category) => {
+          const isExpanded = expandedCategories[category.label]
+          const hasActiveItem = category.items.some(
+            (item) => pathname === item.href || pathname.startsWith(item.href + "/"),
+          )
+          const totalCount = category.items.reduce((sum, item) => sum + (item.count || 0), 0)
+          const hasAlerts = category.items.some((item) => item.highlight === "alert" && item.count)
+
+          return (
+            <div key={category.label}>
+              {/* Category Header */}
+              <button
+                onClick={() => toggleCategory(category.label)}
+                className={cn(
+                  "w-full flex items-center justify-between px-2 py-2 rounded-md text-sm font-medium transition-colors",
+                  hasActiveItem ? "bg-cyan-50" : "hover:bg-gray-100",
+                )}
+                style={{ color: hasAlerts ? "#dc2626" : hasActiveItem ? "#0891b2" : "#475569" }}
+                aria-expanded={isExpanded}
+                aria-controls={`nav-${category.label.toLowerCase().replace(/\s+/g, '-')}`}
+              >
+                <div className="flex items-center gap-2">
+                  <category.icon className="h-4 w-4" aria-hidden="true" />
+                  <span>{category.label}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  {totalCount > 0 && (
+                    <Badge variant={hasAlerts ? "destructive" : "secondary"} className="text-xs px-1.5 py-0">
+                      {totalCount}
+                    </Badge>
+                  )}
+                  {isExpanded ? <ChevronDown className="h-4 w-4" aria-hidden="true" /> : <ChevronRight className="h-4 w-4" aria-hidden="true" />}
+                </div>
+              </button>
+
+              {/* Category Items */}
+              {isExpanded && (
+                <div 
+                  id={`nav-${category.label.toLowerCase().replace(/\s+/g, '-')}`}
+                  className="ml-4 mt-1 space-y-0.5 border-l pl-2" 
+                  style={{ borderColor: "#e2e8f0" }}
+                >
+                  {category.items.map((item) => {
+                    const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
+                    const isAlert = item.highlight === "alert" && item.count
+                    const isPremium = item.highlight === "premium"
+
+                    return (
+                      <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={cn(
+                            "w-full justify-start h-8 text-sm",
+                            isActive && "bg-cyan-600 text-white hover:bg-cyan-700",
+                          )}
+                          style={
+                            isActive
+                              ? { backgroundColor: "#0891b2", color: "#ffffff" }
+                              : isAlert
+                                ? { color: "#dc2626", fontWeight: 500 }
+                                : isPremium
+                                  ? { color: "#7c3aed", fontWeight: 500 }
+                                  : { color: "#64748b" }
+                          }
+                          aria-current={isActive ? "page" : undefined}
+                        >
+                          <item.icon
+                            className="mr-2 h-3.5 w-3.5"
+                            aria-hidden="true"
+                            style={
+                              isAlert && !isActive
+                                ? { color: "#dc2626" }
+                                : isPremium && !isActive
+                                  ? { color: "#7c3aed" }
+                                  : undefined
+                            }
+                          />
+                          <span className="truncate">{item.label}</span>
+                          {item.count && (
+                            <Badge
+                              variant={isAlert ? "destructive" : "secondary"}
+                              className="ml-auto text-xs px-1.5 py-0"
+                              aria-label={`${item.count} items`}
+                            >
+                              {item.count}
+                            </Badge>
+                          )}
+                        </Button>
+                      </Link>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </nav>
+    </div>
+  )
+
+  return (
+    <>
+      {/* Mobile Menu Button - Fixed at top left on mobile */}
+      <div className="lg:hidden fixed top-4 left-4 z-50">
+        <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+          <SheetTrigger asChild>
+            <Button
+              variant="outline"
+              size="icon"
+              className="bg-white shadow-md"
+              aria-label="Open navigation menu"
+            >
+              <Menu className="h-5 w-5" aria-hidden="true" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent side="left" className="w-64 p-0 overflow-y-auto">
+            {renderSidebarContent()}
+          </SheetContent>
+        </Sheet>
+      </div>
+
+      {/* Desktop Sidebar - Hidden on mobile */}
+      <aside
+        className="hidden lg:block fixed left-0 top-0 h-full w-64 border-r overflow-y-auto"
+        style={{ backgroundColor: "#ffffff", borderColor: "#e2e8f0" }}
+        aria-label="Sidebar navigation"
+      >
+        {renderSidebarContent()}
+      </aside>
+    </>
   )
 }

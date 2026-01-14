@@ -51,10 +51,12 @@ interface Notification {
 
 export interface DashboardHeaderProps {
   title?: string;
+  subtitle?: string;
   description?: string;
+  className?: string;
 }
 
-export const DashboardHeader: FC<DashboardHeaderProps> = ({ title, description }) => {
+export const DashboardHeader: FC<DashboardHeaderProps> = ({ title, subtitle, description, className }) => {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -159,24 +161,36 @@ export const DashboardHeader: FC<DashboardHeaderProps> = ({ title, description }
 
   return (
     <header
-      className="border-b px-6 py-4"
-      style={{ backgroundColor: "#f8fafc", borderColor: "#e2e8f0" }}>
+      className={`border-b px-6 py-4 ${className || ''}`}
+      style={{ backgroundColor: "#f8fafc", borderColor: "#e2e8f0" }}
+      role="banner"
+      aria-label="Main header">
       <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
-          <h1 className="text-2xl font-bold" style={{ color: "#1e293b" }}>
-            {title || "MASE Behavioral Health EMR"}
-          </h1>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+          <div>
+            <h1 className="text-2xl font-bold" style={{ color: "#1e293b" }}>
+              {title || "MASE Behavioral Health EMR"}
+            </h1>
+            {(subtitle || description) && (
+              <p className="text-sm text-muted-foreground mt-1">
+                {subtitle || description}
+              </p>
+            )}
+          </div>
           <Badge
             variant="secondary"
-            style={{ backgroundColor: "#f1f5f9", color: "#1e293b" }}>
+            style={{ backgroundColor: "#f1f5f9", color: "#1e293b" }}
+            aria-label="AI-Assisted application"
+            className="hidden sm:inline-flex">
             AI-Assisted
           </Badge>
         </div>
 
-        <div className="flex items-center space-x-4">
-          <form onSubmit={handleSearch} className="relative">
+        <nav className="flex items-center space-x-4" aria-label="Header actions">
+          <form onSubmit={handleSearch} className="relative" role="search">
             <Search
               className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4"
+              aria-hidden="true"
               style={{ color: "#64748b" }}
             />
             <Input
@@ -184,18 +198,25 @@ export const DashboardHeader: FC<DashboardHeaderProps> = ({ title, description }
               className="pl-10 w-80"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              aria-label="Search patients and records"
             />
           </form>
 
           {/* Notifications Sheet */}
           <Sheet open={notificationOpen} onOpenChange={setNotificationOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="h-5 w-5" />
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="relative"
+                aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
+              >
+                <Bell className="h-5 w-5" aria-hidden="true" />
                 {unreadCount > 0 && (
                   <Badge
                     className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs"
-                    style={{ backgroundColor: "#0891b2", color: "#ffffff" }}>
+                    style={{ backgroundColor: "#0891b2", color: "#ffffff" }}
+                    aria-hidden="true">
                     {unreadCount}
                   </Badge>
                 )}
@@ -316,12 +337,12 @@ export const DashboardHeader: FC<DashboardHeaderProps> = ({ title, description }
               <DropdownMenuItem
                 onSelect={handleSignOut}
                 className="text-red-600">
-                <LogOut className="mr-2 h-4 w-4" />
+                <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
                 Sign Out
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
+        </nav>
       </div>
     </header>
   );

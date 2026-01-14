@@ -393,7 +393,7 @@ export default function RehabilitationPage() {
   return (
     <div className="min-h-screen bg-background">
       <DashboardSidebar />
-      <div className="pl-64">
+      <div className="lg:pl-64">
         <DashboardHeader />
         <div className="p-8">
           <div className="mb-6 flex items-center justify-between">

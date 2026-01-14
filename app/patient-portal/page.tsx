@@ -812,49 +812,51 @@ export default function PatientPortalPage() {
           value={activeTab}
           onValueChange={setActiveTab}
           className="space-y-6">
-          <TabsList className="grid w-full grid-cols-9">
-            <TabsTrigger value="home">
-              <Heart className="mr-1 h-4 w-4" />
-              Home
-            </TabsTrigger>
-            {/* CHANGE: Added Take-Home Dose tab for patient QR verification */}
-            <TabsTrigger value="takehome">
-              <QrCode className="mr-1 h-4 w-4" />
-              Take-Home
-            </TabsTrigger>
-            <TabsTrigger value="documents">
-              <FileText className="mr-1 h-4 w-4" />
-              Documents
-            </TabsTrigger>
-            <TabsTrigger value="games">
-              <Gamepad2 className="mr-1 h-4 w-4" />
-              Games
-            </TabsTrigger>
-            <TabsTrigger value="peer-coach">
-              <HandHeart className="mr-1 h-4 w-4" />
-              Peer Coach
-            </TabsTrigger>
-            <TabsTrigger value="referrals">
-              <Clipboard className="mr-1 h-4 w-4" />
-              Referrals
-            </TabsTrigger>
-            <TabsTrigger value="resources">
-              <BookOpen className="mr-1 h-4 w-4" />
-              Resources
-            </TabsTrigger>
-            <TabsTrigger value="appointments">
-              <Calendar className="mr-1 h-4 w-4" />
-              Appointments
-            </TabsTrigger>
-            <TabsTrigger value="billing">
-              <CreditCard className="mr-1 h-4 w-4" />
-              Billing
-            </TabsTrigger>
-            <TabsTrigger value="support">
-              <MessageSquare className="mr-1 h-4 w-4" />
-              Support
-            </TabsTrigger>
-          </TabsList>
+          {/* Responsive scrollable tabs for mobile */}
+          <div className="overflow-x-auto -mx-4 px-4 pb-2 scrollbar-thin scrollbar-thumb-gray-300">
+            <TabsList className="inline-flex w-max min-w-full lg:w-full lg:grid lg:grid-cols-10 gap-1">
+              <TabsTrigger value="home" className="flex items-center gap-1 whitespace-nowrap">
+                <Heart className="h-4 w-4" />
+                <span className="hidden sm:inline">Home</span>
+              </TabsTrigger>
+              <TabsTrigger value="takehome" className="flex items-center gap-1 whitespace-nowrap">
+                <QrCode className="h-4 w-4" />
+                <span className="hidden sm:inline">Take-Home</span>
+              </TabsTrigger>
+              <TabsTrigger value="documents" className="flex items-center gap-1 whitespace-nowrap">
+                <FileText className="h-4 w-4" />
+                <span className="hidden sm:inline">Documents</span>
+              </TabsTrigger>
+              <TabsTrigger value="games" className="flex items-center gap-1 whitespace-nowrap">
+                <Gamepad2 className="h-4 w-4" />
+                <span className="hidden sm:inline">Games</span>
+              </TabsTrigger>
+              <TabsTrigger value="peer-coach" className="flex items-center gap-1 whitespace-nowrap">
+                <HandHeart className="h-4 w-4" />
+                <span className="hidden sm:inline">Peer Coach</span>
+              </TabsTrigger>
+              <TabsTrigger value="referrals" className="flex items-center gap-1 whitespace-nowrap">
+                <Clipboard className="h-4 w-4" />
+                <span className="hidden sm:inline">Referrals</span>
+              </TabsTrigger>
+              <TabsTrigger value="resources" className="flex items-center gap-1 whitespace-nowrap">
+                <BookOpen className="h-4 w-4" />
+                <span className="hidden sm:inline">Resources</span>
+              </TabsTrigger>
+              <TabsTrigger value="appointments" className="flex items-center gap-1 whitespace-nowrap">
+                <Calendar className="h-4 w-4" />
+                <span className="hidden sm:inline">Appointments</span>
+              </TabsTrigger>
+              <TabsTrigger value="billing" className="flex items-center gap-1 whitespace-nowrap">
+                <CreditCard className="h-4 w-4" />
+                <span className="hidden sm:inline">Billing</span>
+              </TabsTrigger>
+              <TabsTrigger value="support" className="flex items-center gap-1 whitespace-nowrap">
+                <MessageSquare className="h-4 w-4" />
+                <span className="hidden sm:inline">Support</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* Home Tab */}
           <TabsContent value="home" className="space-y-6">
