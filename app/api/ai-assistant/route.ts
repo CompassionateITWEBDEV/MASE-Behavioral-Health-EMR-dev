@@ -285,10 +285,12 @@ export async function GET(request: Request) {
       specialtyId
     );
 
-    // Log recommendations
+    // Log recommendations and collect IDs for feedback tracking
+    const recommendationIds: Record<string, string> = {};
     try {
-      for (const alert of recommendations.riskAlerts) {
-        await logRecommendation(
+      for (let i = 0; i < recommendations.riskAlerts.length; i++) {
+        const alert = recommendations.riskAlerts[i];
+        const id = await logRecommendation(
           patientId,
           specialtyId,
           user.id,
@@ -296,9 +298,11 @@ export async function GET(request: Request) {
           alert.message,
           alert
         );
+        recommendationIds[`alert-${i}`] = id;
       }
-      for (const rec of recommendations.recommendations) {
-        await logRecommendation(
+      for (let i = 0; i < recommendations.recommendations.length; i++) {
+        const rec = recommendations.recommendations[i];
+        const id = await logRecommendation(
           patientId,
           specialtyId,
           user.id,
@@ -306,9 +310,11 @@ export async function GET(request: Request) {
           rec.text,
           rec
         );
+        recommendationIds[`rec-${i}`] = id;
       }
-      for (const lab of recommendations.labOrders) {
-        await logRecommendation(
+      for (let i = 0; i < recommendations.labOrders.length; i++) {
+        const lab = recommendations.labOrders[i];
+        const id = await logRecommendation(
           patientId,
           specialtyId,
           user.id,
@@ -316,9 +322,11 @@ export async function GET(request: Request) {
           `${lab.test}: ${lab.reason}`,
           lab
         );
+        recommendationIds[`lab-${i}`] = id;
       }
-      for (const dx of recommendations.differentialDiagnosis) {
-        await logRecommendation(
+      for (let i = 0; i < recommendations.differentialDiagnosis.length; i++) {
+        const dx = recommendations.differentialDiagnosis[i];
+        const id = await logRecommendation(
           patientId,
           specialtyId,
           user.id,
@@ -326,6 +334,7 @@ export async function GET(request: Request) {
           `${dx.diagnosis} (${dx.probability})`,
           dx
         );
+        recommendationIds[`dx-${i}`] = id;
       }
     } catch (logError) {
       // Don't fail if logging fails
@@ -338,6 +347,7 @@ export async function GET(request: Request) {
         analysisType,
         focusAreas,
         recommendations,
+        recommendationIds,
         compliance: complianceResult,
         generatedAt: new Date().toISOString(),
         model: "claude-sonnet-4-20250514",
@@ -584,10 +594,12 @@ export async function POST(request: Request) {
       specialtyId
     );
 
-    // Log recommendations
+    // Log recommendations and collect IDs for feedback tracking
+    const recommendationIds: Record<string, string> = {};
     try {
-      for (const alert of recommendations.riskAlerts) {
-        await logRecommendation(
+      for (let i = 0; i < recommendations.riskAlerts.length; i++) {
+        const alert = recommendations.riskAlerts[i];
+        const id = await logRecommendation(
           body.patientId,
           specialtyId,
           user.id,
@@ -595,9 +607,11 @@ export async function POST(request: Request) {
           alert.message,
           alert
         );
+        recommendationIds[`alert-${i}`] = id;
       }
-      for (const rec of recommendations.recommendations) {
-        await logRecommendation(
+      for (let i = 0; i < recommendations.recommendations.length; i++) {
+        const rec = recommendations.recommendations[i];
+        const id = await logRecommendation(
           body.patientId,
           specialtyId,
           user.id,
@@ -605,9 +619,11 @@ export async function POST(request: Request) {
           rec.text,
           rec
         );
+        recommendationIds[`rec-${i}`] = id;
       }
-      for (const lab of recommendations.labOrders) {
-        await logRecommendation(
+      for (let i = 0; i < recommendations.labOrders.length; i++) {
+        const lab = recommendations.labOrders[i];
+        const id = await logRecommendation(
           body.patientId,
           specialtyId,
           user.id,
@@ -615,9 +631,11 @@ export async function POST(request: Request) {
           `${lab.test}: ${lab.reason}`,
           lab
         );
+        recommendationIds[`lab-${i}`] = id;
       }
-      for (const dx of recommendations.differentialDiagnosis) {
-        await logRecommendation(
+      for (let i = 0; i < recommendations.differentialDiagnosis.length; i++) {
+        const dx = recommendations.differentialDiagnosis[i];
+        const id = await logRecommendation(
           body.patientId,
           specialtyId,
           user.id,
@@ -625,6 +643,7 @@ export async function POST(request: Request) {
           `${dx.diagnosis} (${dx.probability})`,
           dx
         );
+        recommendationIds[`dx-${i}`] = id;
       }
     } catch (logError) {
       console.error("[API] Error logging recommendations:", logError);
@@ -636,6 +655,7 @@ export async function POST(request: Request) {
         analysisType,
         focusAreas,
         recommendations,
+        recommendationIds,
         compliance: complianceResult,
         generatedAt: new Date().toISOString(),
         model: "claude-sonnet-4-20250514",
