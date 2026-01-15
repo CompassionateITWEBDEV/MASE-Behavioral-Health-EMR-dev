@@ -171,3 +171,101 @@ export interface ClinicalProtocolsResponse {
   ciwaAssessments?: CIWAAssessment[];
   error?: string;
 }
+
+/**
+ * ASAM Criteria Assessment Types
+ */
+
+/**
+ * ASAM Level of Care values
+ */
+export type ASAMLevel =
+  | "0.5"  // Early Intervention
+  | "1.0"  // Outpatient Services
+  | "2.1"  // Intensive Outpatient (IOP)
+  | "2.5"  // Partial Hospitalization (PHP)
+  | "3.1"  // Clinically Managed Low-Intensity Residential
+  | "3.3"  // Clinically Managed Population-Specific High-Intensity Residential
+  | "3.5"  // Clinically Managed High-Intensity Residential
+  | "3.7"  // Medically Monitored Intensive Inpatient
+  | "4.0"; // Medically Managed Intensive Inpatient
+
+/**
+ * Stages of Change for Dimension 4
+ */
+export type StageOfChange =
+  | "precontemplation"
+  | "contemplation"
+  | "preparation"
+  | "action"
+  | "maintenance";
+
+/**
+ * ASAM 6-Dimension ratings
+ */
+export interface ASAMDimensions {
+  /** Dimension 1: Acute Intoxication & Withdrawal Potential (0-3) */
+  dimension1: number | null;
+  /** Dimension 2: Biomedical Conditions & Complications (0-3) */
+  dimension2: number | null;
+  /** Dimension 3: Emotional/Behavioral/Cognitive Conditions (0-3) */
+  dimension3: number | null;
+  /** Dimension 4: Readiness to Change (stage of change) */
+  dimension4: StageOfChange | string | null;
+  /** Dimension 5: Relapse/Continued Use Potential (0-3) */
+  dimension5: number | null;
+  /** Dimension 6: Recovery/Living Environment (0-3) */
+  dimension6: number | null;
+}
+
+/**
+ * ASAM Assessment data stored in risk_assessment JSONB
+ */
+export interface ASAMRiskAssessment {
+  asam_dimensions: ASAMDimensions;
+  recommended_level: ASAMLevel | string;
+  suggested_level?: ASAMLevel | string | null;
+  suggestion_overridden?: boolean;
+}
+
+/**
+ * Full ASAM Assessment record (extends base Assessment)
+ */
+export interface ASAMAssessment {
+  id: string;
+  patient_id: string;
+  provider_id?: string | null;
+  assessment_type: "ASAM Criteria Assessment";
+  risk_assessment: ASAMRiskAssessment;
+  chief_complaint?: string | null;
+  created_at: string;
+  updated_at?: string | null;
+}
+
+/**
+ * ASAM Assessment form data for submission
+ */
+export interface ASAMAssessmentFormData {
+  dimensions: ASAMDimensions;
+  recommendedLevel: ASAMLevel | string | null;
+  suggestedLevel?: ASAMLevel | string | null;
+  suggestionOverridden?: boolean;
+}
+
+/**
+ * ASAM Assessment API response
+ */
+export interface ASAMAssessmentResponse {
+  success: boolean;
+  assessment?: ASAMAssessment;
+  error?: string;
+}
+
+/**
+ * ASAM Assessments list API response
+ */
+export interface ASAMAssessmentsListResponse {
+  assessments: ASAMAssessment[];
+  count: number;
+  error?: string;
+}

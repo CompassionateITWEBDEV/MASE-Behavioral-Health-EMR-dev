@@ -47,7 +47,22 @@ import {
   ClipboardList,
   Activity,
   Scale,
+  Plus,
+  Edit,
+  Ban,
+  MoreHorizontal,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  PatientMedicationDialog,
+  DiscontinueMedicationDialog,
+} from "@/components/patient-medication-dialog";
+import { ASAMAssessmentDetailsDialog } from "@/components/asam-assessment-details-dialog";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 
@@ -84,10 +99,16 @@ interface VitalSign {
 interface Medication {
   id: string;
   medication_name: string;
+  generic_name?: string;
   dosage: string;
   frequency: string;
+  route?: string;
   start_date: string;
+  end_date?: string;
+  medication_type?: string;
   status: string;
+  notes?: string;
+  discontinuation_reason?: string;
 }
 
 interface Assessment {
@@ -95,6 +116,21 @@ interface Assessment {
   assessment_type: string;
   created_at: string;
   provider_id: string;
+  risk_assessment?: {
+    asam_dimensions?: {
+      dimension1: number | null;
+      dimension2: number | null;
+      dimension3: number | null;
+      dimension4: string | null;
+      dimension5: number | null;
+      dimension6: number | null;
+    };
+    recommended_level?: string;
+    suggested_level?: string | null;
+    suggestion_overridden?: boolean;
+  } | null;
+  chief_complaint?: string | null;
+  updated_at?: string | null;
 }
 
 interface DosingHold {
@@ -168,6 +204,16 @@ export default function PatientChartPage() {
   const [udsResults, setUdsResults] = useState<any[]>([]);
   const [progressNotes, setProgressNotes] = useState<any[]>([]);
   const [courtOrders, setCourtOrders] = useState<any[]>([]);
+  
+  // Medication dialog states
+  const [showMedDialog, setShowMedDialog] = useState(false);
+  const [showDiscontinueDialog, setShowDiscontinueDialog] = useState(false);
+  const [selectedMedication, setSelectedMedication] = useState<Medication | null>(null);
+  const [medDialogMode, setMedDialogMode] = useState<"add" | "edit">("add");
+
+  // ASAM assessment dialog states
+  const [showASAMDialog, setShowASAMDialog] = useState(false);
+  const [selectedASAMAssessment, setSelectedASAMAssessment] = useState<Assessment | null>(null);
 
   useEffect(() => {
     fetchPatients();
@@ -518,6 +564,39 @@ export default function PatientChartPage() {
       setCourtOrders([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Medication management handlers
+  const handleAddMedication = () => {
+    setSelectedMedication(null);
+    setMedDialogMode("add");
+    setShowMedDialog(true);
+  };
+
+  const handleEditMedication = (med: Medication) => {
+    setSelectedMedication(med);
+    setMedDialogMode("edit");
+    setShowMedDialog(true);
+  };
+
+  const handleDiscontinueMedication = (med: Medication) => {
+    setSelectedMedication(med);
+    setShowDiscontinueDialog(true);
+  };
+
+  const refreshMedications = async () => {
+    if (!selectedPatientId) return;
+    try {
+      const response = await fetch(
+        `/api/patients/${selectedPatientId}/medications?status=active`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setMedications(data.medications || []);
+      }
+    } catch (error) {
+      console.error("Error refreshing medications:", error);
     }
   };
 
@@ -935,48 +1014,154 @@ export default function PatientChartPage() {
 
                 <TabsContent value="medication" className="space-y-4">
                   <Card>
-                    <CardHeader>
-                      <CardTitle>Current Medications</CardTitle>
+                    <CardHeader className="flex flex-row items-center justify-between">
+                      <div>
+                        <CardTitle>Current Medications</CardTitle>
+                        <CardDescription>
+                          {medications.length} medication{medications.length !== 1 ? 's' : ''} on file
+                        </CardDescription>
+                      </div>
+                      <Button size="sm" onClick={handleAddMedication}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Medication
+                      </Button>
                     </CardHeader>
                     <CardContent>
                       {medications.length > 0 ? (
-                        <div className="space-y-2">
-                          {medications.map((med) => (
-                            <div
-                              key={med.id}
-                              className="flex items-center justify-between p-4 border rounded-lg">
-                              <div className="flex items-center gap-3">
-                                <Pill className="h-5 w-5 text-blue-600" />
-                                <div>
-                                  <p className="font-medium">
-                                    {med.medication_name}
-                                  </p>
-                                  <p className="text-sm text-gray-600">
-                                    {med.dosage} - {med.frequency}
-                                  </p>
+                        <div className="space-y-3">
+                          {medications.map((med) => {
+                            // Format the start date properly
+                            const formatDate = (dateStr: string | undefined) => {
+                              if (!dateStr) return 'N/A';
+                              try {
+                                const date = new Date(dateStr);
+                                if (isNaN(date.getTime())) return dateStr;
+                                return date.toLocaleDateString('en-US', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric'
+                                });
+                              } catch {
+                                return dateStr;
+                              }
+                            };
+
+                            return (
+                              <div
+                                key={med.id}
+                                className="flex items-start justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                                <div className="flex items-start gap-3 flex-1">
+                                  <div className="relative mt-0.5">
+                                    <Pill className="h-5 w-5 text-blue-600" />
+                                    {med.medication_type === "controlled" && (
+                                      <Shield className="h-3 w-3 text-red-500 absolute -top-1 -right-1" />
+                                    )}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <p className="font-medium">
+                                        {med.medication_name || 'Unknown Medication'}
+                                      </p>
+                                      {med.generic_name && (
+                                        <span className="text-sm text-muted-foreground">
+                                          ({med.generic_name})
+                                        </span>
+                                      )}
+                                      {med.medication_type === "controlled" && (
+                                        <Badge variant="destructive" className="text-xs">
+                                          Controlled
+                                        </Badge>
+                                      )}
+                                      {med.medication_type === "prn" && (
+                                        <Badge variant="outline" className="text-xs text-amber-600 border-amber-600">
+                                          PRN
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <div className="mt-1 text-sm text-gray-600 space-y-1">
+                                      <div className="flex flex-wrap gap-x-4 gap-y-1">
+                                        {med.dosage && (
+                                          <span>
+                                            <span className="font-medium">Dose:</span> {med.dosage}
+                                          </span>
+                                        )}
+                                        {med.frequency && (
+                                          <span>
+                                            <span className="font-medium">Freq:</span> {med.frequency}
+                                          </span>
+                                        )}
+                                        {med.route && (
+                                          <span>
+                                            <span className="font-medium">Route:</span> {med.route}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                                        <span>Started: {formatDate(med.start_date)}</span>
+                                        {med.end_date && (
+                                          <span>End: {formatDate(med.end_date)}</span>
+                                        )}
+                                      </div>
+                                      {med.notes && (
+                                        <p className="text-xs text-muted-foreground mt-1 italic">
+                                          {med.notes}
+                                        </p>
+                                      )}
+                                      {med.discontinuation_reason && (
+                                        <p className="text-xs text-red-600 mt-1">
+                                          <span className="font-medium">Discontinued:</span> {med.discontinuation_reason}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 ml-4">
+                                  <Badge
+                                    variant={
+                                      med.status === "active"
+                                        ? "default"
+                                        : med.status === "discontinued"
+                                        ? "destructive"
+                                        : "secondary"
+                                    }
+                                    className="capitalize">
+                                    {med.status || 'unknown'}
+                                  </Badge>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="sm">
+                                        <MoreHorizontal className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      <DropdownMenuItem onClick={() => handleEditMedication(med)}>
+                                        <Edit className="h-4 w-4 mr-2" />
+                                        Edit
+                                      </DropdownMenuItem>
+                                      {med.status === "active" && (
+                                        <DropdownMenuItem 
+                                          onClick={() => handleDiscontinueMedication(med)}
+                                          className="text-destructive">
+                                          <Ban className="h-4 w-4 mr-2" />
+                                          Discontinue
+                                        </DropdownMenuItem>
+                                      )}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-3">
-                                <div className="text-sm text-gray-600">
-                                  Started: {med.start_date}
-                                </div>
-                                <Badge
-                                  variant={
-                                    med.status === "active"
-                                      ? "default"
-                                      : "secondary"
-                                  }
-                                  className="capitalize">
-                                  {med.status}
-                                </Badge>
-                              </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       ) : (
-                        <p className="text-center text-gray-500 py-8">
-                          No medications recorded
-                        </p>
+                        <div className="text-center py-8">
+                          <Pill className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                          <p className="text-gray-500 mb-4">No medications recorded for this patient</p>
+                          <Button variant="outline" size="sm" onClick={handleAddMedication}>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add First Medication
+                          </Button>
+                        </div>
                       )}
                     </CardContent>
                   </Card>
@@ -984,55 +1169,112 @@ export default function PatientChartPage() {
 
                 <TabsContent value="asam" className="space-y-4">
                   <Card>
-                    <CardHeader>
-                      <CardTitle>ASAM Criteria Assessment</CardTitle>
-                      <CardDescription>
-                        American Society of Addiction Medicine placement
-                        criteria
-                      </CardDescription>
+                    <CardHeader className="flex flex-row items-center justify-between">
+                      <div>
+                        <CardTitle className="flex items-center gap-2">
+                          <Brain className="h-5 w-5" />
+                          ASAM Criteria Assessment
+                        </CardTitle>
+                        <CardDescription>
+                          American Society of Addiction Medicine placement criteria
+                        </CardDescription>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          if (selectedPatient) {
+                            window.location.href = `/counseling-intake?patientId=${selectedPatient.id}`;
+                          }
+                        }}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        New Assessment
+                      </Button>
                     </CardHeader>
                     <CardContent>
-                      {assessments.length > 0 ? (
-                        <div className="space-y-2">
-                          {assessments
-                            .filter((a) =>
-                              a.assessment_type?.toLowerCase().includes("asam")
-                            )
-                            .map((assessment) => (
-                              <div
-                                key={assessment.id}
-                                className="flex items-center justify-between p-4 border rounded-lg">
-                                <div className="flex items-center gap-3">
-                                  <FileCheck className="h-5 w-5 text-green-600" />
-                                  <div>
-                                    <p className="font-medium">
-                                      {assessment.assessment_type}
-                                    </p>
-                                    <p className="text-sm text-gray-600">
-                                      {new Date(
-                                        assessment.created_at
-                                      ).toLocaleDateString()}
-                                    </p>
+                      {(() => {
+                        const asamAssessments = assessments.filter((a) =>
+                          a.assessment_type?.toLowerCase().includes("asam")
+                        );
+                        
+                        if (asamAssessments.length > 0) {
+                          return (
+                            <div className="space-y-3">
+                              {asamAssessments.map((assessment) => {
+                                const riskAssessment = assessment.risk_assessment;
+                                const recommendedLevel = riskAssessment?.recommended_level;
+                                
+                                return (
+                                  <div
+                                    key={assessment.id}
+                                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <Brain className="h-5 w-5 text-purple-600" />
+                                      <div>
+                                        <div className="flex items-center gap-2">
+                                          <p className="font-medium">
+                                            {assessment.assessment_type}
+                                          </p>
+                                          {recommendedLevel && (
+                                            <Badge
+                                              variant={
+                                                parseFloat(recommendedLevel) >= 3.7
+                                                  ? "destructive"
+                                                  : parseFloat(recommendedLevel) >= 2.5
+                                                  ? "default"
+                                                  : "secondary"
+                                              }
+                                            >
+                                              Level {recommendedLevel}
+                                            </Badge>
+                                          )}
+                                        </div>
+                                        <p className="text-sm text-muted-foreground">
+                                          {new Date(assessment.created_at).toLocaleDateString("en-US", {
+                                            year: "numeric",
+                                            month: "short",
+                                            day: "numeric",
+                                          })}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        setSelectedASAMAssessment(assessment);
+                                        setShowASAMDialog(true);
+                                      }}
+                                    >
+                                      View Details
+                                    </Button>
                                   </div>
-                                </div>
-                                <Button size="sm" variant="outline">
-                                  View Details
-                                </Button>
-                              </div>
-                            ))}
-                          {assessments.filter((a) =>
-                            a.assessment_type?.toLowerCase().includes("asam")
-                          ).length === 0 && (
-                            <p className="text-center text-gray-500 py-8">
-                              No ASAM assessments recorded
-                            </p>
-                          )}
-                        </div>
-                      ) : (
-                        <p className="text-center text-gray-500 py-8">
-                          No ASAM assessments recorded
-                        </p>
-                      )}
+                                );
+                              })}
+                            </div>
+                          );
+                        }
+                        
+                        return (
+                          <div className="text-center py-8">
+                            <Brain className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                            <p className="text-gray-500 mb-4">No ASAM assessments recorded</p>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                if (selectedPatient) {
+                                  window.location.href = `/counseling-intake?patientId=${selectedPatient.id}`;
+                                }
+                              }}
+                            >
+                              <Plus className="h-4 w-4 mr-2" />
+                              Create First Assessment
+                            </Button>
+                          </div>
+                        );
+                      })()}
                     </CardContent>
                   </Card>
                 </TabsContent>
@@ -2092,6 +2334,34 @@ export default function PatientChartPage() {
           )}
         </main>
       </div>
+
+      {/* Medication Dialogs */}
+      {selectedPatient && (
+        <>
+          <PatientMedicationDialog
+            open={showMedDialog}
+            onOpenChange={setShowMedDialog}
+            patientId={selectedPatient.id}
+            medication={selectedMedication}
+            onSuccess={refreshMedications}
+            mode={medDialogMode}
+          />
+          <DiscontinueMedicationDialog
+            open={showDiscontinueDialog}
+            onOpenChange={setShowDiscontinueDialog}
+            patientId={selectedPatient.id}
+            medication={selectedMedication}
+            onSuccess={refreshMedications}
+          />
+        </>
+      )}
+
+      {/* ASAM Assessment Details Dialog */}
+      <ASAMAssessmentDetailsDialog
+        open={showASAMDialog}
+        onOpenChange={setShowASAMDialog}
+        assessment={selectedASAMAssessment}
+      />
     </div>
   );
 }

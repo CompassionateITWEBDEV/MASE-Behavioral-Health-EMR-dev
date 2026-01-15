@@ -86,8 +86,9 @@ export async function GET(
         .eq("patient_id", id)
         .order("measurement_date", { ascending: false })
         .limit(30),
+      // Try patient_medications first (new schema), fallback to medications (legacy)
       supabase
-        .from("medications")
+        .from("patient_medications")
         .select("*")
         .eq("patient_id", id)
         .order("created_at", { ascending: false }),
@@ -136,10 +137,22 @@ export async function GET(
     ]);
 
     // Handle errors gracefully - return empty arrays if tables don't exist
+    // For medications, if patient_medications fails, try legacy medications table
+    let medicationsData = medsResult.data || [];
+    if (medsResult.error) {
+      console.log("[v0] patient_medications query failed, trying legacy medications table:", medsResult.error.message);
+      const legacyMedsResult = await supabase
+        .from("medications")
+        .select("*")
+        .eq("patient_id", id)
+        .order("created_at", { ascending: false });
+      medicationsData = legacyMedsResult.data || [];
+    }
+
     return NextResponse.json({
       patient: patientData,
       vitalSigns: vitalsResult.data || [],
-      medications: medsResult.data || [],
+      medications: medicationsData,
       assessments: assessmentsResult.data || [],
       encounters: encountersResult.data || [],
       dosingLog: dosingResult.data || [],
