@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import { createClient } from "@/lib/supabase/client"
+import { useAuth } from "@/lib/auth/rbac-hooks"
 import {
   Search,
   Fingerprint,
@@ -145,6 +146,7 @@ interface VitalSigns {
 export default function DosingWindowPage() {
   const { toast } = useToast()
   const supabase = createClient()
+  const { user: currentUser } = useAuth()
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   // States
@@ -171,6 +173,9 @@ export default function DosingWindowPage() {
   const [doseAmount, setDoseAmount] = useState("")
   const [dosingNotes, setDosingNotes] = useState("")
   const [behaviorNotes, setBehaviorNotes] = useState("")
+  const [clinicalObservations, setClinicalObservations] = useState("")
+  const [selectedQuickObservations, setSelectedQuickObservations] = useState<string[]>([])
+  const [savingObservations, setSavingObservations] = useState(false)
   const [patientVitals, setPatientVitals] = useState<VitalSigns>({})
 
   // Dialog states
@@ -225,6 +230,8 @@ export default function DosingWindowPage() {
     requestedDose: "",
     justification: "",
   })
+  const [physicians, setPhysicians] = useState<Array<{id: string, first_name: string, last_name: string, role?: string, department?: string}>>([])
+  const [loadingPhysicians, setLoadingPhysicians] = useState(false)
 
   const [showBottleFillingDialog, setShowBottleFillingDialog] = useState(false)
   const [bottleFillProgress, setBottleFillProgress] = useState<number[]>([])
@@ -239,10 +246,14 @@ export default function DosingWindowPage() {
     }
 
     try {
-      const response = await fetch(`/api/patients?search=${encodeURIComponent(query)}`)
+      const response = await fetch(`/api/patients?search=${encodeURIComponent(query)}`, {
+        credentials: "include",
+      })
       if (response.ok) {
         const data = await response.json()
         setSearchResults(data.patients || [])
+      } else {
+        console.error("Error searching patients:", response.status, response.statusText)
       }
     } catch (error) {
       console.error("Error searching patients:", error)
@@ -267,46 +278,160 @@ export default function DosingWindowPage() {
     setSearchResults([])
 
     try {
-      // Fetch medication order
-      const { data: orderData } = await supabase
-        .from("medication_order")
+      // Fetch medication order - try multiple sources
+      let foundOrder = false
+      
+      // 1. Try patient_medications table first (most common)
+      const { data: patientMedData, error: medError } = await supabase
+        .from("patient_medications")
         .select("*")
         .eq("patient_id", patient.id)
         .eq("status", "active")
-        .order("created_at", { ascending: false })
+        .order("start_date", { ascending: false })
         .limit(1)
 
-      if (orderData && orderData.length > 0) {
-        setMedicationOrder(orderData[0])
-        setDoseAmount(orderData[0].daily_dose_mg?.toString() || "")
-        setOrderRequestDetails((prev) => ({ ...prev, currentDose: orderData[0].daily_dose_mg?.toString() || "0" }))
-        // Set medication type based on order
-        if (orderData[0].medication?.toLowerCase().includes("methadone")) {
+      if (!medError && patientMedData && patientMedData.length > 0) {
+        // Convert patient_medications to medication_order format
+        const med = patientMedData[0]
+        const doseMatch = med.dosage?.match(/(\d+(?:\.\d+)?)/)
+        const dailyDose = doseMatch ? parseFloat(doseMatch[1]) : 0
+        
+        // Default max_takehome to 13 days (standard) for medications added via patient chart
+        // This allows take-home functionality to work
+        const defaultMaxTakeHome = 13
+        
+        const order = {
+          id: med.id,
+          patient_id: med.patient_id,
+          medication: med.medication_name,
+          daily_dose_mg: dailyDose,
+          max_takehome: defaultMaxTakeHome,
+          status: med.status,
+          start_date: med.start_date,
+          stop_date: med.end_date,
+        }
+        
+        setMedicationOrder(order)
+        setDoseAmount(dailyDose > 0 ? dailyDose.toString() : "")
+        setOrderRequestDetails((prev) => ({ ...prev, currentDose: dailyDose.toString() }))
+        
+        // Set medication type based on medication name
+        const medName = med.medication_name?.toLowerCase() || ""
+        if (medName.includes("methadone")) {
           setSelectedMedication("methadone")
-        } else if (
-          orderData[0].medication?.toLowerCase().includes("suboxone") ||
-          orderData[0].medication?.toLowerCase().includes("buprenorphine")
-        ) {
+        } else if (medName.includes("suboxone") || medName.includes("buprenorphine")) {
           setSelectedMedication("suboxone")
-        } else if (orderData[0].medication?.toLowerCase().includes("vivitrol")) {
+        } else if (medName.includes("vivitrol")) {
           setSelectedMedication("vivitrol")
-        } else if (orderData[0].medication?.toLowerCase().includes("sublocade")) {
+        } else if (medName.includes("sublocade")) {
           setSelectedMedication("sublocade")
         }
-      } else {
-        setMedicationOrder(null) // Clear if no active order
+        foundOrder = true
+      }
+
+      // 2. If not found, try otp_admissions (for OTP patients)
+      if (!foundOrder) {
+        const { data: admissionData, error: admissionError } = await supabase
+          .from("otp_admissions")
+          .select("*")
+          .eq("patient_id", patient.id)
+          .eq("status", "active")
+          .order("created_at", { ascending: false })
+          .limit(1)
+
+        if (!admissionError && admissionData && admissionData.length > 0) {
+          const admission = admissionData[0]
+          const dose = admission.initial_dose || 0
+          
+          if (dose > 0) {
+            // Default max_takehome to 13 days (standard) for OTP admissions
+            const defaultMaxTakeHome = 13
+            
+            const order = {
+              id: admission.id,
+              patient_id: admission.patient_id,
+              medication: admission.medication || "methadone",
+              daily_dose_mg: dose,
+              max_takehome: admission.max_takehome || defaultMaxTakeHome,
+              status: "active",
+              start_date: admission.admission_date,
+            }
+            
+            setMedicationOrder(order)
+            setDoseAmount(dose.toString())
+            setOrderRequestDetails((prev) => ({ ...prev, currentDose: dose.toString() }))
+            
+            if (admission.medication?.toLowerCase().includes("methadone")) {
+              setSelectedMedication("methadone")
+            } else if (admission.medication?.toLowerCase().includes("buprenorphine") || admission.medication?.toLowerCase().includes("suboxone")) {
+              setSelectedMedication("suboxone")
+            }
+            foundOrder = true
+          }
+        }
+      }
+
+      // 3. If still not found, try medication_order table (legacy)
+      if (!foundOrder) {
+        const { data: orderDataUUID, error: orderErrorUUID } = await supabase
+          .from("medication_order")
+          .select("*")
+          .eq("patient_id", patient.id)
+          .eq("status", "active")
+          .order("created_at", { ascending: false })
+          .limit(1)
+
+        if (!orderErrorUUID && orderDataUUID && orderDataUUID.length > 0) {
+          setMedicationOrder(orderDataUUID[0])
+          setDoseAmount(orderDataUUID[0].daily_dose_mg?.toString() || "")
+          setOrderRequestDetails((prev) => ({ ...prev, currentDose: orderDataUUID[0].daily_dose_mg?.toString() || "0" }))
+          
+          const medName = orderDataUUID[0].medication?.toLowerCase() || ""
+          if (medName.includes("methadone")) {
+            setSelectedMedication("methadone")
+          } else if (medName.includes("suboxone") || medName.includes("buprenorphine")) {
+            setSelectedMedication("suboxone")
+          } else if (medName.includes("vivitrol")) {
+            setSelectedMedication("vivitrol")
+          } else if (medName.includes("sublocade")) {
+            setSelectedMedication("sublocade")
+          }
+          foundOrder = true
+        }
+      }
+
+      // 4. If no order found, clear the fields
+      if (!foundOrder) {
+        setMedicationOrder(null)
         setDoseAmount("")
         setOrderRequestDetails((prev) => ({ ...prev, currentDose: "0" }))
+        toast({
+          title: "No Active Medication Order",
+          description: "Patient does not have an active medication order. Please create an order before dosing.",
+          variant: "destructive",
+        })
       }
 
       // Fetch dosing holds
-      const { data: holdsData } = await supabase
+      const { data: holdsData, error: holdsError } = await supabase
         .from("dosing_holds")
         .select("*")
         .eq("patient_id", patient.id)
         .eq("status", "active")
 
-      setDosingHolds(holdsData || [])
+      if (holdsError) {
+        console.warn("[Dosing Window] Error fetching dosing holds:", holdsError)
+        // Try alternative table name (clinical_alerts with dosing_hold type)
+        const { data: altHoldsData } = await supabase
+          .from("clinical_alerts")
+          .select("*")
+          .eq("patient_id", patient.id)
+          .eq("alert_type", "dosing_hold")
+          .eq("status", "active")
+        setDosingHolds(altHoldsData || [])
+      } else {
+        setDosingHolds(holdsData || [])
+      }
 
       // Fetch biometric enrollment
       const { data: biometricData } = await supabase
@@ -344,6 +469,89 @@ export default function DosingWindowPage() {
     }
   }
 
+  // Fetch physicians from database
+  const fetchPhysicians = async () => {
+    setLoadingPhysicians(true)
+    try {
+      // First, try to fetch staff with physician/doctor roles
+      // Note: Only 'doctor' is valid in the staff_role enum
+      const { data: staffData, error: staffError } = await supabase
+        .from("staff")
+        .select("id, first_name, last_name, role, department")
+        .eq("role", "doctor")
+        .eq("is_active", true)
+        .order("last_name", { ascending: true })
+
+      if (staffError) {
+        console.error("[Dosing Window] Error fetching staff physicians:", {
+          message: staffError.message,
+          details: staffError.details,
+          hint: staffError.hint,
+          code: staffError.code,
+          fullError: staffError,
+        })
+        // Log the full error for debugging
+        console.error("[Dosing Window] Full error object:", JSON.stringify(staffError, null, 2))
+      }
+
+      // If we got staff data, use it
+      if (staffData && staffData.length > 0) {
+        setPhysicians(staffData)
+        setLoadingPhysicians(false)
+        return
+      }
+
+      // If no staff found or error, try providers table as fallback
+      const { data: providerData, error: providerError } = await supabase
+        .from("providers")
+        .select("id, first_name, last_name, specialization")
+        .order("last_name", { ascending: true })
+      
+      if (providerError) {
+        console.warn("[Dosing Window] Error fetching providers:", {
+          message: providerError.message,
+          details: providerError.details,
+          hint: providerError.hint,
+          code: providerError.code,
+          fullError: JSON.stringify(providerError, null, 2)
+        })
+      }
+
+      if (!providerError && providerData && providerData.length > 0) {
+        setPhysicians(providerData.map(p => ({ 
+          id: p.id, 
+          first_name: p.first_name, 
+          last_name: p.last_name, 
+          role: "provider",
+          department: p.specialization || undefined
+        })))
+      } else if (!staffData || staffData.length === 0) {
+        // If both failed and no data, show warning but don't block
+        console.warn("[Dosing Window] No physicians found in staff or providers tables")
+        toast({
+          title: "Info",
+          description: "No physicians found. Please add physicians to the staff or providers table.",
+          variant: "default",
+        })
+      }
+    } catch (error) {
+      console.error("[Dosing Window] Unexpected error fetching physicians:", error)
+      const errorMessage = error instanceof Error ? error.message : "Unknown error"
+      toast({
+        title: "Warning",
+        description: `Could not load physician list: ${errorMessage}`,
+        variant: "default",
+      })
+    } finally {
+      setLoadingPhysicians(false)
+    }
+  }
+
+  // Fetch physicians on component mount
+  useEffect(() => {
+    fetchPhysicians()
+  }, [])
+
   // Verify patient identity
   const verifyPatient = async () => {
     if (!selectedPatient) return
@@ -352,36 +560,58 @@ export default function DosingWindowPage() {
     setVerificationStatus("verifying")
 
     try {
-      // Simulate verification delay
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-
       if (verificationMethod === "pin") {
-        // In production, this would verify against stored PIN hash
-        // Replace with actual PIN verification logic
-        if (pinInput === "1234") {
-          // Example placeholder PIN
-          setVerificationStatus("success")
+        if (!pinInput || pinInput.length !== 4) {
+          setVerificationStatus("failed")
           toast({
-            title: "Verification Successful",
-            description: `${selectedPatient.first_name} ${selectedPatient.last_name} identity verified via PIN`,
+            title: "Invalid PIN",
+            description: "PIN must be exactly 4 digits",
+            variant: "destructive",
           })
-        } else {
+          return
+        }
+
+        // Verify PIN via API
+        const response = await fetch("/api/dosing/verify-pin", {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            patientId: selectedPatient.id,
+            pin: pinInput,
+          }),
+        })
+
+        const data = await response.json()
+
+        if (!response.ok || !data.verified) {
           setVerificationStatus("failed")
           toast({
             title: "Verification Failed",
-            description: "Invalid PIN entered",
+            description: data.error || "Invalid PIN entered",
             variant: "destructive",
           })
+          return
         }
+
+        setVerificationStatus("success")
+        toast({
+          title: "Verification Successful",
+          description: `${selectedPatient.first_name} ${selectedPatient.last_name} identity verified via PIN`,
+        })
       } else if (verificationMethod === "fingerprint") {
-        // Simulate fingerprint verification
+        // Simulate fingerprint verification (would integrate with biometric device)
+        await new Promise((resolve) => setTimeout(resolve, 1500))
         setVerificationStatus("success")
         toast({
           title: "Fingerprint Verified",
           description: `${selectedPatient.first_name} ${selectedPatient.last_name} identity confirmed`,
         })
       } else if (verificationMethod === "facial") {
-        // Simulate facial recognition
+        // Simulate facial recognition (would integrate with camera/biometric device)
+        await new Promise((resolve) => setTimeout(resolve, 1500))
         setVerificationStatus("success")
         toast({
           title: "Facial Recognition Verified",
@@ -390,6 +620,7 @@ export default function DosingWindowPage() {
       }
     } catch (error) {
       setVerificationStatus("failed")
+      console.error("Verification error:", error)
       toast({
         title: "Verification Error",
         description: "An error occurred during verification",
@@ -417,20 +648,41 @@ export default function DosingWindowPage() {
       // Simulate calibration
       await new Promise((resolve) => setTimeout(resolve, 3000))
 
+      const startVolumeNum = Number.parseFloat(bottleStartVolume)
       setBottleCurrentVolume(bottleStartVolume)
       setLastCalibrationDate(new Date().toISOString())
       setPumpStatus({
         status: "idle",
-        bottleSerial: "", // Clear serial after calibration
+        bottleSerial: bottleSerial, // Keep serial for tracking
         currentVolume: bottleStartVolume,
         lastCalibrationDate: new Date().toISOString(),
       })
-      setBottleSerial("") // Clear serial input field
+      // Don't clear serial - keep it for tracking
       setBottleStartVolume("") // Clear start volume input field
+
+      // Persist bottle calibration to database
+      if (bottleSerial) {
+        try {
+          await fetch("/api/dosing/update-bottle", {
+            method: "POST",
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              bottleSerial,
+              currentVolume: startVolumeNum,
+            }),
+          })
+        } catch (volumeError) {
+          console.error("Error persisting bottle calibration:", volumeError)
+          // Don't fail calibration if persistence fails
+        }
+      }
 
       toast({
         title: "Pump Calibrated",
-        description: `Methadone pump calibrated with bottle ${bottleSerial}`,
+        description: `Methadone pump calibrated with bottle ${bottleSerial} (${bottleStartVolume}mL)`,
       })
 
       setShowPumpCalibrationDialog(false)
@@ -468,7 +720,43 @@ export default function DosingWindowPage() {
     setDispensing(true)
 
     try {
+      // Validate dose amount
+      if (!doseAmount || isNaN(Number.parseFloat(doseAmount)) || Number.parseFloat(doseAmount) <= 0) {
+        toast({
+          title: "Invalid Dose Amount",
+          description: "Please enter a valid dose amount",
+          variant: "destructive",
+        })
+        setPumpStatus((prev) => ({ ...prev, status: "idle" }))
+        setDispensing(false)
+        return false
+      }
+
       const doseAmountNum = Number.parseFloat(doseAmount)
+      
+      // Validate against medication order if available
+      if (medicationOrder && doseAmountNum > Number(medicationOrder.daily_dose_mg)) {
+        toast({
+          title: "Dose Exceeds Order",
+          description: `Requested dose (${doseAmountNum}mg) exceeds daily dose limit (${medicationOrder.daily_dose_mg}mg). Please contact physician for order modification.`,
+          variant: "destructive",
+        })
+        setPumpStatus((prev) => ({ ...prev, status: "idle" }))
+        setDispensing(false)
+        return false
+      }
+
+      if (!bottleCurrentVolume || isNaN(Number.parseFloat(bottleCurrentVolume))) {
+        toast({
+          title: "Bottle Not Calibrated",
+          description: "Please calibrate the pump with a bottle before dispensing",
+          variant: "destructive",
+        })
+        setPumpStatus((prev) => ({ ...prev, status: "idle" }))
+        setDispensing(false)
+        return false
+      }
+
       const currentVol = Number.parseFloat(bottleCurrentVolume)
 
       if (currentVol < doseAmountNum) {
@@ -482,40 +770,127 @@ export default function DosingWindowPage() {
         return false // Indicate failure
       }
 
-      const doseLog = {
+      // Check if user is authenticated (either regular user or superadmin)
+      const isSuperAdmin = typeof window !== "undefined" && 
+        (localStorage.getItem("super_admin_session") || 
+         document.cookie.includes("super_admin_session"))
+
+      // Get current user ID for dispensed_by
+      let dispensedByUserId: string | null = null
+      
+      if (isSuperAdmin) {
+        // For superadmin, use a placeholder - the API will handle auth via cookies
+        dispensedByUserId = "super_admin_session"
+      } else {
+        // Try to get regular user
+        dispensedByUserId = currentUser?.id || null
+      }
+      
+      if (!dispensedByUserId && !isSuperAdmin) {
+        toast({
+          title: "Authentication Error",
+          description: "Unable to identify current user. Please log in again.",
+          variant: "destructive",
+        })
+        setPumpStatus((prev) => ({ ...prev, status: "idle" }))
+        setDispensing(false)
+        return false
+      }
+
+      // Get otp_admission_id and organization_id if available
+      const { data: admissionData } = await supabase
+        .from("otp_admissions")
+        .select("id, organization_id")
+        .eq("patient_id", selectedPatient.id)
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      // Get patient's organization_id
+      const { data: patientData } = await supabase
+        .from("patients")
+        .select("organization_id")
+        .eq("id", selectedPatient.id)
+        .maybeSingle()
+
+      const doseLog: any = {
         patient_id: selectedPatient.id,
         dose_date: new Date().toISOString().split("T")[0],
         dose_time: new Date().toTimeString().split(" ")[0],
         medication: selectedMedication,
         dose_amount: doseAmountNum,
-        dispensed_by: "current_nurse_id", // Would come from auth context
+        dispensed_by: (isSuperAdmin || dispensedByUserId === "super_admin_session") ? null : dispensedByUserId,
         notes: dosingNotes || null,
         patient_response: behaviorNotes || null,
-        bottle_number: bottleSerial, // Added bottle tracking
+        bottle_number: bottleSerial || null,
       }
 
-      const { error } = await supabase.from("dosing_log").insert(doseLog)
+      // Add otp_admission_id if available
+      if (admissionData?.id) {
+        doseLog.otp_admission_id = admissionData.id
+      }
 
-      if (error) throw error
+      // Add organization_id if available (from admission or patient)
+      if (admissionData?.organization_id) {
+        doseLog.organization_id = admissionData.organization_id
+      } else if (patientData?.organization_id) {
+        doseLog.organization_id = patientData.organization_id
+      }
+
+      const { error, data } = await supabase.from("dosing_log").insert(doseLog).select()
+
+      if (error) {
+        console.error("[Dosing Window] Error inserting dose log:", {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+          fullError: error
+        })
+        throw new Error(error.message || `Database error: ${error.code || 'Unknown error'}`)
+      }
 
       // Update bottle volume
       const newVolume = currentVol - doseAmountNum
       setBottleCurrentVolume(newVolume.toString())
       setPumpStatus((prev) => ({ ...prev, currentVolume: newVolume.toString() }))
+      
+      // Persist bottle volume update to database if bottle serial is set
+      if (bottleSerial) {
+        try {
+          await fetch("/api/dosing/update-bottle", {
+            method: "POST",
+            credentials: "include",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              bottleSerial,
+              currentVolume: newVolume,
+            }),
+          })
+        } catch (volumeError) {
+          console.error("Error updating bottle volume:", volumeError)
+          // Don't fail the dose if volume update fails
+        }
+      }
 
       toast({
         title: "Dose Dispensed Successfully",
         description: `${doseAmount}mg ${selectedMedication} dispensed to ${selectedPatient.first_name} ${selectedPatient.last_name}`,
       })
 
-      // Reset form elements related to this dose
+      // Reset form elements related to this dose (but keep patient selected)
       setDosingNotes("")
       setBehaviorNotes("")
       setVerificationStatus("idle")
       setPinInput("")
       setPumpStatus((prev) => ({ ...prev, status: "idle" })) // Reset pump status
+      
+      // Don't clear selectedPatient - allow for multiple doses if needed
 
-      // Reload recent doses
+      // Reload recent doses and patient data
       const { data: dosesData } = await supabase
         .from("dosing_log")
         .select("*")
@@ -525,6 +900,17 @@ export default function DosingWindowPage() {
         .limit(7)
 
       setRecentDoses(dosesData || [])
+      
+      // Refresh dosing holds in case they changed
+      const { data: updatedHoldsData } = await supabase
+        .from("dosing_holds")
+        .select("*")
+        .eq("patient_id", selectedPatient.id)
+        .eq("status", "active")
+      
+      if (updatedHoldsData) {
+        setDosingHolds(updatedHoldsData)
+      }
       return true // Indicate success
     } catch (error) {
       console.error("Error dispensing medication:", error)
@@ -569,41 +955,143 @@ export default function DosingWindowPage() {
       return
     }
 
+    if (!takeHomeDoses || takeHomeDoses < 1) {
+      toast({
+        title: "Invalid Number",
+        description: "Please specify a valid number of take-home doses",
+        variant: "destructive",
+      })
+      return
+    }
+
     setGeneratingTakeHome(true)
 
     try {
+      // Check if user is authenticated (either regular user or superadmin)
+      const isSuperAdmin = typeof window !== "undefined" && 
+        (localStorage.getItem("super_admin_session") || 
+         document.cookie.includes("super_admin_session"))
+
+      // Get current user ID
+      let dispensedBy: string | null = null
+      
+      if (isSuperAdmin) {
+        // For superadmin, use a placeholder - the API will handle auth via cookies
+        dispensedBy = "super_admin_session"
+      } else {
+        // Try to get regular user
+        const { data: { user } } = await supabase.auth.getUser()
+        dispensedBy = user?.id || currentUser?.id || null
+      }
+
+      if (!dispensedBy && !isSuperAdmin) {
+        toast({
+          title: "Authentication Error",
+          description: "Unable to identify current user. Please log in again.",
+          variant: "destructive",
+        })
+        setGeneratingTakeHome(false)
+        return
+      }
+
       const bottles: TakeHomeBottle[] = []
       const startDate = new Date(takeHomeStartDate)
+      const timestamp = Date.now()
 
       for (let i = 0; i < takeHomeDoses; i++) {
         const consumeDate = new Date(startDate)
         consumeDate.setDate(consumeDate.getDate() + i)
 
-        const qrCodeData = `MASE-TH-${selectedPatient.id}-${Date.now()}-${i + 1}`
+        // Generate unique QR code data
+        const qrCodeData = `MASE-TH-${selectedPatient.id}-${timestamp}-${i + 1}`
+        
+        // Create QR code hash (SHA-256)
+        let qrCodeHash = ""
+        try {
+          if (typeof crypto !== 'undefined' && crypto.subtle) {
+            const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(qrCodeData))
+            qrCodeHash = Array.from(new Uint8Array(hashBuffer))
+              .map(b => b.toString(16).padStart(2, '0'))
+              .join('')
+          } else {
+            // Fallback: simple hash using string manipulation
+            let hash = 0
+            for (let j = 0; j < qrCodeData.length; j++) {
+              const char = qrCodeData.charCodeAt(j)
+              hash = ((hash << 5) - hash) + char
+              hash = hash & hash // Convert to 32bit integer
+            }
+            qrCodeHash = Math.abs(hash).toString(16).padStart(64, '0')
+          }
+        } catch (error) {
+          // Fallback hash if crypto fails
+          const hash = qrCodeData.split('').reduce((acc, char) => {
+            return ((acc << 5) - acc) + char.charCodeAt(0) | 0
+          }, 0)
+          qrCodeHash = Math.abs(hash).toString(16).padStart(64, '0')
+        }
 
+        // Base bottle data for takehome_bottle_qr table
         const bottleData = {
           patient_id: selectedPatient.id,
           bottle_number: i + 1,
-          total_bottles: takeHomeDoses,
-          medication_name: medicationOrder.medication,
-          dose_amount: medicationOrder.daily_dose_mg,
+          medication_name: medicationOrder.medication || "Methadone",
+          dose_amount: medicationOrder.daily_dose_mg || 0,
           dose_unit: "mg",
-          scheduled_consume_date: consumeDate.toISOString().split("T")[0],
-          dispense_date: new Date().toISOString().split("T")[0],
-          dispensed_by: "current_nurse_id",
-          dispense_location_lat: 0,
-          dispense_location_lng: 0,
+          scheduled_consumption_date: consumeDate.toISOString().split("T")[0],
           qr_code_data: qrCodeData,
-          qr_code_image_url: "",
-          status: "label_printed", // Changed from "dispensed" to "label_printed" - bottles not filled yet
-          expiration_date: new Date(consumeDate.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+          qr_code_hash: qrCodeHash,
+          dispensed_by: (isSuperAdmin || dispensedBy === "super_admin_session") ? null : dispensedBy,
+          dispensed_at: new Date().toISOString(),
+          dispensing_location_lat: null,
+          dispensing_location_lng: null,
+          status: "dispensed", // Set to dispensed when labels are generated
+          compliance_status: "pending", // Only for takehome_bottle_qr table
         }
 
-        const { data, error } = await supabase.from("takehome_bottle_qr_codes").insert(bottleData).select().single()
+        // Try takehome_bottle_qr first, fallback to takehome_bottle_qr_codes if needed
+        let data, error
+        const result1 = await supabase.from("takehome_bottle_qr").insert(bottleData).select().single()
+        
+        if (result1.error) {
+          // Try alternative table name (takehome_bottle_qr_codes doesn't have compliance_status)
+          const { compliance_status, ...bottleDataWithoutCompliance } = bottleData
+          const result2 = await supabase.from("takehome_bottle_qr_codes").insert({
+            ...bottleDataWithoutCompliance,
+            total_bottles: takeHomeDoses,
+            scheduled_consume_date: bottleData.scheduled_consumption_date,
+            dispense_date: new Date().toISOString().split("T")[0],
+            qr_code_image_url: "",
+            expiration_date: new Date(consumeDate.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+          }).select().single()
+          
+          if (result2.error) {
+            throw new Error(`Failed to insert bottle ${i + 1}: ${result2.error.message}`)
+          }
+          data = result2.data
+        } else {
+          data = result1.data
+        }
 
-        if (error) throw error
-
-        bottles.push(data)
+        // Convert to TakeHomeBottle format for UI
+        bottles.push({
+          id: data.id,
+          patient_id: data.patient_id || selectedPatient.id,
+          bottle_number: data.bottle_number || i + 1,
+          total_bottles: takeHomeDoses,
+          medication_name: data.medication_name || medicationOrder.medication,
+          dose_amount: data.dose_amount || medicationOrder.daily_dose_mg,
+          dose_unit: data.dose_unit || "mg",
+          scheduled_consume_date: data.scheduled_consumption_date || data.scheduled_consume_date || consumeDate.toISOString().split("T")[0],
+          dispense_date: data.dispensed_at ? new Date(data.dispensed_at).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+          dispensed_by: data.dispensed_by || dispensedBy,
+          dispense_location_lat: data.dispensing_location_lat || 0,
+          dispense_location_lng: data.dispensing_location_lng || 0,
+          qr_code_data: data.qr_code_data || qrCodeData,
+          qr_code_image_url: data.qr_code_image_url || "",
+          status: data.status || "dispensed",
+          expiration_date: data.expiration_date || new Date(consumeDate.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+        })
       }
 
       setTakeHomeBottles(bottles)
@@ -612,16 +1100,17 @@ export default function DosingWindowPage() {
 
       toast({
         title: "QR Codes Generated",
-        description: `${takeHomeDoses} bottle labels generated. Now fill the bottles.`,
+        description: `${takeHomeDoses} bottle labels generated successfully. You can now print the labels.`,
       })
 
-      setShowBottleFillingDialog(true)
-      setShowTakeHomeDialog(false)
-    } catch (error) {
+      // Don't automatically open bottle filling dialog - let user print first
+      // setShowBottleFillingDialog(true)
+      // setShowTakeHomeDialog(false)
+    } catch (error: any) {
       console.error("Error generating take-home bottles:", error)
       toast({
         title: "Error",
-        description: "Failed to generate take-home bottles",
+        description: error?.message || "Failed to generate take-home bottles. Please check console for details.",
         variant: "destructive",
       })
     } finally {
@@ -717,36 +1206,62 @@ export default function DosingWindowPage() {
   }
 
   const printTakeHomeLabels = () => {
-    if (takeHomeBottles.length === 0) return
+    if (takeHomeBottles.length === 0) {
+      toast({
+        title: "No Bottles to Print",
+        description: "Please generate bottle labels first before printing",
+        variant: "destructive",
+      })
+      return
+    }
 
-    const printWindow = window.open("", "_blank")
-    if (printWindow) {
+    if (!selectedPatient) {
+      toast({
+        title: "No Patient Selected",
+        description: "Please select a patient first",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      const printWindow = window.open("", "_blank")
+      if (!printWindow) {
+        toast({
+          title: "Print Window Blocked",
+          description: "Please allow pop-ups for this site to print labels",
+          variant: "destructive",
+        })
+        return
+      }
+
       const labelsHtml = takeHomeBottles
         .map(
-          (bottle) => `
-        <div class="label">
+          (bottle, index) => `
+        <div class="label" style="page-break-after: ${index < takeHomeBottles.length - 1 ? 'always' : 'auto'};">
           <div class="label-header">
             <div class="clinic-name">MASE OTP CLINIC</div>
             <div class="take-home-badge">TAKE-HOME MEDICATION</div>
           </div>
           <div class="patient-info">
-            <div class="patient-name">${selectedPatient?.first_name} ${selectedPatient?.last_name}</div>
+            <div class="patient-name">${selectedPatient?.first_name || ""} ${selectedPatient?.last_name || ""}</div>
             <div class="client-number">Client #: ${selectedPatient?.client_number || "N/A"}</div>
           </div>
           <div class="medication-info">
-            <div class="med-name">${bottle.medication_name}</div>
-            <div class="dose">${bottle.dose_amount}${bottle.dose_unit}</div>
+            <div class="med-name">${bottle.medication_name || "Methadone"}</div>
+            <div class="dose">${bottle.dose_amount || 0}${bottle.dose_unit || "mg"}</div>
           </div>
           <div class="bottle-info">
-            <div>Bottle ${bottle.bottle_number} of ${bottle.total_bottles}</div>
-            <div>Scheduled: ${new Date(bottle.scheduled_consume_date).toLocaleDateString()}</div>
+            <div>Bottle ${bottle.bottle_number || index + 1} of ${bottle.total_bottles || takeHomeBottles.length}</div>
+            <div>Scheduled: ${bottle.scheduled_consume_date ? new Date(bottle.scheduled_consume_date).toLocaleDateString() : "N/A"}</div>
           </div>
           <div class="qr-code">
             <div class="qr-placeholder">
               <svg viewBox="0 0 100 100" width="120" height="120">
-                <rect width="100" height="100" fill="white"/>
-                <text x="50" y="50" textAnchor="middle" dy=".3em" fontSize="8" fill="black">QR CODE</text>
-                <text x="50" y="60" textAnchor="middle" dy=".3em" fontSize="4" fill="gray">${bottle.qr_code_data.slice(0, 20)}...</text>
+                <rect width="100" height="100" fill="white" stroke="#000" stroke-width="2"/>
+                <text x="50" y="45" textAnchor="middle" dy=".3em" fontSize="10" fill="black" fontWeight="bold">QR CODE</text>
+                <text x="50" y="60" textAnchor="middle" dy=".3em" fontSize="6" fill="gray">${(bottle.qr_code_data || "").slice(0, 25)}...</text>
+                <text x="50" y="75" textAnchor="middle" dy=".3em" fontSize="5" fill="darkgray">Bottle #${bottle.bottle_number || index + 1}</text>
               </svg>
             </div>
           </div>
@@ -760,7 +1275,7 @@ export default function DosingWindowPage() {
             </div>
           </div>
           <div class="footer">
-            Dispensed: ${new Date().toLocaleDateString()} | Expires: ${new Date(bottle.expiration_date).toLocaleDateString()}
+            Dispensed: ${bottle.dispense_date ? new Date(bottle.dispense_date).toLocaleDateString() : new Date().toLocaleDateString()} | Expires: ${bottle.expiration_date ? new Date(bottle.expiration_date).toLocaleDateString() : "N/A"}
           </div>
         </div>
       `,
@@ -772,19 +1287,39 @@ export default function DosingWindowPage() {
         <html>
         <head>
           <title>Take-Home Medication Labels</title>
+          <meta charset="UTF-8">
           <style>
             @media print {
-              @page { margin: 0.5in; }
-              .label { page-break-after: always; }
-              .label:last-child { page-break-after: auto; }
+              @page { 
+                margin: 0.5in; 
+                size: letter;
+              }
+              .label { 
+                page-break-after: always;
+                page-break-inside: avoid;
+              }
+              .label:last-child { 
+                page-break-after: auto; 
+              }
+              body { 
+                margin: 0;
+                padding: 0;
+              }
             }
-            body { font-family: Arial, sans-serif; padding: 20px; }
+            @media screen {
+              body { 
+                font-family: Arial, sans-serif; 
+                padding: 20px; 
+                background: #f5f5f5;
+              }
+            }
             .label {
               border: 3px solid #000;
               padding: 20px;
               max-width: 400px;
               margin: 0 auto 30px;
               background: white;
+              box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             }
             .label-header {
               text-align: center;
@@ -792,7 +1327,12 @@ export default function DosingWindowPage() {
               padding-bottom: 10px;
               margin-bottom: 15px;
             }
-            .clinic-name { font-size: 24px; font-weight: bold; color: #0891b2; }
+            .clinic-name { 
+              font-size: 24px; 
+              font-weight: bold; 
+              color: #0891b2; 
+              margin-bottom: 5px;
+            }
             .take-home-badge {
               background: #f59e0b;
               color: white;
@@ -809,8 +1349,15 @@ export default function DosingWindowPage() {
               border-radius: 6px;
               margin: 10px 0;
             }
-            .patient-name { font-size: 20px; font-weight: bold; }
-            .client-number { color: #6b7280; font-size: 14px; }
+            .patient-name { 
+              font-size: 20px; 
+              font-weight: bold; 
+              margin-bottom: 5px;
+            }
+            .client-number { 
+              color: #6b7280; 
+              font-size: 14px; 
+            }
             .medication-info {
               text-align: center;
               padding: 15px;
@@ -818,8 +1365,18 @@ export default function DosingWindowPage() {
               border-radius: 6px;
               margin: 15px 0;
             }
-            .med-name { font-size: 18px; font-weight: bold; color: #1e40af; }
-            .dose { font-size: 32px; font-weight: bold; color: #0891b2; margin-top: 5px; }
+            .med-name { 
+              font-size: 18px; 
+              font-weight: bold; 
+              color: #1e40af; 
+              margin-bottom: 5px;
+            }
+            .dose { 
+              font-size: 32px; 
+              font-weight: bold; 
+              color: #0891b2; 
+              margin-top: 5px; 
+            }
             .bottle-info {
               display: flex;
               justify-content: space-between;
@@ -830,11 +1387,15 @@ export default function DosingWindowPage() {
               background: #fef3c7;
               border-radius: 4px;
             }
-            .qr-code { text-align: center; margin: 20px 0; }
+            .qr-code { 
+              text-align: center; 
+              margin: 20px 0; 
+            }
             .qr-placeholder {
               display: inline-block;
-              border: 2px dashed #9ca3af;
+              border: 2px solid #000;
               padding: 10px;
+              background: white;
             }
             .instructions {
               background: #fef2f2;
@@ -848,7 +1409,10 @@ export default function DosingWindowPage() {
               color: #dc2626;
               margin-bottom: 5px;
             }
-            .instruction-text { font-size: 11px; line-height: 1.6; }
+            .instruction-text { 
+              font-size: 11px; 
+              line-height: 1.6; 
+            }
             .footer {
               text-align: center;
               font-size: 10px;
@@ -861,16 +1425,183 @@ export default function DosingWindowPage() {
         </head>
         <body>
           ${labelsHtml}
-          <script>window.onload = function() { window.print(); }</script>
+          <script>
+            window.onload = function() { 
+              setTimeout(function() {
+                window.print();
+              }, 250);
+            }
+            window.onafterprint = function() {
+              window.close();
+            }
+          </script>
         </body>
         </html>
       `)
       printWindow.document.close()
+      
+      toast({
+        title: "Printing Labels",
+        description: `Opening print dialog for ${takeHomeBottles.length} bottle label(s)`,
+      })
+    } catch (error: any) {
+      console.error("Error printing labels:", error)
+      toast({
+        title: "Print Error",
+        description: error?.message || "Failed to open print dialog. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Save behavior observations and clinical notes
+  const saveBehaviorObservations = async () => {
+    if (!selectedPatient) {
+      toast({
+        title: "No Patient Selected",
+        description: "Please select a patient first",
+        variant: "destructive",
+      })
+      return
     }
 
-    toast({
-      title: "Printing Labels",
-      description: `Printing ${takeHomeBottles.length} bottle labels`,
+    if (!behaviorNotes && !clinicalObservations && selectedQuickObservations.length === 0) {
+      toast({
+        title: "No Observations",
+        description: "Please enter at least one observation or note",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setSavingObservations(true)
+
+    try {
+      // Check if user is authenticated (either regular user or superadmin)
+      const isSuperAdmin = typeof window !== "undefined" && 
+        (localStorage.getItem("super_admin_session") || 
+         document.cookie.includes("super_admin_session"))
+
+      // Get current user ID
+      let observedBy: string | null = null
+      
+      if (isSuperAdmin) {
+        // For superadmin, use a placeholder - the API will handle auth via cookies
+        observedBy = "super_admin_session"
+      } else {
+        // Try to get regular user
+        const { data: { user } } = await supabase.auth.getUser()
+        observedBy = user?.id || currentUser?.id || null
+      }
+
+      if (!observedBy && !isSuperAdmin) {
+        toast({
+          title: "Authentication Error",
+          description: "Unable to identify current user. Please log in again.",
+          variant: "destructive",
+        })
+        setSavingObservations(false)
+        return
+      }
+
+      // Combine all observations
+      const quickObsText = selectedQuickObservations.length > 0 
+        ? `Quick Observations: ${selectedQuickObservations.join(", ")}` 
+        : ""
+      
+      const combinedNotes = [
+        behaviorNotes && `Behavior: ${behaviorNotes}`,
+        clinicalObservations,
+        quickObsText
+      ].filter(Boolean).join("\n\n")
+
+      // Get patient data for organization_id
+      const { data: patientData } = await supabase
+        .from("patients")
+        .select("organization_id")
+        .eq("id", selectedPatient.id)
+        .single()
+
+      // Save to dosing_log as an observation entry (no dose dispensed)
+      // For superadmin, set dispensed_by to null since it references staff(id)
+      const observationLog: any = {
+        patient_id: selectedPatient.id,
+        dose_date: new Date().toISOString().split("T")[0],
+        dose_time: new Date().toTimeString().split(" ")[0],
+        medication: medicationOrder?.medication || "Observation Only",
+        dose_amount: 0, // No dose, just observation
+        dispensed_by: (isSuperAdmin || observedBy === "super_admin_session") ? null : observedBy,
+        patient_response: behaviorNotes || null,
+        notes: combinedNotes || null,
+      }
+
+      // Add organization_id if available
+      if (patientData?.organization_id) {
+        observationLog.organization_id = patientData.organization_id
+      }
+
+      // Try to get otp_admission_id if available
+      const { data: admissionData } = await supabase
+        .from("otp_admissions")
+        .select("id, organization_id")
+        .eq("patient_id", selectedPatient.id)
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (admissionData?.id) {
+        observationLog.otp_admission_id = admissionData.id
+      }
+
+      if (admissionData?.organization_id && !observationLog.organization_id) {
+        observationLog.organization_id = admissionData.organization_id
+      }
+
+      const { error, data } = await supabase.from("dosing_log").insert(observationLog).select()
+
+      if (error) {
+        console.error("[Dosing Window] Error saving observations:", {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code,
+          fullError: error
+        })
+        throw new Error(error.message || `Database error: ${error.code || 'Unknown error'}`)
+      }
+
+      toast({
+        title: "Observations Saved",
+        description: "Patient behavior and clinical observations have been recorded",
+      })
+
+      // Clear form
+      setBehaviorNotes("")
+      setClinicalObservations("")
+      setSelectedQuickObservations([])
+
+    } catch (error: any) {
+      console.error("Error saving observations:", error)
+      const errorMessage = error?.message || error?.error?.message || "Failed to save observations. Please try again."
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      })
+    } finally {
+      setSavingObservations(false)
+    }
+  }
+
+  // Toggle quick observation selection
+  const toggleQuickObservation = (observation: string) => {
+    setSelectedQuickObservations((prev) => {
+      if (prev.includes(observation)) {
+        return prev.filter((obs) => obs !== observation)
+      } else {
+        return [...prev, observation]
+      }
     })
   }
 
@@ -886,14 +1617,40 @@ export default function DosingWindowPage() {
     }
 
     try {
+      // Check if user is authenticated (either regular user or superadmin)
+      const isSuperAdmin = typeof window !== "undefined" && 
+        (localStorage.getItem("super_admin_session") || 
+         document.cookie.includes("super_admin_session"))
+
+      // Get current user ID
+      let createdBy: string | null = null
+      
+      if (isSuperAdmin) {
+        // For superadmin, use a placeholder - the API will handle auth via cookies
+        createdBy = "super_admin_session"
+      } else {
+        // Try to get regular user
+        const { data: { user } } = await supabase.auth.getUser()
+        createdBy = user?.id || currentUser?.id || null
+      }
+
+      if (!createdBy && !isSuperAdmin) {
+        toast({
+          title: "Authentication Error",
+          description: "Unable to identify current user. Please log in again.",
+          variant: "destructive",
+        })
+        return
+      }
+
       const holdData = {
         patient_id: selectedPatient.id,
         hold_type: holdType,
         reason: holdReason,
         severity: holdType === "uds" || holdType === "clinical" ? "high" : "medium",
         status: "active",
-        created_by: "current_nurse_id",
-        created_by_role: "nurse",
+        created_by: createdBy || "system",
+        created_by_role: isSuperAdmin ? "admin" : "nurse",
         requires_clearance_from: holdType === "clinical" ? ["physician"] : ["counselor", "nurse"],
         cleared_by: [],
       }
@@ -940,26 +1697,78 @@ export default function DosingWindowPage() {
       return
     }
 
+    // Check if user is authenticated (either regular user or superadmin)
+    const isSuperAdmin = typeof window !== "undefined" && 
+      (localStorage.getItem("super_admin_session") || 
+       document.cookie.includes("super_admin_session"))
+
+    // Get nurse ID - use current user ID if available, or a placeholder for superadmin
+    // The API will handle authentication properly
+    let nurseId: string | null = null
+    if (currentUser?.id) {
+      nurseId = currentUser.id
+    } else if (isSuperAdmin) {
+      // For superadmin, we'll use a placeholder - the API will handle auth
+      // Or we could fetch the superadmin ID from the session
+      nurseId = "super_admin_session" // Placeholder - API will validate
+    }
+
+    if (!nurseId && !isSuperAdmin) {
+      toast({
+        title: "Authentication Error",
+        description: "Unable to identify current user. Please log in again.",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
-      // Create order request in database
-      const { error } = await supabase.from("medication_order_requests").insert({
-        patient_id: selectedPatient.id,
-        order_type: orderRequestType,
-        current_dose_mg: medicationOrder?.daily_dose_mg || 0,
-        requested_dose_mg: orderRequestDetails.requestedDose,
-        clinical_justification: orderRequestNotes,
-        physician_id: orderPhysician,
-        nurse_signature: nurseSignature || null,
-        nurse_id: "current-nurse-id", // Replace with actual nurse ID
-        status: nurseSignature ? "pending_physician_review" : "draft",
-        created_at: new Date().toISOString(),
+      // Parse requested dose as number
+      const requestedDoseNum = orderRequestDetails.requestedDose 
+        ? Number.parseFloat(orderRequestDetails.requestedDose) 
+        : null
+
+      if (orderRequestDetails.requestedDose) {
+        if (requestedDoseNum === null || (typeof requestedDoseNum === 'number' && (isNaN(requestedDoseNum) || requestedDoseNum < 0))) {
+          toast({
+            title: "Invalid Dose Amount",
+            description: "Requested dose must be a valid positive number",
+            variant: "destructive",
+          })
+          return
+        }
+      }
+
+      // Use API endpoint for better error handling and authentication
+      // The API will handle superadmin authentication via cookies
+      const response = await fetch("/api/medication-order-requests", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          patient_id: selectedPatient.id,
+          order_type: orderRequestType,
+          current_dose_mg: medicationOrder?.daily_dose_mg ? Number(medicationOrder.daily_dose_mg) : null,
+          requested_dose_mg: requestedDoseNum,
+          clinical_justification: orderRequestNotes,
+          physician_id: orderPhysician,
+          nurse_signature: nurseSignature || null,
+          nurse_id: nurseId || (isSuperAdmin ? "super_admin" : "unknown"),
+          status: nurseSignature ? "pending_physician_review" : "draft",
+        }),
       })
 
-      if (error) throw error
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to submit order request")
+      }
 
       toast({
         title: "Order Request Submitted",
-        description: `${orderRequestType} order sent to physician for review`,
+        description: `${orderRequestType.charAt(0).toUpperCase() + orderRequestType.slice(1)} order sent to physician for review`,
       })
 
       setShowOrderRequestDialog(false)
@@ -970,9 +1779,10 @@ export default function DosingWindowPage() {
       setOrderRequestType("increase") // Reset order type
     } catch (error) {
       console.error("Error submitting order request:", error)
+      const errorMessage = error instanceof Error ? error.message : "Failed to submit order request"
       toast({
         title: "Error",
-        description: "Failed to submit order request",
+        description: errorMessage,
         variant: "destructive",
       })
     }
@@ -980,18 +1790,34 @@ export default function DosingWindowPage() {
 
   // Reset patient PIN
   const resetPatientPin = async () => {
-    if (!selectedPatient || newPinValue !== confirmPinValue || newPinValue.length !== 4) {
+    if (!selectedPatient || newPinValue !== confirmPinValue || newPinValue.length !== 4 || !/^\d{4}$/.test(newPinValue)) {
       toast({
         title: "Invalid PIN",
-        description: "PINs must match and be 4 digits",
+        description: "PINs must match and be exactly 4 digits",
         variant: "destructive",
       })
       return
     }
 
     try {
-      // In production, this would hash and store the new PIN
-      // For simulation, just show toast and reset state
+      const response = await fetch("/api/dosing/reset-pin", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          patientId: selectedPatient.id,
+          newPin: newPinValue,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to reset PIN")
+      }
+
       toast({
         title: "PIN Reset Successfully",
         description: `PIN has been reset for ${selectedPatient.first_name} ${selectedPatient.last_name}`,
@@ -1004,7 +1830,7 @@ export default function DosingWindowPage() {
       console.error("Error resetting PIN:", error)
       toast({
         title: "Error",
-        description: "Failed to reset PIN",
+        description: error instanceof Error ? error.message : "Failed to reset PIN",
         variant: "destructive",
       })
     }
@@ -2024,6 +2850,8 @@ export default function DosingWindowPage() {
                         <div className="space-y-2">
                           <Label>Clinical Observations</Label>
                           <Textarea
+                            value={clinicalObservations}
+                            onChange={(e) => setClinicalObservations(e.target.value)}
                             placeholder="Document any clinical observations, concerns, or notable behavior..."
                             rows={4}
                           />
@@ -2031,6 +2859,9 @@ export default function DosingWindowPage() {
 
                         <div className="space-y-2">
                           <Label>Quick Observations</Label>
+                          <p className="text-xs text-gray-500 mb-2">
+                            Click to select/deselect observations
+                          </p>
                           <div className="flex flex-wrap gap-2">
                             {[
                               "Steady gait",
@@ -2044,16 +2875,43 @@ export default function DosingWindowPage() {
                               "Good hygiene",
                               "Poor hygiene",
                             ].map((obs) => (
-                              <Badge key={obs} variant="outline" className="cursor-pointer hover:bg-cyan-50">
+                              <Badge
+                                key={obs}
+                                variant={selectedQuickObservations.includes(obs) ? "default" : "outline"}
+                                className={`cursor-pointer transition-colors ${
+                                  selectedQuickObservations.includes(obs)
+                                    ? "bg-cyan-600 hover:bg-cyan-700 text-white"
+                                    : "hover:bg-cyan-50"
+                                }`}
+                                onClick={() => toggleQuickObservation(obs)}
+                              >
                                 {obs}
                               </Badge>
                             ))}
                           </div>
+                          {selectedQuickObservations.length > 0 && (
+                            <p className="text-xs text-cyan-600 mt-2">
+                              Selected: {selectedQuickObservations.join(", ")}
+                            </p>
+                          )}
                         </div>
 
-                        <Button className="w-full bg-cyan-600 hover:bg-cyan-700">
-                          <FileText className="h-4 w-4 mr-2" />
-                          Save Observations
+                        <Button
+                          onClick={saveBehaviorObservations}
+                          disabled={savingObservations || !selectedPatient}
+                          className="w-full bg-cyan-600 hover:bg-cyan-700"
+                        >
+                          {savingObservations ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <FileText className="h-4 w-4 mr-2" />
+                              Save Observations
+                            </>
+                          )}
                         </Button>
                       </CardContent>
                     </Card>
@@ -2137,15 +2995,29 @@ export default function DosingWindowPage() {
 
             <div className="space-y-2">
               <Label>Select Physician</Label>
-              <Select value={orderPhysician} onValueChange={setOrderPhysician}>
+              <Select value={orderPhysician} onValueChange={setOrderPhysician} disabled={loadingPhysicians || physicians.length === 0}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Choose physician to review order" />
+                  <SelectValue placeholder={
+                    loadingPhysicians 
+                      ? "Loading physicians..." 
+                      : physicians.length === 0 
+                        ? "No physicians available" 
+                        : "Choose physician to review order"
+                  } />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="dr-smith">Dr. Smith (Medical Director)</SelectItem>
-                  <SelectItem value="dr-jones">Dr. Jones (Attending Physician)</SelectItem>
-                  <SelectItem value="dr-williams">Dr. Williams (Psychiatrist)</SelectItem>
-                </SelectContent>
+                {physicians.length > 0 && (
+                  <SelectContent>
+                    {physicians.map((physician) => {
+                      const displayName = `Dr. ${physician.first_name} ${physician.last_name}`
+                      const title = physician.department || physician.role || ""
+                      return (
+                        <SelectItem key={physician.id} value={physician.id}>
+                          {displayName}{title && ` (${title})`}
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectContent>
+                )}
               </Select>
             </div>
 

@@ -447,13 +447,28 @@ export async function POST(request: Request) {
 
 async function getIntakeProgress(supabase: any, patientId: string) {
   try {
+    // Get patient's organization_id if available
+    const { data: patientData } = await supabase
+      .from("patients")
+      .select("organization_id")
+      .eq("id", patientId)
+      .maybeSingle();
+
     // Get the intake progress requirement
     const REQUIREMENT_NAME = "Patient Intake Progress";
-    const { data: requirement, error: reqError } = await supabase
+    let requirementQuery = supabase
       .from("chart_requirements")
       .select("id")
-      .eq("requirement_name", REQUIREMENT_NAME)
-      .maybeSingle();
+      .eq("requirement_name", REQUIREMENT_NAME);
+
+    // Filter by organization_id if available
+    if (patientData?.organization_id) {
+      requirementQuery = requirementQuery.eq("organization_id", patientData.organization_id);
+    } else {
+      requirementQuery = requirementQuery.is("organization_id", null);
+    }
+
+    const { data: requirement, error: reqError } = await requirementQuery.maybeSingle();
 
     if (reqError) {
       // Table might not exist or requirement might not be created yet
@@ -490,7 +505,10 @@ async function getIntakeProgress(supabase: any, patientId: string) {
     }
 
     try {
-      const progressData = JSON.parse(progressItem.notes);
+      const parsed = JSON.parse(progressItem.notes);
+      // Extract progress data (it's wrapped in a type field)
+      const progressData = parsed.type === "intake_progress" ? parsed : parsed;
+      
       return {
         ...progressData,
         status: progressItem.status,
@@ -538,15 +556,31 @@ function determineIntakeStage(admission: any, progressData: any): string {
       return "consent-forms";
     }
 
-    // Consents done, check UDS
+    // Consents done, check UDS and assessments
+    // Check if nurse assessment is complete
+    if (progressData.nurse_assessment_complete) {
+      // Check if counselor assessment is complete
+      if (progressData.counselor_assessment_complete) {
+        // Check if doctor assessment is complete
+        if (progressData.doctor_assessment_complete) {
+          // All assessments done, should be in dosing or doctor-queue
+          return "doctor-queue";
+        }
+        // Counselor done but not doctor
+        return "counselor-queue";
+      }
+      // Nurse done but not counselor
+      return "nurse-queue";
+    }
+
+    // Consents done but assessments not started
     return "collector-queue";
   }
 
   // If status is active, check what's been completed
   if (admission.status === "active") {
     if (progressData) {
-      // Check if UDS is done
-      // This would need to be checked separately, but for now assume if active, might be in later stages
+      // Check consent forms first
       const docStatus = progressData.documentation_status || {};
       const allConsentsComplete = Object.values(docStatus).every(
         (status: any) => status === "completed"
@@ -556,17 +590,37 @@ function determineIntakeStage(admission: any, progressData: any): string {
         return "consent-forms";
       }
 
-      // Check assessments - simplified logic
+      // Check assessment progression
+      if (progressData.nurse_assessment_complete) {
+        if (progressData.counselor_assessment_complete) {
+          if (progressData.doctor_assessment_complete) {
+            // All assessments complete - check if ready for dosing
+            const assessmentData = progressData.assessment_data || {};
+            if (assessmentData.primary_substance) {
+              return "dosing";
+            }
+            // Doctor assessment done but no substance data yet
+            return "doctor-queue";
+          }
+          // Counselor done but not doctor
+          return "counselor-queue";
+        }
+        // Nurse done but not counselor
+        return "nurse-queue";
+      }
+
+      // Consents done but assessments not started
+      // Check if UDS is needed
       const assessmentData = progressData.assessment_data || {};
       if (!assessmentData.primary_substance) {
         return "collector-queue";
       }
 
-      // Assume assessments are done if we have assessment data
-      // In a real system, you'd check specific assessment completion
-      return "dosing";
+      // Has assessment data but no nurse assessment flag - might be in collector-queue
+      return "collector-queue";
     }
 
+    // Active but no progress data - default to collector-queue
     return "collector-queue";
   }
 

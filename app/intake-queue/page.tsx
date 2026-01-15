@@ -16,6 +16,7 @@ import {
 import { DashboardSidebar } from "@/components/dashboard-sidebar";
 import { UDSCollectionModal } from "@/components/uds-collection-modal";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   Users,
   CheckCircle,
@@ -42,11 +43,14 @@ export default function IntakeQueuePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notificationCount, setNotificationCount] = useState(0);
+  const [movingPatientId, setMovingPatientId] = useState<string | null>(null);
 
   const loadIntakePatients = async () => {
     try {
       setLoading(true);
-      const response = await fetch("/api/intake/patients");
+      const response = await fetch("/api/intake/patients", {
+        credentials: "include",
+      });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || `Failed to fetch patients: ${response.status}`);
@@ -84,7 +88,9 @@ export default function IntakeQueuePage() {
 
     const loadNotifications = async () => {
       try {
-        const response = await fetch("/api/notifications");
+        const response = await fetch("/api/notifications", {
+          credentials: "include",
+        });
         if (response.ok) {
           const data = await response.json();
           const unreadCount =
@@ -182,8 +188,65 @@ export default function IntakeQueuePage() {
       : true
   );
 
-  const handleMoveToNextStage = (patientId: string) => {
-    console.log(`Moving patient ${patientId} to next stage`);
+  const handleMoveToNextStage = async (patientId: string) => {
+    try {
+      setMovingPatientId(patientId);
+      const patient = intakePatients.find((p) => p.id === patientId);
+      if (!patient) {
+        console.error(`Patient ${patientId} not found`);
+        toast.error("Patient not found in queue");
+        return;
+      }
+
+      // Extract the actual UUID patient ID
+      // patient.id is like "INT-4D4AFECO" (display ID)
+      // patient.patientId is the actual UUID
+      const actualPatientId = patient.patientId;
+      
+      if (!actualPatientId) {
+        console.error("No patientId found for patient:", patient);
+        toast.error("Cannot move patient: Patient ID is missing");
+        return;
+      }
+
+      console.log("[Intake Queue] Moving patient:", {
+        displayId: patient.id,
+        actualPatientId: actualPatientId,
+        currentStage: patient.currentStage,
+      });
+
+      const response = await fetch("/api/intake/stage", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          patientId: actualPatientId,
+          currentStage: patient.currentStage,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error("[Intake Queue] API error:", data);
+        throw new Error(data.error || "Failed to move patient to next stage");
+      }
+
+      console.log(`[Intake Queue] Patient ${patient.name} moved from ${patient.currentStage} to ${data.nextStage}`);
+      
+      // Show success message
+      toast.success(`Patient moved to ${data.nextStage}`);
+      
+      // Refresh the queue to show updated stages
+      await loadIntakePatients();
+    } catch (error) {
+      console.error("[Intake Queue] Error moving patient to next stage:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to move patient. Please check the console for details.");
+    } finally {
+      setMovingPatientId(null);
+    }
   };
 
   const handleCollectUDS = (patientId: string) => {
@@ -416,8 +479,18 @@ export default function IntakeQueuePage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleMoveToNextStage(patient.id)}>
-                            <ArrowRight className="h-4 w-4" />
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              console.log("[Intake Queue] Arrow button clicked for patient:", patient.id, patient);
+                              handleMoveToNextStage(patient.id);
+                            }}
+                            disabled={movingPatientId === patient.id}>
+                            {movingPatientId === patient.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <ArrowRight className="h-4 w-4" />
+                            )}
                           </Button>
                         </div>
                       </div>

@@ -1,6 +1,7 @@
 import { createServiceClient } from "@/lib/supabase/service-role";
 import { NextResponse } from "next/server";
 import { getAuthenticatedUser } from "@/lib/auth/middleware";
+import { cookies } from "next/headers";
 import {
   validatePhone,
   normalizePhone,
@@ -245,11 +246,39 @@ export async function GET(request: Request) {
   }
 }
 
+/**
+ * Check if superadmin session is valid
+ */
+async function checkSuperAdminSession(): Promise<boolean> {
+  try {
+    const cookieStore = await cookies();
+    const sessionToken = cookieStore.get("super_admin_session")?.value;
+    
+    if (!sessionToken) {
+      return false;
+    }
+
+    const supabase = createServiceClient();
+    const { data: session, error } = await supabase
+      .from("super_admin_sessions")
+      .select("super_admin_id, expires_at")
+      .eq("session_token", sessionToken)
+      .gt("expires_at", new Date().toISOString())
+      .single();
+
+    return !error && !!session;
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(request: Request) {
   try {
-    // Check authentication
+    // Check authentication - either regular user or superadmin
     const { user, error: authError } = await getAuthenticatedUser();
-    if (authError || !user) {
+    const isSuperAdmin = await checkSuperAdminSession();
+    
+    if ((authError || !user) && !isSuperAdmin) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
+import { createClient } from "@/lib/supabase/client"
 
 interface AddPatientDialogProps {
   children: React.ReactNode
@@ -55,8 +56,30 @@ export function AddPatientDialog({ children, providerId, onSuccess }: AddPatient
     setIsLoading(true)
 
     try {
+      // Check if user is authenticated (either Supabase session or superadmin session)
+      const isSuperAdmin = typeof window !== "undefined" && 
+        (localStorage.getItem("super_admin_session") || 
+         document.cookie.includes("super_admin_session"))
+
+      if (!isSuperAdmin) {
+        // Check for regular Supabase session
+        const supabase = createClient()
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession()
+
+        if (sessionError || !session) {
+          toast.error("Please log in to add a patient")
+          setIsLoading(false)
+          router.push("/auth/login")
+          return
+        }
+      }
+
       const response = await fetch("/api/patients", {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },
