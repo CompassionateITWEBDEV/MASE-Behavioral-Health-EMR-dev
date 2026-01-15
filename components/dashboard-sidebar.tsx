@@ -58,6 +58,7 @@ import {
   Microscope,
   Menu,
   X,
+  MapPin,
   type LucideIcon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -242,6 +243,7 @@ const getNavigationCategories = (isSuperAdmin: boolean): NavCategory[] => {
       items: [
         { icon: Heart, label: "MASE Access Portal", href: "/mase-access", count: 5, highlight: "alert" },
         { icon: Users, label: "Outreach Dashboard", href: "/outreach", count: 8 },
+        { icon: Calendar, label: "Outreach Events", href: "/outreach-events", count: 4 },
         { icon: ClipboardList, label: "Public Screening", href: "/screening" },
         { icon: Send, label: "Referral Gateway", href: "/referral" },
         { icon: Building2, label: "CHW Encounters", href: "/chw-encounter" },
@@ -253,8 +255,15 @@ const getNavigationCategories = (isSuperAdmin: boolean): NavCategory[] => {
       icon: Settings,
       items: [
         { icon: UserCheck, label: "Staff Management", href: "/staff", count: 24 },
+        { icon: Users, label: "HR Management", href: "/hr-management", count: 15, highlight: "alert" },
         { icon: Activity, label: "Staff Workflows", href: "/workflows", count: 3 },
         { icon: Building2, label: "Facility Mgmt", href: "/facility", count: 4 },
+        { icon: Shield, label: "Regulatory Portal", href: "/regulatory-portal", count: 3, highlight: "alert" },
+        { icon: AlertTriangle, label: "Diversion Control", href: "/diversion-control", count: 3, highlight: "alert" },
+        { icon: Network, label: "County & PIHP Portal", href: "/county-pihp-portal", count: 2 },
+        { icon: Heart, label: "Community Collaboration", href: "/collaboration", count: 5 },
+        { icon: MapPin, label: "GPS Tracking", href: "/gps-tracking" },
+        { icon: Settings, label: "Callback Policies", href: "/callback-policies", count: 2 },
         { icon: Network, label: "Integrations", href: "/integrations-dashboard" },
         { icon: ClipboardCheck, label: "Clinic Onboarding", href: "/clinic-onboarding" },
         { icon: Crown, label: "Subscription", href: "/subscription", highlight: "premium" },

@@ -128,11 +128,18 @@ export default function TakeHomeDiversionPage() {
     complianceRate: 0,
   })
 
+  // State callback policy tracking
+  const [callbackPolicies, setCallbackPolicies] = useState<any[]>([])
+  const [callbackLogs, setCallbackLogs] = useState<any[]>([])
+  const [showCallbackDialog, setShowCallbackDialog] = useState(false)
+  const [selectedPatientForCallback, setSelectedPatientForCallback] = useState<string | null>(null)
+
   const supabase = createClient()
 
   useEffect(() => {
     fetchAllData()
     fetchSettings()
+    fetchCallbackPolicies() // Fetch callback policies on load
   }, [])
 
   const fetchSettings = async () => {
@@ -249,6 +256,81 @@ export default function TakeHomeDiversionPage() {
       console.error("[v0] Error fetching data:", error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchCallbackPolicies = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("state_callback_policies")
+        .select("*")
+        .eq("is_active", true)
+        .order("policy_type")
+
+      if (error) {
+        console.error("[v0] Error fetching callback policies:", error)
+      } else {
+        setCallbackPolicies(data || [])
+      }
+
+      // Also fetch recent callback logs
+      const { data: logsData, error: logsError } = await supabase
+        .from("state_callback_log")
+        .select("*, patients(first_name, last_name)")
+        .order("created_at", { ascending: false })
+        .limit(50)
+
+      if (!logsError) {
+        setCallbackLogs(logsData || [])
+      }
+    } catch (error) {
+      console.error("[v0] Error in fetchCallbackPolicies:", error)
+    }
+  }
+
+  const checkAndTriggerCallback = async (patientId: string, violationType: string) => {
+    console.log("[v0] Checking callback requirements for patient:", patientId, "violation:", violationType)
+
+    // Find matching policy
+    const matchingPolicy = callbackPolicies.find((p) => p.policy_type === violationType && p.callback_requirement)
+
+    if (!matchingPolicy) {
+      console.log("[v0] No callback policy found for violation type:", violationType)
+      return
+    }
+
+    // Check if patient has exceeded max failures
+    const recentAlerts = alerts.filter(
+      (a) => a.patient_id === patientId && a.alert_type === violationType && a.status !== "resolved",
+    )
+
+    if (recentAlerts.length >= matchingPolicy.max_failures_allowed) {
+      console.log("[v0] Patient exceeded max failures, scheduling callback")
+
+      // Calculate callback window
+      const callbackDate = new Date()
+      callbackDate.setHours(callbackDate.getHours() + matchingPolicy.callback_window_hours)
+
+      // Create callback log entry
+      const { error: callbackError } = await supabase.from("state_callback_log").insert({
+        patient_id: patientId,
+        callback_policy_id: matchingPolicy.id,
+        trigger_event: `${violationType} violation - ${recentAlerts.length} failures`,
+        callback_scheduled_date: callbackDate.toISOString().split("T")[0],
+        callback_completed: false,
+        outcome: "pending",
+        staff_notes: `Auto-triggered by diversion control system. Policy: ${matchingPolicy.policy_type}`,
+      })
+
+      if (callbackError) {
+        console.error("[v0] Error creating callback log:", callbackError)
+      } else {
+        toast({
+          title: "Callback Scheduled",
+          description: `State callback policy triggered for patient. Due within ${matchingPolicy.callback_window_hours} hours.`,
+        })
+        fetchCallbackPolicies() // Refresh callback logs
+      }
     }
   }
 
