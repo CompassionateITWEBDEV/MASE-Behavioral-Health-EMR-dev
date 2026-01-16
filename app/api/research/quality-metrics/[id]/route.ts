@@ -8,11 +8,12 @@ import type {
 // GET - Fetch a single quality metric with all related data
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = createServiceClient()
-    const metricId = params.id
+    const { id } = await params
+    const metricId = id
     const { searchParams } = new URL(request.url)
     const historyMonths = parseInt(searchParams.get("history_months") || "12")
 
@@ -129,11 +130,12 @@ export async function GET(
 // PATCH - Update a quality metric
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = createServiceClient()
-    const metricId = params.id
+    const { id } = await params
+    const metricId = id
     const body: UpdateQualityMetricRequest = await request.json()
 
     // Check if metric exists
@@ -230,11 +232,12 @@ export async function PATCH(
 // DELETE - Delete a quality metric (soft delete by setting is_active to false)
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = createServiceClient()
-    const metricId = params.id
+    const { id } = await params
+    const metricId = id
     const { searchParams } = new URL(request.url)
     const hardDelete = searchParams.get("hard") === "true"
 

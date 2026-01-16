@@ -5,11 +5,12 @@ import type { CreateSnapshotRequest } from "@/lib/quality-metrics-types"
 // GET - Fetch historical snapshots for a metric
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = createServiceClient()
-    const metricId = params.id
+    const { id } = await params
+    const metricId = id
     const { searchParams } = new URL(request.url)
     
     const months = parseInt(searchParams.get("months") || "12")
@@ -122,11 +123,12 @@ export async function GET(
 // POST - Create a new snapshot for a metric
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = createServiceClient()
-    const metricId = params.id
+    const { id } = await params
+    const metricId = id
     const body: CreateSnapshotRequest = await request.json()
 
     // Validate required fields

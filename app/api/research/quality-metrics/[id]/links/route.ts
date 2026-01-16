@@ -4,11 +4,12 @@ import { NextResponse } from "next/server"
 // GET - Fetch links for a quality metric
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = createServiceClient()
-    const metricId = params.id
+    const { id } = await params
+    const metricId = id
 
     // Verify metric exists
     const { data: metric, error: metricError } = await supabase
@@ -111,11 +112,12 @@ export async function GET(
 // POST - Create a new link
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = createServiceClient()
-    const metricId = params.id
+    const { id } = await params
+    const metricId = id
     const body = await request.json()
 
     // Validate required fields
@@ -231,11 +233,12 @@ export async function POST(
 // DELETE - Remove a link
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = createServiceClient()
-    const metricId = params.id
+    const { id } = await params
+    const metricId = id
     const { searchParams } = new URL(request.url)
     const linkId = searchParams.get("link_id")
 
