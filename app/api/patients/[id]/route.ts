@@ -110,7 +110,7 @@ export async function GET(
         .order("measurement_date", { ascending: false })
         .limit(50),
       supabase
-        .from("medications")
+        .from("patient_medications")
         .select("*")
         .eq("patient_id", id)
         .order("created_at", { ascending: false }),
