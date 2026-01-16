@@ -17,6 +17,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import {
   AlertTriangle,
   Calendar,
   Clock,
@@ -53,6 +63,8 @@ import {
   Database,
   CheckCircle,
   History,
+  Plus,
+  Loader2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
@@ -1249,7 +1261,17 @@ export default function PatientChartPage() {
                 <TabsContent value="medication" className="space-y-4">
                   <Card>
                     <CardHeader>
-                      <CardTitle>Current Medications</CardTitle>
+                      <div className="flex items-center justify-between">
+                        <CardTitle>Current Medications</CardTitle>
+                        <Button
+                          onClick={() => setShowAddMedicationDialog(true)}
+                          className="bg-cyan-600 hover:bg-cyan-700"
+                          disabled={!selectedPatient}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Medicine
+                        </Button>
+                      </div>
                     </CardHeader>
                     <CardContent>
                       {medications.length > 0 ? (
@@ -1298,11 +1320,23 @@ export default function PatientChartPage() {
                 <TabsContent value="asam" className="space-y-4">
                   <Card>
                     <CardHeader>
-                      <CardTitle>ASAM Criteria Assessment</CardTitle>
-                      <CardDescription>
-                        American Society of Addiction Medicine placement
-                        criteria
-                      </CardDescription>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <CardTitle>ASAM Criteria Assessment</CardTitle>
+                          <CardDescription>
+                            American Society of Addiction Medicine placement
+                            criteria
+                          </CardDescription>
+                        </div>
+                        <Button
+                          onClick={() => setShowNewAsamDialog(true)}
+                          className="bg-green-600 hover:bg-green-700"
+                          disabled={!selectedPatient}
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          New Assessment
+                        </Button>
+                      </div>
                     </CardHeader>
                     <CardContent>
                       {assessments.length > 0 ? (
@@ -3347,6 +3381,345 @@ export default function PatientChartPage() {
           )}
         </main>
       </div>
+      
+      {/* Add Medication Dialog */}
+      <Dialog open={showAddMedicationDialog} onOpenChange={setShowAddMedicationDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add New Medication</DialogTitle>
+            <DialogDescription>
+              Add a new medication for {selectedPatient?.first_name} {selectedPatient?.last_name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="medication_name">Medication Name *</Label>
+                <Input
+                  id="medication_name"
+                  value={medicationForm.medication_name}
+                  onChange={(e) =>
+                    setMedicationForm({ ...medicationForm, medication_name: e.target.value })
+                  }
+                  placeholder="e.g., Methadone"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="medication_type">Medication Type *</Label>
+                <Select
+                  value={medicationForm.medication_type}
+                  onValueChange={(value) =>
+                    setMedicationForm({ ...medicationForm, medication_type: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="prescription">Prescription</SelectItem>
+                    <SelectItem value="otc">Over-the-Counter</SelectItem>
+                    <SelectItem value="controlled">Controlled Substance</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="dosage">Dosage *</Label>
+                <Input
+                  id="dosage"
+                  value={medicationForm.dosage}
+                  onChange={(e) =>
+                    setMedicationForm({ ...medicationForm, dosage: e.target.value })
+                  }
+                  placeholder="e.g., 50mg"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="frequency">Frequency *</Label>
+                <Input
+                  id="frequency"
+                  value={medicationForm.frequency}
+                  onChange={(e) =>
+                    setMedicationForm({ ...medicationForm, frequency: e.target.value })
+                  }
+                  placeholder="e.g., Once daily"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="start_date">Start Date *</Label>
+                <Input
+                  id="start_date"
+                  type="date"
+                  value={medicationForm.start_date}
+                  onChange={(e) =>
+                    setMedicationForm({ ...medicationForm, start_date: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="status">Status *</Label>
+                <Select
+                  value={medicationForm.status}
+                  onValueChange={(value) =>
+                    setMedicationForm({ ...medicationForm, status: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="discontinued">Discontinued</SelectItem>
+                    <SelectItem value="on_hold">On Hold</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="instructions">Instructions</Label>
+              <Textarea
+                id="instructions"
+                value={medicationForm.instructions}
+                onChange={(e) =>
+                  setMedicationForm({ ...medicationForm, instructions: e.target.value })
+                }
+                placeholder="Additional instructions or notes..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowAddMedicationDialog(false)}
+              disabled={savingMedication}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveMedication}
+              disabled={savingMedication}
+              className="bg-cyan-600 hover:bg-cyan-700"
+            >
+              {savingMedication ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Medication
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* New ASAM Assessment Dialog */}
+      <Dialog open={showNewAsamDialog} onOpenChange={setShowNewAsamDialog}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>New ASAM Criteria Assessment</DialogTitle>
+            <DialogDescription>
+              Complete ASAM placement criteria assessment for {selectedPatient?.first_name} {selectedPatient?.last_name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="dimension1">Dimension 1: Acute Intoxication/Withdrawal Potential *</Label>
+                <Select
+                  value={asamForm.dimension1}
+                  onValueChange={(value) =>
+                    setAsamForm({ ...asamForm, dimension1: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">0 - No risk</SelectItem>
+                    <SelectItem value="1">1 - Low risk</SelectItem>
+                    <SelectItem value="2">2 - Moderate risk</SelectItem>
+                    <SelectItem value="3">3 - High risk</SelectItem>
+                    <SelectItem value="4">4 - Very high risk</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="dimension2">Dimension 2: Biomedical Conditions/Complications *</Label>
+                <Select
+                  value={asamForm.dimension2}
+                  onValueChange={(value) =>
+                    setAsamForm({ ...asamForm, dimension2: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">0 - No risk</SelectItem>
+                    <SelectItem value="1">1 - Low risk</SelectItem>
+                    <SelectItem value="2">2 - Moderate risk</SelectItem>
+                    <SelectItem value="3">3 - High risk</SelectItem>
+                    <SelectItem value="4">4 - Very high risk</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="dimension3">Dimension 3: Emotional/Behavioral Conditions *</Label>
+                <Select
+                  value={asamForm.dimension3}
+                  onValueChange={(value) =>
+                    setAsamForm({ ...asamForm, dimension3: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">0 - No risk</SelectItem>
+                    <SelectItem value="1">1 - Low risk</SelectItem>
+                    <SelectItem value="2">2 - Moderate risk</SelectItem>
+                    <SelectItem value="3">3 - High risk</SelectItem>
+                    <SelectItem value="4">4 - Very high risk</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="dimension4">Dimension 4: Treatment Acceptance/Resistance *</Label>
+                <Select
+                  value={asamForm.dimension4}
+                  onValueChange={(value) =>
+                    setAsamForm({ ...asamForm, dimension4: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="moderate">Moderate</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="very_high">Very High</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="dimension5">Dimension 5: Relapse/Continued Use Potential *</Label>
+                <Select
+                  value={asamForm.dimension5}
+                  onValueChange={(value) =>
+                    setAsamForm({ ...asamForm, dimension5: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">0 - No risk</SelectItem>
+                    <SelectItem value="1">1 - Low risk</SelectItem>
+                    <SelectItem value="2">2 - Moderate risk</SelectItem>
+                    <SelectItem value="3">3 - High risk</SelectItem>
+                    <SelectItem value="4">4 - Very high risk</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="dimension6">Dimension 6: Recovery Environment *</Label>
+                <Select
+                  value={asamForm.dimension6}
+                  onValueChange={(value) =>
+                    setAsamForm({ ...asamForm, dimension6: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">0 - No risk</SelectItem>
+                    <SelectItem value="1">1 - Low risk</SelectItem>
+                    <SelectItem value="2">2 - Moderate risk</SelectItem>
+                    <SelectItem value="3">3 - High risk</SelectItem>
+                    <SelectItem value="4">4 - Very high risk</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="recommended_level">Recommended Level of Care *</Label>
+              <Select
+                value={asamForm.recommended_level}
+                onValueChange={(value) =>
+                  setAsamForm({ ...asamForm, recommended_level: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select recommended level" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0.5">0.5 - Early Intervention</SelectItem>
+                  <SelectItem value="1">1 - Outpatient Services</SelectItem>
+                  <SelectItem value="2.1">2.1 - Intensive Outpatient</SelectItem>
+                  <SelectItem value="2.5">2.5 - Partial Hospitalization</SelectItem>
+                  <SelectItem value="3.1">3.1 - Clinically Managed Low-Intensity Residential</SelectItem>
+                  <SelectItem value="3.3">3.3 - Clinically Managed Population-Specific Residential</SelectItem>
+                  <SelectItem value="3.5">3.5 - Clinically Managed High-Intensity Residential</SelectItem>
+                  <SelectItem value="3.7">3.7 - Medically Monitored Intensive Inpatient</SelectItem>
+                  <SelectItem value="4">4 - Medically Managed Intensive Inpatient</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="notes">Clinical Notes</Label>
+              <Textarea
+                id="notes"
+                value={asamForm.notes}
+                onChange={(e) =>
+                  setAsamForm({ ...asamForm, notes: e.target.value })
+                }
+                placeholder="Additional clinical notes or observations..."
+                rows={4}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowNewAsamDialog(false)}
+              disabled={savingAsam}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveAsam}
+              disabled={savingAsam}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {savingAsam ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Assessment
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
