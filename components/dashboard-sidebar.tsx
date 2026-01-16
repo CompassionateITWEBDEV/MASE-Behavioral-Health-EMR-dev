@@ -227,6 +227,7 @@ const getNavigationCategories = (isSuperAdmin: boolean): NavCategory[] => {
         { icon: BarChart3, label: "Analytics", href: "/analytics" },
         { icon: MapPin, label: "Michigan Surveillance", href: "/michigan-surveillance", count: 3, highlight: "alert" },
         { icon: Users, label: "MI Workforce Assessment", href: "/michigan-workforce", count: 13, highlight: "alert" },
+        { icon: Building2, label: "State Oversight Dashboard", href: "/state-oversight", count: 3, highlight: "alert" },
         { icon: Target, label: "MIPS Quality", href: "/quality-dashboard" },
         { icon: Microscope, label: "Research & Data Science", href: "/research-dashboard", count: 4 },
         { icon: Brain, label: "AI Assistant Analytics", href: "/ai-assistant/analytics" },
