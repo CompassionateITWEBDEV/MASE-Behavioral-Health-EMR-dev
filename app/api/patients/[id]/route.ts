@@ -65,6 +65,25 @@ export async function GET(
       allKeys: Object.keys(patientData),
     });
 
+    // Get intake progress requirement ID first (needed for query)
+    const { data: intakeProgressReq } = await supabase
+      .from("chart_requirements")
+      .select("id")
+      .eq("requirement_name", "Patient Intake Progress")
+      .maybeSingle();
+    
+    // Also get consent forms requirement ID
+    const { data: consentFormsReq } = await supabase
+      .from("chart_requirements")
+      .select("id")
+      .eq("requirement_name", "Patient Consent Forms")
+      .maybeSingle();
+    
+    console.log("[Patient Chart API] Requirements:", {
+      intakeProgress: { found: !!intakeProgressReq, id: intakeProgressReq?.id },
+      consentForms: { found: !!consentFormsReq, id: consentFormsReq?.id }
+    });
+
     // Fetch all related data in parallel
     // Wrap potentially missing tables in try-catch to handle gracefully
     const [
@@ -79,6 +98,9 @@ export async function GET(
       progressNotesResult,
       documentsResult,
       toxicologyOrdersResult,
+      admissionResult,
+      intakeConsentsResult,
+      intakeProgressForConsentsResult,
     ] = await Promise.all([
       supabase
         .from("vital_signs")
@@ -116,7 +138,15 @@ export async function GET(
         .order("created_at", { ascending: false }),
       supabase
         .from("assessments")
-        .select("*")
+        .select(`
+          *,
+          providers:provider_id (
+            id,
+            first_name,
+            last_name,
+            specialization
+          )
+        `)
         .eq("patient_id", id)
         .order("created_at", { ascending: false })
         .limit(50), // Increased limit to get nursing assessments
@@ -145,7 +175,15 @@ export async function GET(
         .limit(50),
       supabase
         .from("progress_notes")
-        .select("*")
+        .select(`
+          *,
+          providers:provider_id (
+            id,
+            first_name,
+            last_name,
+            specialization
+          )
+        `)
         .eq("patient_id", id)
         .order("created_at", { ascending: false })
         .limit(50),
@@ -168,6 +206,57 @@ export async function GET(
         .eq("patient_id", id)
         .order("order_date", { ascending: false })
         .limit(50),
+      // Fetch admission data
+      supabase
+        .from("otp_admissions")
+        .select("*")
+        .eq("patient_id", id)
+        .order("admission_date", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      // Fetch intake consent forms from patient_chart_items
+      // First try by requirement_id, then fallback to JSON query
+      consentFormsReq?.id
+        ? supabase
+            .from("patient_chart_items")
+            .select(`
+              *,
+              chart_requirements:requirement_id (
+                id,
+                requirement_name
+              )
+            `)
+            .eq("patient_id", id)
+            .eq("requirement_id", consentFormsReq.id)
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        : supabase
+            .from("patient_chart_items")
+            .select(`
+              *,
+              chart_requirements:requirement_id (
+                id,
+                requirement_name
+              )
+            `)
+            .eq("patient_id", id)
+            .like("notes->>type", "%consent_forms%")
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+      // Also check intake progress for consent_forms_data (fallback)
+      // Query by requirement_id if we found it
+      intakeProgressReq?.id
+        ? supabase
+            .from("patient_chart_items")
+            .select("notes, requirement_id")
+            .eq("patient_id", id)
+            .eq("requirement_id", intakeProgressReq.id)
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
     ]);
 
     // Handle errors gracefully - return empty arrays if tables don't exist
@@ -186,6 +275,90 @@ export async function GET(
         : progressNotesResult.data || [],
       courtOrders: documentsResult.error ? [] : documentsResult.data || [],
       toxicologyOrders: toxicologyOrdersResult.error ? [] : toxicologyOrdersResult.data || [],
+      admission: admissionResult.error ? null : admissionResult.data || null,
+      intakeConsents: (() => {
+        // First try the dedicated consent_forms record
+        if (!intakeConsentsResult.error && intakeConsentsResult.data) {
+          console.log("[Patient Chart API] Found dedicated consent_forms record");
+          return intakeConsentsResult.data;
+        }
+        
+        if (intakeConsentsResult.error) {
+          console.log("[Patient Chart API] Error fetching consent_forms record:", intakeConsentsResult.error);
+        } else {
+          console.log("[Patient Chart API] No dedicated consent_forms record found");
+        }
+        
+        // Fallback: Check intake progress for consent_forms_data
+        let intakeProgressData = null;
+        
+        // Handle both single result and array result
+        if (!intakeProgressForConsentsResult?.error) {
+          if (Array.isArray(intakeProgressForConsentsResult.data)) {
+            // If we got an array, find the intake progress record
+            const intakeProgressRecord = intakeProgressForConsentsResult.data.find((item: any) => {
+              try {
+                const notes = typeof item.notes === 'string' ? JSON.parse(item.notes) : item.notes;
+                return notes?.type === "intake_progress";
+              } catch {
+                return false;
+              }
+            });
+            intakeProgressData = intakeProgressRecord;
+          } else {
+            intakeProgressData = intakeProgressForConsentsResult.data;
+          }
+        }
+        
+        if (intakeProgressData?.notes) {
+          try {
+            const progressNotes = typeof intakeProgressData.notes === 'string' 
+              ? JSON.parse(intakeProgressData.notes) 
+              : intakeProgressData.notes;
+            
+            console.log("[Patient Chart API] Checking intake progress for consent data:", {
+              hasConsentFormsData: !!progressNotes.consent_forms_data,
+              progressKeys: Object.keys(progressNotes),
+              progressType: progressNotes.type,
+              hasNotes: !!progressNotes
+            });
+            
+            // If intake progress has consent_forms_data, create a mock record structure
+            if (progressNotes.consent_forms_data) {
+              console.log("[Patient Chart API] Found consent_forms_data in intake progress, creating record");
+              const consentData = progressNotes.consent_forms_data;
+              console.log("[Patient Chart API] Consent data structure:", {
+                hasConsentForms: !!consentData.consentForms,
+                consentFormsKeys: consentData.consentForms ? Object.keys(consentData.consentForms) : [],
+                completionStats: consentData.completionStats,
+                directKeys: Object.keys(consentData)
+              });
+              
+              return {
+                notes: JSON.stringify({
+                  type: "consent_forms",
+                  consentData: consentData
+                })
+              };
+            }
+          } catch (e) {
+            console.error("[Patient Chart API] Error parsing intake progress for consent data:", e);
+          }
+        } else {
+          if (intakeProgressForConsentsResult?.error) {
+            console.log("[Patient Chart API] Error fetching intake progress:", intakeProgressForConsentsResult.error);
+          } else {
+            console.log("[Patient Chart API] No intake progress record found", {
+              hasData: !!intakeProgressForConsentsResult?.data,
+              isArray: Array.isArray(intakeProgressForConsentsResult?.data),
+              dataLength: Array.isArray(intakeProgressForConsentsResult?.data) ? intakeProgressForConsentsResult.data.length : 0
+            });
+          }
+        }
+        
+        console.log("[Patient Chart API] No consent forms data found");
+        return null;
+      })(),
     });
   } catch (error: unknown) {
     const err = error instanceof Error ? error : new Error("Unknown error");

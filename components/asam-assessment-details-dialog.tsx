@@ -153,11 +153,13 @@ export function ASAMAssessmentDetailsDialog({
     const info = DIMENSION_INFO[key]
     if (value === null || value === undefined) {
       return (
-        <div key={key} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-          <div className={`w-1 h-full min-h-[40px] rounded ${info.color}`} />
-          <div className="flex-1">
-            <p className="font-medium text-sm">{info.title}</p>
-            <p className="text-sm text-muted-foreground">Not assessed</p>
+        <div key={key} className="group relative overflow-hidden rounded-xl border border-gray-200 bg-white p-4 shadow-sm hover:shadow-md transition-all">
+          <div className={`absolute left-0 top-0 bottom-0 w-1 ${info.color} opacity-50`} />
+          <div className="flex-1 pl-3">
+            <p className="font-semibold text-sm text-gray-800 mb-1">{info.title}</p>
+            <Badge variant="outline" className="mt-2">
+              Not assessed
+            </Badge>
           </div>
         </div>
       )
@@ -167,12 +169,21 @@ export function ASAMAssessmentDetailsDialog({
     if (key === "dimension4") {
       const dim4Info = DIMENSION_INFO.dimension4
       const stageLabel = dim4Info.stageLabels[value as keyof typeof dim4Info.stageLabels] || value
+      const stageColors: Record<string, string> = {
+        precontemplation: "bg-gray-100 text-gray-700 border-gray-300",
+        contemplation: "bg-blue-100 text-blue-700 border-blue-300",
+        preparation: "bg-yellow-100 text-yellow-700 border-yellow-300",
+        action: "bg-green-100 text-green-700 border-green-300",
+        maintenance: "bg-emerald-100 text-emerald-700 border-emerald-300",
+      }
+      const stageColor = stageColors[String(value)] || "bg-gray-100 text-gray-700 border-gray-300"
+      
       return (
-        <div key={key} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-          <div className={`w-1 h-full min-h-[40px] rounded ${info.color}`} />
-          <div className="flex-1">
-            <p className="font-medium text-sm">{info.title}</p>
-            <Badge variant="outline" className="mt-1">
+        <div key={key} className="group relative overflow-hidden rounded-xl border-2 border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50 p-4 shadow-sm hover:shadow-md transition-all">
+          <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${info.color}`} />
+          <div className="flex-1 pl-4">
+            <p className="font-semibold text-sm text-gray-800 mb-2">{info.title}</p>
+            <Badge className={`mt-1 ${stageColor} border font-medium`}>
               {stageLabel}
             </Badge>
           </div>
@@ -184,18 +195,35 @@ export function ASAMAssessmentDetailsDialog({
     const numValue = typeof value === "number" ? value : parseInt(value as string, 10)
     const severityLabels = "severityLabels" in info ? info.severityLabels : null
     const severityLabel = severityLabels?.[numValue as keyof typeof severityLabels] || `Level ${numValue}`
+    
+    const badgeVariant = getSeverityBadgeVariant(numValue)
+    const badgeColors = {
+      outline: "bg-gray-50 text-gray-700 border-gray-300",
+      secondary: "bg-blue-50 text-blue-700 border-blue-300",
+      default: "bg-yellow-50 text-yellow-700 border-yellow-300",
+      destructive: "bg-red-50 text-red-700 border-red-300",
+    }
+    const badgeColor = badgeColors[badgeVariant] || badgeColors.outline
 
     return (
-      <div key={key} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
-        <div className={`w-1 h-full min-h-[40px] rounded ${info.color}`} />
-        <div className="flex-1">
-          <div className="flex items-center justify-between">
-            <p className="font-medium text-sm">{info.title}</p>
-            <Badge variant={getSeverityBadgeVariant(numValue)}>
+      <div key={key} className="group relative overflow-hidden rounded-xl border-2 bg-white p-4 shadow-sm hover:shadow-md transition-all" style={{
+        borderColor: badgeVariant === "destructive" ? "#fecaca" : 
+                    badgeVariant === "default" ? "#fef3c7" :
+                    badgeVariant === "secondary" ? "#dbeafe" : "#e5e7eb",
+        background: badgeVariant === "destructive" ? "linear-gradient(to bottom right, #fef2f2, #fee2e2)" :
+                    badgeVariant === "default" ? "linear-gradient(to bottom right, #fffbeb, #fef3c7)" :
+                    badgeVariant === "secondary" ? "linear-gradient(to bottom right, #eff6ff, #dbeafe)" : 
+                    "linear-gradient(to bottom right, #f9fafb, #f3f4f6)",
+      }}>
+        <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${info.color}`} />
+        <div className="flex-1 pl-4">
+          <div className="flex items-start justify-between mb-2">
+            <p className="font-semibold text-sm text-gray-800 leading-tight pr-2">{info.title}</p>
+            <Badge className={`${badgeColor} border font-bold text-base min-w-[2rem] justify-center`}>
               {numValue}
             </Badge>
           </div>
-          <p className="text-sm text-muted-foreground mt-1">{severityLabel}</p>
+          <p className="text-sm text-gray-600 font-medium">{severityLabel}</p>
         </div>
       </div>
     )
@@ -205,64 +233,70 @@ export function ASAMAssessmentDetailsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Brain className="h-5 w-5" />
-            ASAM Criteria Assessment Details
+      <DialogContent className="!max-w-[98vw] !w-[98vw] sm:!max-w-[98vw] lg:!max-w-[98vw] max-h-[95vh] overflow-y-auto">
+        <DialogHeader className="pb-4 border-b">
+          <DialogTitle className="flex items-center gap-2 text-2xl">
+            <div className="p-2 rounded-lg bg-blue-100">
+              <Brain className="h-6 w-6 text-blue-600" />
+            </div>
+            ASAM 6-Dimension Assessment
           </DialogTitle>
-          <DialogDescription>
-            Complete assessment of the six ASAM dimensions and level of care recommendation
+          <DialogDescription className="pt-2">
+            <div className="flex flex-wrap gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+                <span className="font-medium">{formatDate(assessment.created_at)}</span>
+              </div>
+              {providerName && (
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-muted-foreground" />
+                  <span className="font-medium">{providerName}</span>
+                </div>
+              )}
+            </div>
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
-          {/* Assessment metadata */}
-          <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
-            <div className="flex items-center gap-1">
-              <Calendar className="h-4 w-4" />
-              {formatDate(assessment.created_at)}
-            </div>
-            {providerName && (
-              <div className="flex items-center gap-1">
-                <User className="h-4 w-4" />
-                {providerName}
-              </div>
-            )}
-          </div>
-
-          <Separator />
-
-          {/* Recommended Level */}
-          <div className="p-4 rounded-lg bg-primary/5 border">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="font-semibold">Recommended Level of Care</h3>
+        <div className="space-y-6 pt-4">
+          {/* Recommended Level - Enhanced */}
+          <div className="p-5 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-bold text-gray-900">Recommended Level of Care</h3>
               {suggestionOverridden && suggestedLevel && (
-                <Badge variant="outline" className="flex items-center gap-1">
-                  <AlertTriangle className="h-3 w-3" />
-                  Override from {suggestedLevel}
+                <Badge variant="outline" className="flex items-center gap-1 bg-amber-50 border-amber-300">
+                  <AlertTriangle className="h-3 w-3 text-amber-600" />
+                  <span className="text-amber-700">Override from Level {suggestedLevel}</span>
                 </Badge>
               )}
             </div>
             {levelInfo ? (
-              <div className="space-y-2">
-                <p className="text-lg font-medium">{levelInfo.label}</p>
-                <Badge variant={levelInfo.variant}>{levelInfo.badge}</Badge>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className="text-3xl font-bold text-blue-700">Level {recommendedLevel}</div>
+                  <Badge variant={levelInfo.variant} className="text-base px-4 py-1.5">
+                    {levelInfo.badge}
+                  </Badge>
+                </div>
+                <p className="text-sm text-gray-600">{levelInfo.label}</p>
               </div>
             ) : recommendedLevel ? (
-              <p className="text-lg font-medium">Level {recommendedLevel}</p>
+              <div className="flex items-center gap-3">
+                <div className="text-3xl font-bold text-blue-700">Level {recommendedLevel}</div>
+              </div>
             ) : (
               <p className="text-muted-foreground">No level recommended</p>
             )}
           </div>
 
-          <Separator />
-
-          {/* Dimensions */}
-          <div className="space-y-3">
-            <h3 className="font-semibold">ASAM 6-Dimension Assessment</h3>
+          {/* Dimensions - Enhanced */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
+              <h3 className="text-lg font-bold text-gray-900 px-3">ASAM 6-Dimension Assessment</h3>
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
+            </div>
             {dimensions ? (
-              <div className="space-y-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {renderDimension("dimension1", dimensions.dimension1)}
                 {renderDimension("dimension2", dimensions.dimension2)}
                 {renderDimension("dimension3", dimensions.dimension3)}
@@ -271,17 +305,19 @@ export function ASAMAssessmentDetailsDialog({
                 {renderDimension("dimension6", dimensions.dimension6)}
               </div>
             ) : (
-              <p className="text-muted-foreground">No dimension data available</p>
+              <div className="text-center py-8 text-muted-foreground">
+                <p>No dimension data available</p>
+              </div>
             )}
           </div>
 
           {/* Notes */}
           {assessment.chief_complaint && (
             <>
-              <Separator />
-              <div>
-                <h3 className="font-semibold mb-2">Clinical Notes</h3>
-                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+              <Separator className="my-6" />
+              <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
+                <h3 className="font-semibold mb-3 text-gray-900">Clinical Notes</h3>
+                <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
                   {assessment.chief_complaint}
                 </p>
               </div>
@@ -289,7 +325,7 @@ export function ASAMAssessmentDetailsDialog({
           )}
 
           {/* Validation status */}
-          <div className="flex items-center gap-2 text-sm pt-4 border-t">
+          <div className="flex items-center justify-center gap-2 text-sm pt-4 pb-2 border-t">
             {dimensions &&
             dimensions.dimension1 !== null &&
             dimensions.dimension2 !== null &&
@@ -297,15 +333,15 @@ export function ASAMAssessmentDetailsDialog({
             dimensions.dimension4 !== null &&
             dimensions.dimension5 !== null &&
             dimensions.dimension6 !== null ? (
-              <>
-                <CheckCircle2 className="h-4 w-4 text-green-600" />
-                <span className="text-green-600">Complete assessment</span>
-              </>
+              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-green-50 border border-green-200">
+                <CheckCircle2 className="h-5 w-5 text-green-600" />
+                <span className="font-medium text-green-700">Complete assessment</span>
+              </div>
             ) : (
-              <>
-                <AlertTriangle className="h-4 w-4 text-amber-600" />
-                <span className="text-amber-600">Partial assessment</span>
-              </>
+              <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-amber-50 border border-amber-200">
+                <AlertTriangle className="h-5 w-5 text-amber-600" />
+                <span className="font-medium text-amber-700">Partial assessment</span>
+              </div>
             )}
           </div>
         </div>

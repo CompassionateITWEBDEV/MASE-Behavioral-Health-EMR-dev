@@ -302,6 +302,14 @@ export default function PatientIntake() {
       return
     }
 
+    // Calculate accurate progress from current state
+    const calculatedProgress = orientationChecklist.length > 0 
+      ? (completedItems.length / orientationChecklist.length) * 100 
+      : 0
+    
+    // Update state to match calculated value
+    setOrientationProgress(calculatedProgress)
+
     setSaving(true)
     try {
       const response = await fetch("/api/intake/progress", {
@@ -312,11 +320,11 @@ export default function PatientIntake() {
         body: JSON.stringify({
           patient_id: selectedPatient.id,
           admission_date: new Date().toISOString().split("T")[0],
-          status: orientationProgress === 100 ? "active" : "pending_orientation",
+          status: calculatedProgress === 100 ? "active" : "pending_orientation",
           program_type: "OTP",
           primary_substance: assessmentData.primary_substance || null,
           medication: assessmentData.primary_substance || "pending",
-          orientation_progress: orientationProgress,
+          orientation_progress: calculatedProgress,
           completed_items: completedItems,
           documentation_status: documentationStatus,
           assessment_data: assessmentData,
@@ -332,7 +340,7 @@ export default function PatientIntake() {
 
       toast({
         title: "Success",
-        description: `Progress saved successfully! ${Math.round(orientationProgress)}% complete.`,
+        description: `Progress saved successfully! ${Math.round(calculatedProgress)}% complete.`,
       })
     } catch (err) {
       console.error("Error saving progress:", err)
@@ -353,8 +361,13 @@ export default function PatientIntake() {
       return
     }
 
-    if (orientationProgress < 100) {
-      const confirm = window.confirm("Orientation is not complete. Are you sure you want to finish?")
+    // Calculate accurate progress
+    const calculatedProgress = orientationChecklist.length > 0 
+      ? (completedItems.length / orientationChecklist.length) * 100 
+      : 0
+
+    if (calculatedProgress < 100) {
+      const confirm = window.confirm(`Orientation is ${Math.round(calculatedProgress)}% complete (${completedItems.length} of ${orientationChecklist.length} items). Are you sure you want to finish?`)
       if (!confirm) return
     }
 
@@ -373,7 +386,7 @@ export default function PatientIntake() {
           program_type: "OTP",
           primary_substance: assessmentData.primary_substance || null,
           medication: assessmentData.primary_substance || "pending_evaluation",
-          orientation_progress: 100, // Ensure it's marked as complete
+          orientation_progress: calculatedProgress, // Use calculated progress
           completed_items: completedItems,
           documentation_status: documentationStatus,
           assessment_data: assessmentData,
@@ -523,31 +536,37 @@ export default function PatientIntake() {
 
     setDocumentationStatus(updatedStatus)
 
-    // Save consent data to database
+    // Save consent data to database (already saved by component, but update intake progress)
     try {
       const response = await fetch("/api/intake/consents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           patient_id: selectedPatient.id,
-          consent_data: data,
-          completion_stats: data.completionStats,
+          consentForms: data.consentForms,
+          completionStats: data.completionStats,
+          savedSignature: data.savedSignature,
+          signaturePin: data.signaturePin,
         }),
       })
 
       if (!response.ok) {
-        throw new Error("Failed to save consent forms")
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to save consent forms")
       }
+
+      // Also update intake progress with consent forms data
+      await saveOrientationProgress()
 
       toast({
         title: "Success",
-        description: `${data.completionStats.requiredCompleted} of ${data.completionStats.totalRequired} required forms completed`,
+        description: `All ${data.completionStats.totalRequired} required forms completed and saved.`,
       })
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error saving consent forms:", err)
       toast({
         title: "Error",
-        description: "Failed to save consent forms. Please try again.",
+        description: err.message || "Failed to save consent forms. Please try again.",
         variant: "destructive",
       })
     }
@@ -754,6 +773,10 @@ MASE EMR documents follow-up planning, including scheduled appointments, patient
     setSearchTerm("")
     setPatients([])
 
+    // Reset progress first (will be restored if saved data exists)
+    setCompletedItems([])
+    setOrientationProgress(0)
+
     // Load saved progress if it exists
     await loadSavedProgress(patient.id)
 
@@ -776,14 +799,17 @@ MASE EMR documents follow-up planning, including scheduled appointments, patient
       if (data.progress) {
         const progress = data.progress
         
-        // Restore orientation progress
-        if (progress.orientation_progress !== undefined && progress.orientation_progress !== null) {
-          setOrientationProgress(progress.orientation_progress)
-        }
-        
-        // Restore completed checklist items
+        // Restore completed checklist items first
         if (progress.completed_items && Array.isArray(progress.completed_items)) {
           setCompletedItems(progress.completed_items)
+          
+          // Recalculate progress accurately based on actual completed items
+          const actualProgress = (progress.completed_items.length / orientationChecklist.length) * 100
+          setOrientationProgress(actualProgress)
+        } else {
+          // If no completed items, reset to 0
+          setCompletedItems([])
+          setOrientationProgress(0)
         }
         
         // Restore documentation status
@@ -1212,24 +1238,31 @@ MASE EMR documents follow-up planning, including scheduled appointments, patient
               )}
 
               {/* Orientation Progress */}
-              {selectedPatient && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Orientation Progress</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>
-                          {completedItems.length} of {orientationChecklist.length} items
-                        </span>
-                        <span>{Math.round(orientationProgress)}%</span>
+              {selectedPatient && (() => {
+                // Calculate progress accurately from current state
+                const currentProgress = orientationChecklist.length > 0 
+                  ? (completedItems.length / orientationChecklist.length) * 100 
+                  : 0
+                
+                return (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Orientation Progress</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span>
+                            {completedItems.length} of {orientationChecklist.length} items
+                          </span>
+                          <span>{Math.round(currentProgress)}%</span>
+                        </div>
+                        <Progress value={currentProgress} className="h-2" />
                       </div>
-                      <Progress value={orientationProgress} className="h-2" />
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+                    </CardContent>
+                  </Card>
+                )
+              })()}
             </div>
 
             {/* Main Content Area */}
@@ -1538,33 +1571,40 @@ MASE EMR documents follow-up planning, including scheduled appointments, patient
 
                   {/* Summary Tab */}
                   <TabsContent value="summary">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Intake Summary</CardTitle>
-                        <CardDescription>Review before completing intake</CardDescription>
-                      </CardHeader>
-                      <CardContent className="space-y-6">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <h4 className="font-medium mb-2">Patient</h4>
-                            <p>
-                              {selectedPatient.first_name} {selectedPatient.last_name}
-                            </p>
-                            <p className="text-sm text-muted-foreground">DOB: {selectedPatient.date_of_birth}</p>
-                          </div>
-                          <div>
-                            <h4 className="font-medium mb-2">Primary Substance</h4>
-                            <p>{assessmentData.primary_substance || "Not specified"}</p>
-                          </div>
-                        </div>
+                    {(() => {
+                      // Calculate accurate progress for summary
+                      const summaryProgress = orientationChecklist.length > 0 
+                        ? (completedItems.length / orientationChecklist.length) * 100 
+                        : 0
+                      
+                      return (
+                        <Card>
+                          <CardHeader>
+                            <CardTitle>Intake Summary</CardTitle>
+                            <CardDescription>Review before completing intake</CardDescription>
+                          </CardHeader>
+                          <CardContent className="space-y-6">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <h4 className="font-medium mb-2">Patient</h4>
+                                <p>
+                                  {selectedPatient.first_name} {selectedPatient.last_name}
+                                </p>
+                                <p className="text-sm text-muted-foreground">DOB: {selectedPatient.date_of_birth}</p>
+                              </div>
+                              <div>
+                                <h4 className="font-medium mb-2">Primary Substance</h4>
+                                <p>{assessmentData.primary_substance || "Not specified"}</p>
+                              </div>
+                            </div>
 
-                        <div>
-                          <h4 className="font-medium mb-2">Orientation Progress</h4>
-                          <Progress value={orientationProgress} className="h-2 mb-1" />
-                          <p className="text-sm text-muted-foreground">
-                            {completedItems.length} of {orientationChecklist.length} items completed
-                          </p>
-                        </div>
+                            <div>
+                              <h4 className="font-medium mb-2">Orientation Progress</h4>
+                              <Progress value={summaryProgress} className="h-2 mb-1" />
+                              <p className="text-sm text-muted-foreground">
+                                {completedItems.length} of {orientationChecklist.length} items completed
+                              </p>
+                            </div>
 
                         {pmpResults && (
                           <div>
@@ -1605,17 +1645,17 @@ MASE EMR documents follow-up planning, including scheduled appointments, patient
                           )}
                         </div>
 
-                        {/* Completion Warnings */}
-                        {(orientationProgress < 100 || Object.values(documentationStatus).some((s) => s === "pending")) && (
-                          <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
-                            <div className="flex items-start gap-2">
-                              <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
-                              <div className="flex-1">
-                                <p className="font-medium text-amber-900 mb-1">Incomplete Intake Items</p>
-                                <ul className="text-sm text-amber-800 space-y-1">
-                                  {orientationProgress < 100 && (
-                                    <li>• Orientation is not 100% complete ({Math.round(orientationProgress)}%)</li>
-                                  )}
+                            {/* Completion Warnings */}
+                            {(summaryProgress < 100 || Object.values(documentationStatus).some((s) => s === "pending")) && (
+                              <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                                <div className="flex items-start gap-2">
+                                  <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
+                                  <div className="flex-1">
+                                    <p className="font-medium text-amber-900 mb-1">Incomplete Intake Items</p>
+                                    <ul className="text-sm text-amber-800 space-y-1">
+                                      {summaryProgress < 100 && (
+                                        <li>• Orientation is not 100% complete ({Math.round(summaryProgress)}% - {completedItems.length} of {orientationChecklist.length} items)</li>
+                                      )}
                                   {Object.values(documentationStatus).filter((s) => s === "pending").length > 0 && (
                                     <li>• {Object.values(documentationStatus).filter((s) => s === "pending").length} documentation item(s) still pending</li>
                                   )}
@@ -1628,19 +1668,19 @@ MASE EMR documents follow-up planning, including scheduled appointments, patient
                           </div>
                         )}
 
-                        {/* Ready to Complete Indicator */}
-                        {orientationProgress === 100 && Object.values(documentationStatus).every((s) => s === "completed" || s === "na") && (
-                          <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                            <div className="flex items-center gap-2">
-                              <CheckCircle className="h-5 w-5 text-green-600" />
-                              <p className="font-medium text-green-900">
-                                All intake items completed. Patient is ready to be activated.
-                              </p>
-                            </div>
-                          </div>
-                        )}
+                            {/* Ready to Complete Indicator */}
+                            {summaryProgress === 100 && Object.values(documentationStatus).every((s) => s === "completed" || s === "na") && (
+                              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                                <div className="flex items-center gap-2">
+                                  <CheckCircle className="h-5 w-5 text-green-600" />
+                                  <p className="font-medium text-green-900">
+                                    All intake items completed. Patient is ready to be activated.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
 
-                        <Button 
+                            <Button 
                           className="w-full" 
                           onClick={completeIntake} 
                           disabled={saving || !selectedPatient}
@@ -1657,12 +1697,14 @@ MASE EMR documents follow-up planning, including scheduled appointments, patient
                               Complete Intake & Activate Patient
                             </>
                           )}
-                        </Button>
-                        <p className="text-xs text-center text-muted-foreground">
-                          Patient will appear in the Intake Queue after completion
-                        </p>
-                      </CardContent>
-                    </Card>
+                            </Button>
+                            <p className="text-xs text-center text-muted-foreground">
+                              Patient will appear in the Intake Queue after completion
+                            </p>
+                          </CardContent>
+                        </Card>
+                      )
+                    })()}
                   </TabsContent>
                 </Tabs>
               )}

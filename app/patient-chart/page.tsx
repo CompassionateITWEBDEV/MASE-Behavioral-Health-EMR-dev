@@ -71,6 +71,8 @@ import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { ExternalLink } from "lucide-react";
 import { ViewDocumentDialog } from "@/components/view-document-dialog";
+import { ASAMAssessmentDetailsDialog } from "@/components/asam-assessment-details-dialog";
+import { CreatePortalAccountForm } from "@/components/create-portal-account-form";
 
 interface Patient {
   id: string;
@@ -252,14 +254,21 @@ export default function PatientChartPage() {
   const [billingClaims, setBillingClaims] = useState<any[]>([]);
   const [billingLoading, setBillingLoading] = useState(false);
   const [encounterNoteAlerts, setEncounterNoteAlerts] = useState<any[]>([]);
+  const [portalAccount, setPortalAccount] = useState<any>(null);
+  const [portalAccountLoading, setPortalAccountLoading] = useState(false);
+  const [showCreatePortalDialog, setShowCreatePortalDialog] = useState(false);
   const [encounterAlertsLoading, setEncounterAlertsLoading] = useState(false);
   const [expandedAlerts, setExpandedAlerts] = useState<Set<string>>(new Set());
+  const [admissionData, setAdmissionData] = useState<any>(null);
+  const [intakeConsentsData, setIntakeConsentsData] = useState<any>(null);
   
   // Dialog states
   const [showAddMedicationDialog, setShowAddMedicationDialog] = useState(false);
   const [showNewAsamDialog, setShowNewAsamDialog] = useState(false);
   const [savingMedication, setSavingMedication] = useState(false);
   const [savingAsam, setSavingAsam] = useState(false);
+  const [showAsamDetailsDialog, setShowAsamDetailsDialog] = useState(false);
+  const [selectedAsamAssessment, setSelectedAsamAssessment] = useState<any>(null);
   
   // Medication form state
   const [medicationForm, setMedicationForm] = useState({
@@ -669,6 +678,30 @@ export default function PatientChartPage() {
     }
   };
 
+  const fetchPortalAccountStatus = async (patientId: string) => {
+    if (!patientId) return;
+    
+    setPortalAccountLoading(true);
+    try {
+      const response = await fetch(
+        `/api/patient-portal/account-status?patient_id=${patientId}`
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        setPortalAccount(data.exists ? data.account : null);
+      } else {
+        console.error("Failed to fetch portal account status");
+        setPortalAccount(null);
+      }
+    } catch (error) {
+      console.error("Error fetching portal account status:", error);
+      setPortalAccount(null);
+    } finally {
+      setPortalAccountLoading(false);
+    }
+  };
+
   const fetchPatientData = async (patientId: string) => {
     console.log("[v0] fetchPatientData called with patientId:", patientId);
     setLoading(true);
@@ -760,6 +793,18 @@ export default function PatientChartPage() {
       setToxicologyOrders(data.toxicologyOrders || []);
       setProgressNotes(data.progressNotes || []);
       setCourtOrders(data.courtOrders || []);
+      setAdmissionData(data.admission || null);
+      setIntakeConsentsData(data.intakeConsents || null);
+      
+      // Debug logging for consent forms
+      console.log("[Patient Chart] Intake consents data:", {
+        hasData: !!data.intakeConsents,
+        data: data.intakeConsents,
+        notes: data.intakeConsents?.notes ? (typeof data.intakeConsents.notes === 'string' ? JSON.parse(data.intakeConsents.notes) : data.intakeConsents.notes) : null
+      });
+
+      // Fetch portal account status
+      fetchPortalAccountStatus(patientId);
 
       // Fetch clinical alerts for this patient
       await fetchClinicalAlerts(patientId);
@@ -1252,6 +1297,62 @@ export default function PatientChartPage() {
                 </TabsList>
 
                 <TabsContent value="demographics" className="space-y-4">
+                  {/* Admission Information */}
+                  {admissionData && (
+                    <Card className="border-blue-200 bg-blue-50/50">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Activity className="h-5 w-5 text-blue-600" />
+                          Admission Information
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div>
+                            <Label className="text-sm text-muted-foreground">
+                              Admission Date
+                            </Label>
+                            <p className="font-medium mt-1">
+                              {admissionData.admission_date 
+                                ? new Date(admissionData.admission_date).toLocaleDateString()
+                                : "N/A"}
+                            </p>
+                          </div>
+                          <div>
+                            <Label className="text-sm text-muted-foreground">
+                              Status
+                            </Label>
+                            <p className="font-medium mt-1">
+                              <Badge variant={
+                                admissionData.status === "active" ? "default" : 
+                                admissionData.status === "pending_orientation" ? "secondary" : 
+                                "outline"
+                              }>
+                                {admissionData.status || "N/A"}
+                              </Badge>
+                            </p>
+                          </div>
+                          <div>
+                            <Label className="text-sm text-muted-foreground">
+                              Program Type
+                            </Label>
+                            <p className="font-medium mt-1">
+                              {admissionData.program_type || "N/A"}
+                            </p>
+                          </div>
+                          <div>
+                            <Label className="text-sm text-muted-foreground">
+                              Primary Substance
+                            </Label>
+                            <p className="font-medium mt-1">
+                              {admissionData.primary_substance || "N/A"}
+                            </p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
                   <Card>
                     <CardHeader>
                       <CardTitle>Patient Demographics</CardTitle>
@@ -1379,6 +1480,117 @@ export default function PatientChartPage() {
                           </>
                         )}
                       </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Patient Portal Account Section */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <User className="h-5 w-5 text-blue-600" />
+                        Patient Portal Account
+                      </CardTitle>
+                      <CardDescription>
+                        Manage patient's portal access and account status
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {portalAccountLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                        </div>
+                      ) : portalAccount ? (
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between p-4 bg-green-50 border border-green-200 rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <CheckCircle className="h-5 w-5 text-green-600" />
+                              <div>
+                                <p className="font-medium text-green-900">
+                                  Portal Account Active
+                                </p>
+                                <p className="text-sm text-green-700">
+                                  {portalAccount.email}
+                                </p>
+                              </div>
+                            </div>
+                            <Badge variant="default" className="bg-green-600">
+                              Active
+                            </Badge>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-4 pt-2">
+                            <div>
+                              <Label className="text-sm text-muted-foreground">
+                                Email Verified
+                              </Label>
+                              <p className="font-medium mt-1">
+                                {portalAccount.email_verified ? (
+                                  <Badge variant="default" className="bg-green-600">
+                                    Verified
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="secondary">Not Verified</Badge>
+                                )}
+                              </p>
+                            </div>
+                            <div>
+                              <Label className="text-sm text-muted-foreground">
+                                Account Created
+                              </Label>
+                              <p className="font-medium mt-1">
+                                {portalAccount.created_at
+                                  ? new Date(portalAccount.created_at).toLocaleDateString()
+                                  : "N/A"}
+                              </p>
+                            </div>
+                            {portalAccount.last_login_at && (
+                              <div>
+                                <Label className="text-sm text-muted-foreground">
+                                  Last Login
+                                </Label>
+                                <p className="font-medium mt-1">
+                                  {new Date(portalAccount.last_login_at).toLocaleDateString()}
+                                </p>
+                              </div>
+                            )}
+                            {portalAccount.mfa_enabled && (
+                              <div>
+                                <Label className="text-sm text-muted-foreground">
+                                  Security
+                                </Label>
+                                <p className="font-medium mt-1">
+                                  <Badge variant="outline">MFA Enabled</Badge>
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <AlertCircle className="h-5 w-5 text-yellow-600" />
+                              <div>
+                                <p className="font-medium text-yellow-900">
+                                  No Portal Account
+                                </p>
+                                <p className="text-sm text-yellow-700">
+                                  Patient does not have a portal account yet
+                                </p>
+                              </div>
+                            </div>
+                            <Badge variant="secondary">Not Created</Badge>
+                          </div>
+                          
+                          <Button
+                            onClick={() => setShowCreatePortalDialog(true)}
+                            className="w-full"
+                          >
+                            <User className="mr-2 h-4 w-4" />
+                            Create Portal Account
+                          </Button>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 </TabsContent>
@@ -1525,7 +1737,14 @@ export default function PatientChartPage() {
                                     </p>
                                   </div>
                                 </div>
-                                <Button size="sm" variant="outline">
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  onClick={() => {
+                                    setSelectedAsamAssessment(assessment);
+                                    setShowAsamDetailsDialog(true);
+                                  }}
+                                >
                                   View Details
                                 </Button>
                               </div>
@@ -2123,12 +2342,13 @@ export default function PatientChartPage() {
                 </TabsContent>
 
                 <TabsContent value="consents" className="space-y-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Patient Consents & Authorizations</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {consents.length > 0 ? (
+                  {/* HIE Consents */}
+                  {consents.length > 0 && (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>HIE Consents & Authorizations</CardTitle>
+                      </CardHeader>
+                      <CardContent>
                         <div className="space-y-2">
                           {consents.map((consent) => (
                             <div
@@ -2156,13 +2376,113 @@ export default function PatientChartPage() {
                             </div>
                           ))}
                         </div>
-                      ) : (
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {/* Intake Consent Forms */}
+                  {intakeConsentsData && (() => {
+                    try {
+                      const notesData = typeof intakeConsentsData.notes === 'string' 
+                        ? JSON.parse(intakeConsentsData.notes) 
+                        : intakeConsentsData.notes;
+                      
+                      if (notesData?.type === "consent_forms" && notesData.consentData) {
+                        const consentForms = notesData.consentData.consentForms || {};
+                        const completionStats = notesData.consentData.completionStats || {};
+                        
+                        // Map of form IDs to display names (matching the comprehensive consent forms component)
+                        const formMap: Record<string, string> = {
+                          "release-of-information": "Release of Information",
+                          "hipaa-privacy-notice": "HIPAA Privacy Notice & Authorization",
+                          "cfr-42-consent": "Consent for Release (42 CFR Part 2)",
+                          "confidentiality-notice": "Client Notice of Confidentiality",
+                          "recipient-rights": "Acknowledgement of Recipient Rights",
+                          "behavior-health-contract": "Behavior Health Contract",
+                          "consent-to-treatment": "Consent To Treatment",
+                          "coordination-of-treatment": "Coordination of Treatment",
+                          "clients-rights-limits": "Clients Rights and Limits",
+                          "client-responsibility": "Clients Responsibility",
+                          "telehealth-consent": "Telehealth Consent",
+                          "telehealth-acknowledgement": "Telehealth Acknowledgement",
+                          "telehealth-risks-benefits": "Telehealth Risks & Benefits",
+                          "photo-video-consent": "Photo/Video Consent",
+                          "financial-responsibility": "Financial Responsibility",
+                          "medication-consent": "Medication Consent",
+                        };
+
+                        // Get all forms that have data (completed or not)
+                        const allFormIds = Object.keys(consentForms);
+                        const displayForms = allFormIds.length > 0 
+                          ? allFormIds 
+                          : Object.keys(formMap); // Show all forms if none completed yet
+
+                        return (
+                          <Card>
+                            <CardHeader>
+                              <CardTitle>Intake Consent Forms</CardTitle>
+                              <CardDescription>
+                                Consent forms completed during patient intake
+                                {completionStats.totalRequired && (
+                                  <span className="ml-2">
+                                    ({completionStats.requiredCompleted || 0} of {completionStats.totalRequired} required completed)
+                                  </span>
+                                )}
+                              </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="space-y-2">
+                                {displayForms.map((formId) => {
+                                  const formData = consentForms[formId];
+                                  const isCompleted = formData?.completed || false;
+                                  const signedDate = formData?.completedAt || formData?.signedDate;
+                                  const formName = formData?.formTitle || formMap[formId] || formId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+
+                                  return (
+                                    <div
+                                      key={formId}
+                                      className="flex items-center justify-between p-4 border rounded-lg">
+                                      <div className="flex items-center gap-3">
+                                        <FileCheck className={`h-5 w-5 ${isCompleted ? "text-green-600" : "text-gray-400"}`} />
+                                        <div>
+                                          <p className="font-medium">
+                                            {formName}
+                                          </p>
+                                          <p className="text-sm text-gray-600">
+                                            {signedDate 
+                                              ? `Signed: ${new Date(signedDate).toLocaleDateString()}`
+                                              : "Not signed"}
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <Badge
+                                        variant={isCompleted ? "default" : "secondary"}>
+                                        {isCompleted ? "Completed" : "Pending"}
+                                      </Badge>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </CardContent>
+                          </Card>
+                        );
+                      }
+                    } catch (error) {
+                      console.error("Error parsing intake consents:", error);
+                    }
+                    return null;
+                  })()}
+
+                  {/* Empty state */}
+                  {consents.length === 0 && !intakeConsentsData && (
+                    <Card>
+                      <CardContent>
                         <p className="text-center text-gray-500 py-8">
                           No consent forms recorded
                         </p>
-                      )}
-                    </CardContent>
-                  </Card>
+                      </CardContent>
+                    </Card>
+                  )}
                 </TabsContent>
 
                 <TabsContent value="documents" className="space-y-4">
@@ -2203,7 +2523,9 @@ export default function PatientChartPage() {
                                       id: assessment.id,
                                       document_type: "assessment",
                                       patient_name: selectedPatient ? `${selectedPatient.first_name} ${selectedPatient.last_name}` : "Unknown Patient",
-                                      provider_name: "Provider",
+                                      provider_name: assessment.providers 
+                                        ? `Dr. ${assessment.providers.first_name} ${assessment.providers.last_name}`
+                                        : "Unknown Provider",
                                       created_at: assessment.created_at,
                                       assessment_type: assessment.assessment_type,
                                       chief_complaint: assessment.chief_complaint,
@@ -2272,7 +2594,9 @@ export default function PatientChartPage() {
                                       id: note.id,
                                       document_type: "progress_note",
                                       patient_name: selectedPatient ? `${selectedPatient.first_name} ${selectedPatient.last_name}` : "Unknown Patient",
-                                      provider_name: "Provider",
+                                      provider_name: note.providers 
+                                        ? `Dr. ${note.providers.first_name} ${note.providers.last_name}`
+                                        : "Unknown Provider",
                                       created_at: note.created_at,
                                       note_type: note.note_type,
                                       subjective: note.subjective,
@@ -2340,16 +2664,109 @@ export default function PatientChartPage() {
                 <TabsContent value="history" className="space-y-4">
                   <Card>
                     <CardHeader>
-                      <CardTitle>Patient History</CardTitle>
+                      <CardTitle>Patient History Timeline</CardTitle>
                       <CardDescription>
-                        Treatment timeline and significant events
+                        Comprehensive treatment timeline and significant events
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="space-y-4">
+                      <div className="space-y-6">
+                        {/* Admission History */}
+                        {admissionData && (
+                          <div>
+                            <h4 className="font-medium mb-3 flex items-center gap-2">
+                              <Activity className="h-4 w-4 text-blue-600" />
+                              Admission History
+                            </h4>
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between p-3 border rounded-lg bg-blue-50/50">
+                                <div className="flex items-center gap-3">
+                                  <Calendar className="h-4 w-4 text-blue-600" />
+                                  <div>
+                                    <p className="text-sm font-medium">
+                                      {admissionData.program_type || "OTP"} Admission
+                                    </p>
+                                    <p className="text-xs text-gray-600">
+                                      {admissionData.admission_date 
+                                        ? new Date(admissionData.admission_date).toLocaleDateString("en-US", {
+                                            year: "numeric",
+                                            month: "long",
+                                            day: "numeric"
+                                          })
+                                        : "Date not available"}
+                                      {admissionData.status && ` • Status: ${admissionData.status}`}
+                                    </p>
+                                    {admissionData.primary_substance && (
+                                      <p className="text-xs text-gray-500 mt-1">
+                                        Primary Substance: {admissionData.primary_substance}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                <Badge variant={
+                                  admissionData.status === "active" ? "default" : 
+                                  admissionData.status === "pending_orientation" ? "secondary" : 
+                                  "outline"
+                                }>
+                                  {admissionData.status || "Unknown"}
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Assessment History */}
+                        {assessments.length > 0 && (
+                          <div>
+                            <h4 className="font-medium mb-3 flex items-center gap-2">
+                              <ClipboardList className="h-4 w-4 text-green-600" />
+                              Assessment History ({assessments.length})
+                            </h4>
+                            <div className="space-y-2">
+                              {assessments.slice(0, 10).map((assessment) => (
+                                <div
+                                  key={assessment.id}
+                                  className="flex items-center justify-between p-3 border rounded-lg">
+                                  <div className="flex items-center gap-3">
+                                    <FileCheck className="h-4 w-4 text-green-600" />
+                                    <div>
+                                      <p className="text-sm font-medium">
+                                        {assessment.assessment_type}
+                                      </p>
+                                      <p className="text-xs text-gray-600">
+                                        {new Date(assessment.created_at).toLocaleDateString("en-US", {
+                                          year: "numeric",
+                                          month: "short",
+                                          day: "numeric",
+                                          hour: "2-digit",
+                                          minute: "2-digit"
+                                        })}
+                                        {assessment.providers && (
+                                          <span className="ml-2">
+                                            • {assessment.providers.first_name} {assessment.providers.last_name}
+                                          </span>
+                                        )}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                              {assessments.length > 10 && (
+                                <p className="text-xs text-gray-500 text-center pt-2">
+                                  + {assessments.length - 10} more assessments
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Dosing History */}
                         {dosingLog.length > 0 && (
                           <div>
-                            <h4 className="font-medium mb-2">Dosing History</h4>
+                            <h4 className="font-medium mb-3 flex items-center gap-2">
+                              <Syringe className="h-4 w-4 text-orange-600" />
+                              Dosing History ({dosingLog.length})
+                            </h4>
                             <div className="space-y-2">
                               {dosingLog.slice(0, 10).map((dose) => (
                                 <div
@@ -2359,22 +2776,38 @@ export default function PatientChartPage() {
                                     <Syringe className="h-4 w-4 text-orange-600" />
                                     <div>
                                       <p className="text-sm font-medium">
-                                        {dose.medication} - {dose.dose_amount}mg
+                                        {dose.medication || "Medication"} - {dose.dose_amount || "N/A"}mg
                                       </p>
                                       <p className="text-xs text-gray-600">
-                                        {dose.dose_date} at {dose.dose_time}
+                                        {dose.dose_date 
+                                          ? new Date(dose.dose_date).toLocaleDateString("en-US", {
+                                              year: "numeric",
+                                              month: "short",
+                                              day: "numeric"
+                                            })
+                                          : "Date not available"}
+                                        {dose.dose_time && ` at ${dose.dose_time}`}
+                                        {dose.dispensed_by && ` • Dispensed by: ${dose.dispensed_by}`}
                                       </p>
                                     </div>
                                   </div>
                                 </div>
                               ))}
+                              {dosingLog.length > 10 && (
+                                <p className="text-xs text-gray-500 text-center pt-2">
+                                  + {dosingLog.length - 10} more dosing records
+                                </p>
+                              )}
                             </div>
                           </div>
                         )}
+
+                        {/* Vital Signs History */}
                         {vitalSigns.length > 0 && (
                           <div>
-                            <h4 className="font-medium mb-2">
-                              Vital Signs History
+                            <h4 className="font-medium mb-3 flex items-center gap-2">
+                              <Heart className="h-4 w-4 text-red-600" />
+                              Vital Signs History ({vitalSigns.length})
                             </h4>
                             <div className="space-y-2">
                               {vitalSigns.slice(0, 10).map((vital) => (
@@ -2383,54 +2816,86 @@ export default function PatientChartPage() {
                                   className="flex items-center justify-between p-3 border rounded-lg">
                                   <div className="text-sm">
                                     <p className="font-medium">
-                                      BP: {vital.systolic_bp}/
-                                      {vital.diastolic_bp} • HR:{" "}
-                                      {vital.heart_rate} • Temp:{" "}
-                                      {vital.temperature}°F
+                                      BP: {vital.systolic_bp}/{vital.diastolic_bp} • 
+                                      HR: {vital.heart_rate} • 
+                                      Temp: {vital.temperature}°F
+                                      {vital.weight && ` • Weight: ${vital.weight} lbs`}
                                     </p>
                                     <p className="text-xs text-gray-600">
-                                      {new Date(
-                                        vital.measurement_date
-                                      ).toLocaleDateString()}
+                                      {new Date(vital.measurement_date).toLocaleDateString("en-US", {
+                                        year: "numeric",
+                                        month: "short",
+                                        day: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit"
+                                      })}
                                     </p>
                                   </div>
                                 </div>
                               ))}
+                              {vitalSigns.length > 10 && (
+                                <p className="text-xs text-gray-500 text-center pt-2">
+                                  + {vitalSigns.length - 10} more vital sign readings
+                                </p>
+                              )}
                             </div>
                           </div>
                         )}
-                        {assessments.length > 0 && (
+
+                        {/* Progress Notes History */}
+                        {progressNotes.length > 0 && (
                           <div>
-                            <h4 className="font-medium mb-2">
-                              Assessment History
+                            <h4 className="font-medium mb-3 flex items-center gap-2">
+                              <FileText className="h-4 w-4 text-purple-600" />
+                              Progress Notes ({progressNotes.length})
                             </h4>
                             <div className="space-y-2">
-                              {assessments.map((assessment) => (
+                              {progressNotes.slice(0, 5).map((note) => (
                                 <div
-                                  key={assessment.id}
+                                  key={note.id}
                                   className="flex items-center justify-between p-3 border rounded-lg">
-                                  <div>
-                                    <p className="text-sm font-medium">
-                                      {assessment.assessment_type}
-                                    </p>
-                                    <p className="text-xs text-gray-600">
-                                      {new Date(
-                                        assessment.created_at
-                                      ).toLocaleDateString()}
-                                    </p>
+                                  <div className="flex items-center gap-3">
+                                    <FileText className="h-4 w-4 text-purple-600" />
+                                    <div>
+                                      <p className="text-sm font-medium">
+                                        {note.note_type?.replace(/_/g, " ") || "Progress Note"}
+                                      </p>
+                                      <p className="text-xs text-gray-600">
+                                        {new Date(note.created_at).toLocaleDateString("en-US", {
+                                          year: "numeric",
+                                          month: "short",
+                                          day: "numeric"
+                                        })}
+                                        {note.providers && (
+                                          <span className="ml-2">
+                                            • {note.providers.first_name} {note.providers.last_name}
+                                          </span>
+                                        )}
+                                      </p>
+                                    </div>
                                   </div>
                                 </div>
                               ))}
+                              {progressNotes.length > 5 && (
+                                <p className="text-xs text-gray-500 text-center pt-2">
+                                  + {progressNotes.length - 5} more progress notes
+                                </p>
+                              )}
                             </div>
                           </div>
                         )}
-                        {dosingLog.length === 0 &&
-                          vitalSigns.length === 0 &&
-                          assessments.length === 0 && (
-                            <p className="text-center text-gray-500 py-8">
-                              No history records available
-                            </p>
-                          )}
+
+                        {/* Empty state */}
+                        {!admissionData && 
+                         dosingLog.length === 0 &&
+                         vitalSigns.length === 0 &&
+                         assessments.length === 0 &&
+                         progressNotes.length === 0 && (
+                          <div className="text-center py-8">
+                            <History className="h-12 w-12 mx-auto text-gray-300 mb-4" />
+                            <p className="text-gray-500">No history records available</p>
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -3881,6 +4346,43 @@ export default function PatientChartPage() {
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ASAM Assessment Details Dialog */}
+      <ASAMAssessmentDetailsDialog
+        open={showAsamDetailsDialog}
+        onOpenChange={setShowAsamDetailsDialog}
+        assessment={selectedAsamAssessment}
+        providerName={
+          selectedAsamAssessment?.providers
+            ? `Dr. ${selectedAsamAssessment.providers.first_name} ${selectedAsamAssessment.providers.last_name}`
+            : undefined
+        }
+      />
+
+      {/* Create Portal Account Dialog */}
+      <Dialog open={showCreatePortalDialog} onOpenChange={setShowCreatePortalDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Patient Portal Account</DialogTitle>
+            <DialogDescription>
+              Create a portal account for {selectedPatient?.first_name} {selectedPatient?.last_name}
+            </DialogDescription>
+          </DialogHeader>
+          <CreatePortalAccountForm
+            patientId={selectedPatientId}
+            patientEmail={selectedPatient?.email || ""}
+            patientName={`${selectedPatient?.first_name} ${selectedPatient?.last_name}`}
+            onSuccess={() => {
+              setShowCreatePortalDialog(false);
+              if (selectedPatientId) {
+                fetchPortalAccountStatus(selectedPatientId);
+              }
+              toast.success("Portal account created successfully!");
+            }}
+            onCancel={() => setShowCreatePortalDialog(false)}
+          />
         </DialogContent>
       </Dialog>
     </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FileText, Shield, Heart, Users, CheckCircle, Clock, Fingerprint, Lock, Save } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 interface ComprehensiveConsentFormsProps {
   patient: any
@@ -330,54 +331,242 @@ const categories = [
 ]
 
 export function ComprehensiveConsentForms({ patient, isOpen, onClose, onComplete }: ComprehensiveConsentFormsProps) {
+  const { toast } = useToast()
   const [consentData, setConsentData] = useState<Record<string, any>>({})
   const [currentCategory, setCurrentCategory] = useState("privacy")
   const [verificationMethod, setVerificationMethod] = useState<"pin" | "fingerprint" | "facial">("pin")
   const [pins, setPins] = useState<Record<string, string>>({})
   const [savedSignature, setSavedSignature] = useState("")
   const [signaturePin, setSignaturePin] = useState("")
+  const [masterPin, setMasterPin] = useState<string>("") // Track the first PIN used for signing
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
 
-  const handleVerification = (formId: string) => {
+  // Load saved consent data from API when modal opens
+  useEffect(() => {
+    if (isOpen && patient?.id) {
+      loadConsentData()
+    }
+  }, [isOpen, patient?.id])
+
+  const loadConsentData = async () => {
+    if (!patient?.id) return
+
+    setLoading(true)
+    try {
+      const response = await fetch(`/api/intake/consents?patient_id=${patient.id}`)
+      const result = await response.json()
+
+      if (result.success && result.data) {
+        if (result.data.consentForms) {
+          setConsentData(result.data.consentForms)
+          
+          // Extract masterPin from first completed form if signaturePin doesn't exist
+          if (!result.data.signaturePin) {
+            const firstCompletedForm = Object.values(result.data.consentForms).find(
+              (form: any) => form?.completed && form?.pinUsed
+            ) as any
+            
+            if (firstCompletedForm?.pinUsed) {
+              setMasterPin(firstCompletedForm.pinUsed)
+              console.log("Loaded master PIN from saved data:", firstCompletedForm.pinUsed)
+            }
+          }
+        }
+        if (result.data.savedSignature) {
+          setSavedSignature(result.data.savedSignature)
+        }
+        if (result.data.signaturePin) {
+          setSignaturePin(result.data.signaturePin)
+          // If signaturePin exists, use it as masterPin too
+          setMasterPin(result.data.signaturePin)
+        }
+      }
+    } catch (error) {
+      console.error("Error loading consent data:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load saved consent forms data.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const saveConsentData = async (dataToSave?: Record<string, any>) => {
+    if (!patient?.id) {
+      console.warn("Cannot save consent data: patient ID is missing")
+      return
+    }
+
+    const data = dataToSave || consentData
+    const stats = getCompletionStats()
+    
+    setSaving(true)
+    try {
+      const response = await fetch("/api/intake/consents", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          patient_id: patient.id,
+          consentForms: data,
+          completionStats: stats,
+          savedSignature,
+          signaturePin: signaturePin || masterPin, // Use signaturePin if exists, otherwise masterPin
+        }),
+      })
+
+      // Check if response is ok (status 200-299)
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || errorData.details || `HTTP ${response.status}: ${response.statusText}`)
+      }
+
+      const result = await response.json()
+
+      // Check if result indicates success
+      if (result.success === false || (!result.success && result.error)) {
+        throw new Error(result.error || result.details || "Failed to save consent forms")
+      }
+
+      // Success - data saved
+      console.log("Consent data saved successfully")
+    } catch (error: any) {
+      console.error("Error saving consent data:", error)
+      toast({
+        title: "Save Error",
+        description: error.message || "Failed to save consent forms. Please try again.",
+        variant: "destructive",
+      })
+      // Don't throw - allow user to continue working
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleVerification = (formId: string, checkAgreement: boolean = true) => {
+    // Check if agreement checkbox is checked
+    if (checkAgreement && !consentData[formId]?.agreed) {
+      toast({
+        title: "Agreement Required",
+        description: "Please check the agreement checkbox before signing.",
+        variant: "destructive",
+      })
+      return false
+    }
+
     if (verificationMethod === "pin") {
       const formPin = pins[formId] || ""
+      
+      // Check PIN length
       if (formPin.length !== 4) {
-        alert("Please enter a 4-digit PIN")
+        toast({
+          title: "PIN Required",
+          description: "Please enter a 4-digit PIN to sign this form.",
+          variant: "destructive",
+        })
         return false
       }
-      // Verify PIN (in production, verify against stored PIN)
+
+      // Verify PIN: Must match either signaturePin (saved signature) or masterPin (first PIN used)
+      const expectedPin = signaturePin || masterPin
+      
+      if (expectedPin) {
+        // If we have a reference PIN (either saved signature or first form PIN), verify it matches
+        if (formPin !== expectedPin) {
+          toast({
+            title: "Invalid PIN",
+            description: "The PIN you entered does not match your signature PIN. Please enter the correct PIN.",
+            variant: "destructive",
+          })
+          return false
+        }
+      }
+      // If no PIN reference exists yet, this will be the first PIN (will be set in handleFormComplete)
+      
       return true
     } else if (verificationMethod === "fingerprint") {
       // Simulate fingerprint scan
-      alert("Place finger on scanner...")
+      toast({
+        title: "Fingerprint Scan",
+        description: "Place finger on scanner...",
+      })
       return true
     } else if (verificationMethod === "facial") {
       // Simulate facial recognition
-      alert("Position face in camera...")
+      toast({
+        title: "Facial Recognition",
+        description: "Position face in camera...",
+      })
       return true
     }
     return false
   }
 
-  const handleSaveSignature = () => {
+  const handleSaveSignature = async () => {
     if (signaturePin.length !== 4) {
-      alert("Please set a 4-digit PIN for your signature")
+      toast({
+        title: "PIN Required",
+        description: "Please set a 4-digit PIN for your signature.",
+        variant: "destructive",
+      })
       return
     }
     setSavedSignature(patient?.name || "")
-    alert("Signature saved! You can now use your PIN to sign forms quickly.")
+    // Set masterPin when signature is saved
+    setMasterPin(signaturePin)
+    
+    // Save signature to API
+    await saveConsentData()
+    
+    toast({
+      title: "Signature Saved",
+      description: "You can now use your PIN to sign forms quickly.",
+    })
   }
 
   const handleApplySavedSignature = (formId: string) => {
+    if (!consentData[formId]?.agreed) {
+      toast({
+        title: "Agreement Required",
+        description: "Please check the agreement checkbox before signing.",
+        variant: "destructive",
+      })
+      return
+    }
+
     if (!savedSignature) {
-      alert("No saved signature found. Please create one first.")
+      toast({
+        title: "No Saved Signature",
+        description: "Please create a saved signature first.",
+        variant: "destructive",
+      })
       return
     }
+    
     const formPin = pins[formId] || ""
-    if (formPin.length !== 4 || formPin !== signaturePin) {
-      alert("Invalid PIN")
+    if (formPin.length !== 4) {
+      toast({
+        title: "PIN Required",
+        description: "Please enter your 4-digit PIN to use saved signature.",
+        variant: "destructive",
+      })
       return
     }
-    handleFormComplete(formId, { signature: savedSignature, method: "saved-pin" })
+
+    if (formPin !== signaturePin) {
+      toast({
+        title: "Invalid PIN",
+        description: "The PIN you entered does not match your saved signature PIN.",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    handleFormComplete(formId, { signature: savedSignature, method: "saved-pin", agreed: true })
   }
 
   const getFormsByCategory = (category: string) => {
@@ -401,36 +590,73 @@ export function ComprehensiveConsentForms({ patient, isOpen, onClose, onComplete
     }
   }
 
-  const handleFormComplete = (formId: string, data: any) => {
-    if (!handleVerification(formId)) {
+  const handleFormComplete = async (formId: string, data: any) => {
+    if (!handleVerification(formId, true)) {
       return
     }
 
-    setConsentData((prev) => ({
-      ...prev,
+    const form = allConsentForms.find(f => f.id === formId)
+    const formPin = pins[formId] || ""
+    
+    // Set masterPin on first form signature if not already set
+    if (verificationMethod === "pin" && formPin.length === 4 && !masterPin && !signaturePin) {
+      setMasterPin(formPin)
+      console.log("Master PIN set:", formPin)
+    }
+
+    const updatedData = {
+      ...consentData,
       [formId]: {
+        ...consentData[formId],
         ...data,
+        agreed: true,
         completed: true,
         completedAt: new Date().toISOString(),
         verificationMethod,
         verifiedBy: patient?.name,
+        formTitle: form?.title,
+        pinUsed: formPin, // Store the PIN used for this form
       },
-    }))
+    }
+
+    setConsentData(updatedData)
+
+    // Auto-save to API
+    await saveConsentData(updatedData)
+
+    toast({
+      title: "Form Signed",
+      description: `${form?.title || "Form"} has been successfully signed and saved.`,
+    })
   }
 
-  const handleCompleteAll = () => {
+  const handleCompleteAll = async () => {
     const stats = getCompletionStats()
     if (stats.requiredCompleted < stats.totalRequired) {
-      alert(`Please complete all ${stats.totalRequired} required consent forms before proceeding.`)
+      toast({
+        title: "Incomplete Forms",
+        description: `Please complete all ${stats.totalRequired} required consent forms before proceeding. ${stats.totalRequired - stats.requiredCompleted} forms remaining.`,
+        variant: "destructive",
+      })
       return
     }
+
+    // Final save to API
+    await saveConsentData()
 
     onComplete({
       consentForms: consentData,
       completionStats: stats,
       completedAt: new Date().toISOString(),
       savedSignature,
+      signaturePin,
     })
+    
+    toast({
+      title: "All Forms Completed",
+      description: "All consent forms have been successfully completed and saved.",
+    })
+    
     onClose()
   }
 
@@ -438,7 +664,7 @@ export function ComprehensiveConsentForms({ patient, isOpen, onClose, onComplete
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="!max-w-[98vw] !w-[98vw] sm:!max-w-[98vw] lg:!max-w-[98vw] max-h-[95vh] overflow-hidden flex flex-col">
         <DialogHeader className="flex-shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
@@ -593,8 +819,8 @@ export function ComprehensiveConsentForms({ patient, isOpen, onClose, onComplete
                         </CardTitle>
                       </CardHeader>
                         <CardContent className="space-y-4">
-                          <div className="p-3 bg-muted/50 rounded-md text-sm leading-relaxed">
-                          <p>{form.content}</p>
+                          <div className="p-3 bg-muted/50 rounded-md text-sm leading-relaxed break-words overflow-wrap-anywhere">
+                          <p className="break-words">{form.content}</p>
                         </div>
 
                           <div className="flex items-start space-x-2">
@@ -635,7 +861,10 @@ export function ComprehensiveConsentForms({ patient, isOpen, onClose, onComplete
                             <Button
                               size="sm"
                               disabled={!consentData[form.id]?.agreed}
-                              onClick={() => handleFormComplete(form.id, consentData[form.id] || {})}
+                              onClick={() => handleFormComplete(form.id, { 
+                                ...consentData[form.id],
+                                agreed: true 
+                              })}
                                   className="flex-1 sm:flex-initial"
                             >
                                   Sign with {verificationMethod === "pin" ? "PIN" : verificationMethod}

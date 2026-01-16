@@ -38,35 +38,91 @@ export default function PatientLoginPage() {
     setLoading(true)
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Try real authentication first
+      const response = await fetch("/api/patient-portal/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+        }),
+      })
 
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        // Successful login
+        const patientName = `${data.patient.first_name} ${data.patient.last_name}`
+        
+        toast({
+          title: "Login Successful",
+          description: `Welcome back, ${patientName}!`,
+        })
+
+        // Store patient session info
+        localStorage.setItem("userType", "patient")
+        localStorage.setItem("patientId", data.patient.id)
+        localStorage.setItem("portalAccountId", data.patient.portal_account_id)
+        localStorage.setItem("userName", patientName)
+        localStorage.setItem("patientEmail", data.patient.email)
+        localStorage.setItem("clientNumber", data.patient.client_number || "")
+
+        router.push("/patient-portal")
+      } else {
+        // Check if it's a demo credential fallback
+        const validCredential = demoCredentials.find(
+          (cred) => cred.email === formData.email && cred.password === formData.password,
+        )
+
+        if (validCredential) {
+          // Demo login fallback
+          toast({
+            title: "Demo Login Successful",
+            description: `Welcome back, ${validCredential.name}!`,
+          })
+
+          localStorage.setItem("userType", "patient")
+          localStorage.setItem("userName", validCredential.name)
+          localStorage.setItem("isDemo", "true")
+
+          router.push("/patient-portal")
+        } else {
+          // Invalid credentials
+          toast({
+            title: "Login Failed",
+            description: data.error || "Invalid email or password. Please check your credentials.",
+            variant: "destructive",
+          })
+        }
+      }
+    } catch (error) {
+      console.error("Login error:", error)
+      
+      // Fallback to demo credentials on network error
       const validCredential = demoCredentials.find(
         (cred) => cred.email === formData.email && cred.password === formData.password,
       )
 
       if (validCredential) {
         toast({
-          title: "Login Successful",
+          title: "Demo Login (Offline Mode)",
           description: `Welcome back, ${validCredential.name}!`,
         })
 
         localStorage.setItem("userType", "patient")
         localStorage.setItem("userName", validCredential.name)
+        localStorage.setItem("isDemo", "true")
 
         router.push("/patient-portal")
       } else {
         toast({
-          title: "Invalid Credentials",
-          description: "Please check your email and password.",
+          title: "Login Failed",
+          description: "An error occurred. Please try again or use demo credentials.",
           variant: "destructive",
         })
       }
-    } catch (error) {
-      toast({
-        title: "Login Failed",
-        description: "An error occurred. Please try again.",
-        variant: "destructive",
-      })
     } finally {
       setLoading(false)
     }

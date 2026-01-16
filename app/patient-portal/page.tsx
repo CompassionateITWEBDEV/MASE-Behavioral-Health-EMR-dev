@@ -264,25 +264,66 @@ export default function PatientPortalPage() {
     const loadPatientInfo = async () => {
       try {
         setLoading(true);
+        
+        // First, check localStorage for authenticated patient ID
+        const storedPatientId = localStorage.getItem("patientId");
+        const isDemo = localStorage.getItem("isDemo") === "true";
+        
         // Check for patientId in URL query params
         const urlParams = new URLSearchParams(window.location.search);
         const urlPatientId = urlParams.get("patientId");
 
-        const apiUrl = urlPatientId
-          ? `/api/patient-portal/info?patientId=${urlPatientId}`
+        // Priority: storedPatientId (from login) > urlPatientId > fallback
+        const patientIdToUse = storedPatientId || urlPatientId;
+
+        const apiUrl = patientIdToUse
+          ? `/api/patient-portal/info?patientId=${patientIdToUse}`
           : "/api/patient-portal/info";
 
         const response = await fetch(apiUrl);
         if (response.ok) {
           const data = await response.json();
           console.log("[Patient Portal] Info API response:", data);
-          setPatientInfo(data);
-          // Use patientId from API, or URL param, or try to get first patient from DB
+          
+          // Always use storedPatientId if available (from login), otherwise use API data
+          const finalPatientId = storedPatientId || data.patientId || urlPatientId;
+          
+          if (finalPatientId) {
+            setPatientId(finalPatientId);
+          }
+          
+          // Always set patient info if we have data with patientId
+          // Check if data has patientId (real data) or if name is not the mock "Sarah Johnson"
           if (data.patientId) {
-            setPatientId(data.patientId);
-          } else if (urlPatientId) {
-            setPatientId(urlPatientId);
-          } else {
+            // Real patient data - always set it
+            setPatientInfo(data);
+            console.log("[Patient Portal] Set patient info:", data.name);
+          } else if (data.name && data.name !== "Sarah Johnson") {
+            // Data without patientId but has real name
+            setPatientInfo(data);
+            console.log("[Patient Portal] Set patient info (no patientId):", data.name);
+          } else if (storedPatientId && !isDemo) {
+            // If we have storedPatientId but API returned mock, retry with explicit patientId
+            console.log("[Patient Portal] API returned mock data, retrying with stored patientId");
+            try {
+              const retryResponse = await fetch(`/api/patient-portal/info?patientId=${storedPatientId}`);
+              if (retryResponse.ok) {
+                const retryData = await retryResponse.json();
+                if (retryData.patientId && retryData.name !== "Sarah Johnson") {
+                  setPatientInfo(retryData);
+                }
+              }
+            } catch (retryErr) {
+              console.error("[Patient Portal] Retry failed:", retryErr);
+            }
+          } else if (isDemo) {
+            // Only use mock data if explicitly in demo mode
+            setPatientInfo(data);
+          }
+          
+          // Only try fallback if we don't have a patient ID and not in demo mode
+          if (!finalPatientId && !isDemo) {
+            // Only try to get first patient if not in demo mode
             // Try to get a real patient ID for testing
             try {
               const patientsResponse = await fetch("/api/patients/list");
@@ -306,7 +347,40 @@ export default function PatientPortalPage() {
             }
           }
         } else {
-          // Fallback for demo
+          // If API fails and we have storedPatientId, try direct fetch
+          if (storedPatientId && !isDemo) {
+            console.log("[Patient Portal] API failed, retrying with stored patientId");
+            try {
+              const retryResponse = await fetch(`/api/patient-portal/info?patientId=${storedPatientId}`);
+              if (retryResponse.ok) {
+                const retryData = await retryResponse.json();
+                if (retryData.patientId && retryData.name !== "Sarah Johnson") {
+                  setPatientInfo(retryData);
+                  setPatientId(storedPatientId);
+                }
+              }
+            } catch (retryErr) {
+              console.error("[Patient Portal] Retry failed:", retryErr);
+            }
+          } else if (isDemo) {
+            // Only use demo fallback if explicitly in demo mode
+            setPatientInfo({
+              name: "Sarah Johnson",
+              id: "PT-2024-001",
+              program: "Methadone Program",
+              dose: "80mg",
+              nextAppointment: "January 18, 2024 at 10:00 AM",
+              counselor: "Dr. Smith",
+              counselorPhone: "(555) 123-4567",
+              recoveryDays: 127,
+            });
+          }
+        }
+      } catch (err) {
+        console.error("Error loading patient info:", err);
+        
+        // Only use demo fallback if explicitly in demo mode
+        if (isDemo) {
           setPatientInfo({
             name: "Sarah Johnson",
             id: "PT-2024-001",
@@ -317,33 +391,7 @@ export default function PatientPortalPage() {
             counselorPhone: "(555) 123-4567",
             recoveryDays: 127,
           });
-          // Try to get a real patient ID
-          try {
-            const patientsResponse = await fetch("/api/patients/list");
-            if (patientsResponse.ok) {
-              const patientsData = await patientsResponse.json();
-              if (patientsData.patients && patientsData.patients.length > 0) {
-                setPatientId(patientsData.patients[0].id);
-              } else {
-                setPatientId(null);
-              }
-            }
-          } catch (e) {
-            setPatientId(null);
-          }
         }
-      } catch (err) {
-        console.error("Error loading patient info:", err);
-        setPatientInfo({
-          name: "Sarah Johnson",
-          id: "PT-2024-001",
-          program: "Methadone Program",
-          dose: "80mg",
-          nextAppointment: "January 18, 2024 at 10:00 AM",
-          counselor: "Dr. Smith",
-          counselorPhone: "(555) 123-4567",
-          recoveryDays: 127,
-        });
         // Try to get a real patient ID
         try {
           const patientsResponse = await fetch("/api/patients/list");
@@ -766,7 +814,13 @@ export default function PatientPortalPage() {
                 Recovery Support Portal
               </h1>
               <p className="text-sm" style={{ color: "#64748b" }}>
-                Welcome back, {patientInfo?.name}
+                {patientInfo?.name 
+                  ? `Welcome back, ${patientInfo.name}`
+                  : localStorage.getItem("userName")
+                    ? `Welcome back, ${localStorage.getItem("userName")}`
+                    : loading 
+                      ? "Loading patient information..." 
+                      : "Welcome"}
               </p>
             </div>
           </div>
@@ -1143,16 +1197,16 @@ export default function PatientPortalPage() {
                                             ? "N/A"
                                             : "Pending"}
                                         </Badge>
-                                        {form.status !== "completed" && (
-                                          <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() =>
-                                              setOpenFormModal(form.formKey)
-                                            }>
-                                            Fill Up
-                                          </Button>
-                                        )}
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() =>
+                                            setOpenFormModal(form.formKey)
+                                          }>
+                                          {form.status === "completed"
+                                            ? "Update"
+                                            : "Fill Up"}
+                                        </Button>
                                       </div>
                                     </div>
                                   </CardContent>

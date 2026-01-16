@@ -354,11 +354,11 @@ export default function MichiganSurveillancePage() {
 
       {/* Key Metrics - Updated with actual Michigan 2024 data */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <Card>
+      <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-muted-foreground">2024 Overdose Deaths</CardTitle>
-          </CardHeader>
-          <CardContent>
+        </CardHeader>
+        <CardContent>
             <div className="text-3xl font-bold">1,877</div>
             <div className="flex items-center text-sm mt-2">
               <TrendingDown className="h-4 w-4 text-green-500 mr-1" />
@@ -421,7 +421,7 @@ export default function MichiganSurveillancePage() {
       </div>
 
       {/* Main Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="moda">
@@ -449,7 +449,7 @@ export default function MichiganSurveillancePage() {
             <Radio className="h-4 w-4 mr-1" />
             ODMAP
           </TabsTrigger>
-        </TabsList>
+            </TabsList>
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-4">
@@ -461,11 +461,11 @@ export default function MichiganSurveillancePage() {
                 <CardDescription>National SUDORS data with Michigan predictions</CardDescription>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={300}>
                   <ComposedChart data={monthlyOverdoses2024}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
-                    <YAxis />
+                  <YAxis />
                     <Tooltip />
                     <Legend />
                     <Bar dataKey="fatal" fill={COLORS.critical} name="Fatal Overdoses" />
@@ -492,10 +492,10 @@ export default function MichiganSurveillancePage() {
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={polysubstanceCombinations} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" />
+                  <CartesianGrid strokeDasharray="3 3" />
                     <XAxis type="number" />
                     <YAxis dataKey="name" type="category" width={150} />
-                    <Tooltip />
+                  <Tooltip />
                     <Bar dataKey="percent" fill={COLORS.primary} name="Percent of Deaths" />
                   </BarChart>
                 </ResponsiveContainer>
@@ -790,7 +790,7 @@ export default function MichiganSurveillancePage() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+            </TabsContent>
 
         {/* SUDORS Tab - Federal Surveillance Data */}
         <TabsContent value="sudors" className="space-y-4">
@@ -833,19 +833,19 @@ export default function MichiganSurveillancePage() {
               {/* Substances Involved */}
               <div>
                 <h3 className="font-semibold text-lg mb-3">Substances Involved in Overdose Deaths (SUDORS 2024)</h3>
-                <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={substanceBreakdown}>
-                    <CartesianGrid strokeDasharray="3 3" />
+                  <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" angle={-15} textAnchor="end" height={100} />
                     <YAxis label={{ value: "Percent of Deaths", angle: -90, position: "insideLeft" }} />
-                    <Tooltip />
+                  <Tooltip />
                     <Bar dataKey="value" fill={COLORS.primary} name="Percent Involved">
                       {substanceBreakdown.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                </BarChart>
+              </ResponsiveContainer>
               </div>
 
               {/* Demographics - Who Died */}
@@ -930,7 +930,7 @@ export default function MichiganSurveillancePage() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+            </TabsContent>
 
         {/* AI Predictions Tab */}
         <TabsContent value="predictions" className="space-y-4">
@@ -1239,15 +1239,15 @@ export default function MichiganSurveillancePage() {
                     <CardTitle className="text-base">Substance Use Trends - Alcona County</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={300}>
                       <LineChart data={miphyYouthData}>
-                        <CartesianGrid strokeDasharray="3 3" />
+                  <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="year" />
                         <YAxis label={{ value: "Percent (%)", angle: -90, position: "insideLeft" }} />
-                        <Tooltip />
-                        <Legend />
-                        <Line
-                          type="monotone"
+                  <Tooltip />
+                  <Legend />
+                  <Line
+                    type="monotone"
                           dataKey="alcohol"
                           stroke="#f97316"
                           name="Alcohol Use Past 30 Days"
@@ -1268,7 +1268,7 @@ export default function MichiganSurveillancePage() {
                           strokeWidth={2}
                         />
                       </LineChart>
-                    </ResponsiveContainer>
+              </ResponsiveContainer>
                   </CardContent>
                 </Card>
 
@@ -1364,7 +1364,7 @@ export default function MichiganSurveillancePage() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+            </TabsContent>
 
         <TabsContent value="idu" className="space-y-4">
           <Card>
@@ -1414,9 +1414,9 @@ export default function MichiganSurveillancePage() {
                   <CardContent>
                     <div className="text-3xl font-bold text-orange-600">$103K</div>
                     <div className="text-xs text-muted-foreground mt-1">Per hospitalization</div>
-                  </CardContent>
-                </Card>
-              </div>
+        </CardContent>
+      </Card>
+    </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <Card>

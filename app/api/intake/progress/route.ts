@@ -68,6 +68,7 @@ export async function POST(request: Request) {
       completed_items,
       documentation_status,
       assessment_data,
+      consent_forms_data,
     } = body
 
     if (!patient_id) {
@@ -129,6 +130,7 @@ export async function POST(request: Request) {
       completed_items,
       documentation_status,
       assessment_data,
+      consent_forms_data: consent_forms_data || null, // Include consent data in progress for fallback
       saved_at: new Date().toISOString(),
     }
 
@@ -184,6 +186,217 @@ export async function POST(request: Request) {
       console.error("[v0] Error saving progress tracking:", progressError)
       // Throw error to ensure user knows progress wasn't saved
       throw new Error(`Failed to save progress: ${progressError.message}`)
+    }
+
+    // If consent_forms_data exists, also save it as a separate consent_forms record
+    console.log("[v0] Checking consent_forms_data:", {
+      hasData: !!consent_forms_data,
+      hasConsentForms: !!(consent_forms_data?.consentForms),
+      keys: consent_forms_data ? Object.keys(consent_forms_data) : [],
+      structure: consent_forms_data ? JSON.stringify(consent_forms_data).substring(0, 500) : null
+    });
+    
+    // Check if consent_forms_data has any actual form data
+    const hasConsentData = consent_forms_data && (
+      consent_forms_data.consentForms || 
+      (typeof consent_forms_data === 'object' && Object.keys(consent_forms_data).length > 0 && 
+       !consent_forms_data.completionStats) // If it's the direct consentForms object
+    );
+    
+    if (hasConsentData) {
+      try {
+        // Get patient's organization_id if available
+        const { data: patientDataForConsent } = await supabase
+          .from("patients")
+          .select("organization_id")
+          .eq("id", patient_id)
+          .single()
+
+        // Get or create the consent forms requirement
+        // We'll use a simple inline function since we can't easily import from another route
+        const REQUIREMENT_NAME = "Patient Consent Forms"
+        let requirementQuery = supabase
+          .from("chart_requirements")
+          .select("id")
+          .eq("requirement_name", REQUIREMENT_NAME)
+
+        if (patientDataForConsent?.organization_id) {
+          requirementQuery = requirementQuery.eq("organization_id", patientDataForConsent.organization_id)
+        } else {
+          requirementQuery = requirementQuery.is("organization_id", null)
+        }
+
+        const { data: existingRequirement } = await requirementQuery.maybeSingle()
+
+        let consentRequirementId
+        if (existingRequirement) {
+          consentRequirementId = existingRequirement.id
+        } else {
+          const newRequirementData: any = {
+            requirement_name: REQUIREMENT_NAME,
+            requirement_type: "admission",
+            is_mandatory: true,
+            description: "Comprehensive patient consent forms",
+            applies_to_programs: ["OTP", "Outpatient"],
+          }
+
+          if (patientDataForConsent?.organization_id) {
+            newRequirementData.organization_id = patientDataForConsent.organization_id
+          }
+
+          const { data: newRequirement, error: reqError } = await supabase
+            .from("chart_requirements")
+            .insert(newRequirementData)
+            .select()
+            .single()
+
+          if (reqError) {
+            console.error("[v0] Error creating consent forms requirement:", reqError)
+            throw reqError
+          }
+
+          consentRequirementId = newRequirement.id
+        }
+
+        // Prepare consent data structure
+        // Handle both structures: 
+        // 1. { consentForms: {...}, completionStats: {...}, ... } (from onComplete)
+        // 2. Direct consentForms object (from state)
+        let consentForms = {};
+        let completionStats = {};
+        let savedSignature = "";
+        let signaturePin = "";
+        
+        if (consent_forms_data.consentForms) {
+          // Structure 1: Nested structure
+          consentForms = consent_forms_data.consentForms || {};
+          completionStats = consent_forms_data.completionStats || {};
+          savedSignature = consent_forms_data.savedSignature || "";
+          signaturePin = consent_forms_data.signaturePin || "";
+        } else if (typeof consent_forms_data === 'object' && Object.keys(consent_forms_data).length > 0) {
+          // Structure 2: Direct consentForms object (form IDs as keys)
+          // Calculate completion stats from the forms
+          const allForms = Object.values(consent_forms_data);
+          const completedForms = allForms.filter((f: any) => f?.completed);
+          const requiredForms = allForms.filter((f: any) => f?.required !== false); // Assume all are required if not specified
+          const completedRequired = requiredForms.filter((f: any) => f?.completed);
+          
+          consentForms = consent_forms_data;
+          completionStats = {
+            requiredCompleted: completedRequired.length,
+            totalRequired: requiredForms.length,
+            totalCompleted: completedForms.length,
+            totalForms: allForms.length,
+          };
+          savedSignature = "";
+          signaturePin = "";
+        }
+        
+        const consentData = {
+          consentForms: consentForms,
+          completionStats: completionStats,
+          savedSignature: savedSignature,
+          signaturePin: signaturePin,
+          completedAt: completionStats?.requiredCompleted === completionStats?.totalRequired 
+            ? new Date().toISOString() 
+            : null,
+        }
+        
+        console.log("[v0] Saving consent forms data:", {
+          formsCount: Object.keys(consentForms).length,
+          completionStats: completionStats,
+          hasSignature: !!savedSignature
+        });
+
+        // Check if consent chart item exists
+        const { data: existingConsentItem } = await supabase
+          .from("patient_chart_items")
+          .select("id, notes")
+          .eq("patient_id", patient_id)
+          .eq("requirement_id", consentRequirementId)
+          .maybeSingle()
+
+        // Prepare notes data - merge with existing if present
+        let consentNotesData: any = {
+          type: "consent_forms",
+          consentData: consentData,
+          saved_at: new Date().toISOString(),
+        }
+
+        // If existing chart item has other data, preserve it
+        if (existingConsentItem?.notes) {
+          try {
+            const existingNotes = typeof existingConsentItem.notes === 'string' 
+              ? JSON.parse(existingConsentItem.notes) 
+              : existingConsentItem.notes
+            
+            if (existingNotes.type === "consent_forms") {
+              // Merge with existing consent data
+              consentNotesData = {
+                ...existingNotes,
+                consentData: {
+                  ...existingNotes.consentData,
+                  ...consentData,
+                },
+                saved_at: new Date().toISOString(),
+              }
+            }
+          } catch (parseError) {
+            console.error("[v0] Error parsing existing consent notes:", parseError)
+            // Continue with new notes data
+          }
+        }
+
+        const consentChartItemRecord: any = {
+          patient_id,
+          requirement_id: consentRequirementId,
+          due_date: new Date().toISOString().split("T")[0],
+          completed_date: consent_forms_data.completionStats?.requiredCompleted === consent_forms_data.completionStats?.totalRequired 
+            ? new Date().toISOString().split("T")[0] 
+            : null,
+          status: consent_forms_data.completionStats?.requiredCompleted === consent_forms_data.completionStats?.totalRequired ? "completed" : "pending",
+          notes: JSON.stringify(consentNotesData),
+          updated_at: new Date().toISOString(),
+        }
+
+        if (existingConsentItem) {
+          // Update existing record
+          const { error: consentError } = await supabase
+            .from("patient_chart_items")
+            .update(consentChartItemRecord)
+            .eq("id", existingConsentItem.id)
+          
+          if (consentError) {
+            console.error("[v0] Error saving consent forms:", consentError)
+            // Don't throw - progress was saved successfully, consent is secondary
+          } else {
+            console.log("[v0] Successfully updated consent forms record:", {
+              patient_id,
+              requirement_id: consentRequirementId,
+              formsCount: Object.keys(consentForms).length
+            });
+          }
+        } else {
+          // Insert new record
+          const { error: consentError } = await supabase
+            .from("patient_chart_items")
+            .insert(consentChartItemRecord)
+          
+          if (consentError) {
+            console.error("[v0] Error saving consent forms:", consentError)
+            // Don't throw - progress was saved successfully, consent is secondary
+          } else {
+            console.log("[v0] Successfully created consent forms record:", {
+              patient_id,
+              requirement_id: consentRequirementId,
+              formsCount: Object.keys(consentForms).length
+            });
+          }
+        }
+      } catch (consentSaveError) {
+        console.error("[v0] Error processing consent forms during progress save:", consentSaveError)
+        // Don't throw - progress was saved successfully, consent is secondary
+      }
     }
 
     return NextResponse.json({

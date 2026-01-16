@@ -8,7 +8,13 @@ export async function GET(request: Request) {
     const patientId = searchParams.get("patientId");
 
     if (!patientId) {
-      return NextResponse.json(getMockPatientInfo());
+      // If no patientId provided, return error instead of mock data
+      // This ensures we always require a patientId for real data
+      console.warn("[Patient Portal] No patientId provided in query");
+      return NextResponse.json(
+        { error: "Patient ID is required" },
+        { status: 400 }
+      );
     }
 
     const { data: patient, error } = await supabase
@@ -23,11 +29,21 @@ export async function GET(request: Request) {
         email,
         status,
         created_at,
-        prescriptions(
+        client_number,
+        patient_medications(
           id,
           medication_name,
           dosage,
           frequency,
+          status,
+          start_date
+        ),
+        prescriptions(
+          id,
+          medication_name,
+          dosage,
+          strength,
+          directions,
           status,
           prescribed_date
         ),
@@ -37,7 +53,13 @@ export async function GET(request: Request) {
           appointment_time,
           status,
           appointment_type,
-          providers(first_name, last_name)
+          providers(
+            id,
+            first_name,
+            last_name,
+            phone,
+            email
+          )
         )
       `
       )
@@ -49,10 +71,26 @@ export async function GET(request: Request) {
       return NextResponse.json(getMockPatientInfo());
     }
 
-    // Find active prescription for program info
-    const activePrescription = patient.prescriptions?.find(
-      (p: any) => p.status === "active"
+    // Get admission date from otp_admissions table for accurate recovery days
+    const { data: admission } = await supabase
+      .from("otp_admissions")
+      .select("admission_date")
+      .eq("patient_id", patientId)
+      .order("admission_date", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    // Find active medication or prescription for program info
+    // Try patient_medications first (has frequency), then prescriptions
+    const activeMedication = patient.patient_medications?.find(
+      (m: any) => m.status === "active"
     );
+    const activePrescription = patient.prescriptions?.find(
+      (p: any) => p.status === "active" || p.status === "sent"
+    );
+    
+    // Prefer active medication over prescription
+    const activeMed = activeMedication || activePrescription;
 
     // Find next appointment
     const upcomingAppointment = patient.appointments
@@ -66,30 +104,73 @@ export async function GET(request: Request) {
           new Date(b.appointment_date).getTime()
       )[0];
 
+    // Get counselor/provider info from appointment or find primary provider
+    let counselorName = "Assigned Counselor";
+    let counselorPhone = "";
+    
+    if (upcomingAppointment?.providers) {
+      const provider = Array.isArray(upcomingAppointment.providers)
+        ? upcomingAppointment.providers[0]
+        : upcomingAppointment.providers;
+      
+      if (provider) {
+        counselorName = provider.first_name && provider.last_name
+          ? `Dr. ${provider.first_name} ${provider.last_name}`
+          : "Assigned Counselor";
+        counselorPhone = provider.phone || "";
+      }
+    } else if (activeMed) {
+      // Try to find provider from active medication or prescription
+      // Check if it's from patient_medications or prescriptions
+      const isFromMedications = activeMedication && activeMed.id === activeMedication.id;
+      const tableName = isFromMedications ? "patient_medications" : "prescriptions";
+      const providerField = isFromMedications ? "prescribed_by" : "prescribed_by";
+      
+      const { data: medWithProvider } = await supabase
+        .from(tableName)
+        .select(`
+          ${providerField},
+          providers:${providerField}(
+            id,
+            first_name,
+            last_name,
+            phone,
+            email
+          )
+        `)
+        .eq("id", activeMed.id)
+        .single();
+      
+      if (medWithProvider?.providers) {
+        const provider = Array.isArray(medWithProvider.providers)
+          ? medWithProvider.providers[0]
+          : medWithProvider.providers;
+        
+        if (provider && provider.first_name && provider.last_name) {
+          counselorName = `Dr. ${provider.first_name} ${provider.last_name}`;
+          counselorPhone = provider.phone || "";
+        }
+      }
+    }
+
+    // Calculate recovery days from admission date or patient created_at
+    const startDate = admission?.admission_date || patient.created_at;
+    const recoveryDays = calculateRecoveryDays(startDate);
+
     return NextResponse.json({
       name: `${patient.first_name} ${patient.last_name}`,
-      id: `PT-${patient.id}`,
-      patientId: patient.id, // Add the actual patient database ID
-      program: activePrescription?.medication_name || "Treatment Program",
-      dose: activePrescription?.dosage || "N/A",
+      id: patient.client_number || `PT-${patient.id.slice(0, 8)}`,
+      patientId: patient.id,
+      program: activeMed?.medication_name || "Treatment Program",
+      dose: activeMed?.dosage || activeMed?.strength || activeMed?.directions || (activeMed?.frequency ? `${activeMed.dosage} ${activeMed.frequency}` : "N/A"),
       nextAppointment: upcomingAppointment
         ? `${new Date(
             upcomingAppointment.appointment_date
-          ).toLocaleDateString()} at ${upcomingAppointment.appointment_time}`
+          ).toLocaleDateString()} at ${upcomingAppointment.appointment_time || "TBD"}`
         : "No upcoming appointments",
-      counselor: upcomingAppointment?.providers
-        ? `Dr. ${
-            Array.isArray(upcomingAppointment.providers)
-              ? (upcomingAppointment.providers as { last_name: string }[])[0]
-                  ?.last_name
-              : (upcomingAppointment.providers as { last_name: string })
-                  .last_name
-          }`
-        : "Assigned Counselor",
-      counselorPhone: "(555) 123-4567",
-      recoveryDays: calculateRecoveryDays(
-        (patient as { created_at: string }).created_at
-      ),
+      counselor: counselorName,
+      counselorPhone: counselorPhone || "Contact facility for phone number",
+      recoveryDays: recoveryDays,
     });
   } catch (error) {
     console.error("[v0] Patient portal info error:", error);
