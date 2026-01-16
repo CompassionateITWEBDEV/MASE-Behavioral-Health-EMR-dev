@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -25,6 +25,7 @@ interface Patient {
 
 export default function CounselingIntakePage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
   const [patients, setPatients] = useState<Patient[]>([])
   const [searchQuery, setSearchQuery] = useState("")
@@ -43,13 +44,22 @@ export default function CounselingIntakePage() {
         if (response.ok) {
           const data = await response.json()
           setPatients(data.patients || [])
+          
+          // Pre-select patient from query parameter if provided
+          const patientId = searchParams.get("patient")
+          if (patientId && data.patients) {
+            const patient = data.patients.find((p: Patient) => p.id === patientId)
+            if (patient) {
+              setSelectedPatient(patient)
+            }
+          }
         }
       } catch (error) {
         console.error("Error fetching patients:", error)
       }
     }
     fetchPatients()
-  }, [])
+  }, [searchParams])
 
   // Filter patients based on search
   useEffect(() => {
