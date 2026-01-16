@@ -37,17 +37,26 @@ export default function OrderManagementPage() {
 
   const fetchOrders = async () => {
     try {
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from("medication_order")
-        .select("*, patients(first_name, last_name), staff(first_name, last_name)")
-        .eq("status", filterStatus === "all" ? undefined : `pending_physician_review`)
-        .order("created_at", { ascending: false })
+      // Use API route to bypass RLS and get properly formatted data
+      const statusParam = filterStatus === "all" ? "all" : filterStatus === "pending" ? "pending_physician_review" : filterStatus
+      const response = await fetch(`/api/medication-order-requests?status=${statusParam}`, {
+        credentials: "include",
+      })
 
-      if (error) throw error
-      setOrders(data || [])
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `Failed to fetch orders: ${response.status}`)
+      }
+
+      const data = await response.json()
+      setOrders(data.orders || [])
     } catch (error) {
       console.error("Error fetching orders:", error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to fetch orders",
+        variant: "destructive",
+      })
     }
   }
 
@@ -62,22 +71,28 @@ export default function OrderManagementPage() {
     }
 
     try {
-      const supabase = createClient()
-      const { error } = await supabase
-        .from("medication_order")
-        .update({
+      const response = await fetch("/api/medication-order-requests", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          order_id: selectedOrder.id,
           status: "approved",
           physician_signature: physicianSignature,
           physician_review_notes: reviewNotes,
-          reviewed_at: new Date().toISOString(),
-        })
-        .eq("id", selectedOrder.id)
+        }),
+      })
 
-      if (error) throw error
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || "Failed to approve order")
+      }
 
       toast({
         title: "Order Approved",
-        description: `Order for ${selectedOrder.patients.first_name} ${selectedOrder.patients.last_name} has been approved`,
+        description: `Order for ${selectedOrder.patient_name || "patient"} has been approved`,
       })
 
       setShowReviewDialog(false)
@@ -88,7 +103,7 @@ export default function OrderManagementPage() {
       console.error("Error approving order:", error)
       toast({
         title: "Error",
-        description: "Failed to approve order",
+        description: error instanceof Error ? error.message : "Failed to approve order",
         variant: "destructive",
       })
     }
@@ -105,17 +120,23 @@ export default function OrderManagementPage() {
     }
 
     try {
-      const supabase = createClient()
-      const { error } = await supabase
-        .from("medication_order")
-        .update({
+      const response = await fetch("/api/medication-order-requests", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          order_id: selectedOrder.id,
           status: "denied",
           physician_review_notes: reviewNotes,
-          reviewed_at: new Date().toISOString(),
-        })
-        .eq("id", selectedOrder.id)
+        }),
+      })
 
-      if (error) throw error
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || "Failed to deny order")
+      }
 
       toast({
         title: "Order Denied",
@@ -127,10 +148,17 @@ export default function OrderManagementPage() {
       fetchOrders()
     } catch (error) {
       console.error("Error denying order:", error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to deny order",
+        variant: "destructive",
+      })
     }
   }
 
   const pendingCount = orders.filter((o) => o.status === "pending_physician_review").length
+  const approvedCount = orders.filter((o) => o.status === "approved").length
+  const deniedCount = orders.filter((o) => o.status === "denied").length
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -161,7 +189,7 @@ export default function OrderManagementPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-600">Approved Today</p>
-                      <p className="text-3xl font-bold text-green-600">12</p>
+                      <p className="text-3xl font-bold text-green-600">{approvedCount}</p>
                     </div>
                     <CheckCircle className="h-10 w-10 text-green-600 opacity-20" />
                   </div>
@@ -172,7 +200,7 @@ export default function OrderManagementPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm text-gray-600">Denied Today</p>
-                      <p className="text-3xl font-bold text-red-600">2</p>
+                      <p className="text-3xl font-bold text-red-600">{deniedCount}</p>
                     </div>
                     <XCircle className="h-10 w-10 text-red-600 opacity-20" />
                   </div>
@@ -194,9 +222,9 @@ export default function OrderManagementPage() {
             <Tabs value={filterStatus} onValueChange={setFilterStatus}>
               <TabsList>
                 <TabsTrigger value="pending">Pending ({pendingCount})</TabsTrigger>
-                <TabsTrigger value="approved">Approved</TabsTrigger>
-                <TabsTrigger value="denied">Denied</TabsTrigger>
-                <TabsTrigger value="all">All Orders</TabsTrigger>
+                <TabsTrigger value="approved">Approved ({approvedCount})</TabsTrigger>
+                <TabsTrigger value="denied">Denied ({deniedCount})</TabsTrigger>
+                <TabsTrigger value="all">All Orders ({orders.length})</TabsTrigger>
               </TabsList>
 
               <TabsContent value={filterStatus} className="space-y-4 mt-6">
@@ -220,7 +248,7 @@ export default function OrderManagementPage() {
                               {order.order_type.toUpperCase()}
                             </Badge>
                             <h3 className="font-semibold text-lg">
-                              {order.patients?.first_name} {order.patients?.last_name}
+                              {order.patient_name || "Unknown Patient"}
                             </h3>
                             <span className="text-sm text-gray-500">
                               {new Date(order.created_at).toLocaleDateString()}
@@ -291,7 +319,7 @@ export default function OrderManagementPage() {
               <div className="bg-gray-50 rounded-lg p-4 space-y-2">
                 <h4 className="font-medium">Patient Information</h4>
                 <p>
-                  <strong>Name:</strong> {selectedOrder.patients?.first_name} {selectedOrder.patients?.last_name}
+                  <strong>Name:</strong> {selectedOrder.patient_name || "Unknown Patient"}
                 </p>
                 <p>
                   <strong>Order Type:</strong> {selectedOrder.order_type.toUpperCase()}
@@ -301,7 +329,7 @@ export default function OrderManagementPage() {
                   <strong className="text-cyan-600">{selectedOrder.requested_dose_mg}mg</strong>
                 </p>
                 <p>
-                  <strong>Submitted by:</strong> {selectedOrder.staff?.first_name} {selectedOrder.staff?.last_name}
+                  <strong>Submitted by:</strong> {selectedOrder.nurse_name || "Unknown Nurse"}
                 </p>
               </div>
 
