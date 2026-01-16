@@ -451,99 +451,99 @@ export function ComprehensiveConsentForms({ patient, isOpen, onClose, onComplete
 
         <div className="flex-1 overflow-y-auto pr-2">
 
-          {/* Progress Overview */}
-          <Card className="mb-4">
-            <CardContent className="pt-4">
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <h3 className="font-medium">Form Completion Progress</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {stats.requiredCompleted} of {stats.totalRequired} required forms completed
-                  </p>
-                </div>
-                <Badge variant={stats.requiredCompleted === stats.totalRequired ? "default" : "secondary"}>
-                  {stats.totalCompleted} / {stats.totalForms} Total
-                </Badge>
+        {/* Progress Overview */}
+        <Card className="mb-4">
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h3 className="font-medium">Form Completion Progress</h3>
+                <p className="text-sm text-muted-foreground">
+                  {stats.requiredCompleted} of {stats.totalRequired} required forms completed
+                </p>
               </div>
+              <Badge variant={stats.requiredCompleted === stats.totalRequired ? "default" : "secondary"}>
+                {stats.totalCompleted} / {stats.totalForms} Total
+              </Badge>
+            </div>
               <div className="w-full bg-gray-200 rounded-full h-2.5">
-                <div
+              <div
                   className="bg-primary h-2.5 rounded-full transition-all"
-                  style={{ width: `${(stats.requiredCompleted / stats.totalRequired) * 100}%` }}
-                />
-              </div>
-            </CardContent>
-          </Card>
+                style={{ width: `${(stats.requiredCompleted / stats.totalRequired) * 100}%` }}
+              />
+            </div>
+          </CardContent>
+        </Card>
 
-          {/* Signature Management */}
-          <Card className="mb-4">
+        {/* Signature Management */}
+        <Card className="mb-4">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Signature Management</CardTitle>
+            <CardTitle className="text-base">Signature Management</CardTitle>
               <CardDescription className="text-xs">Save your signature with a PIN for faster form completion</CardDescription>
-            </CardHeader>
-            <CardContent>
+          </CardHeader>
+          <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
+              <div className="space-y-2">
                   <Label className="text-sm">Create/Update Saved Signature</Label>
-                  <div className="flex gap-2">
+                <div className="flex gap-2">
                     <Input placeholder="Enter full name" defaultValue={patient?.name} className="flex-1 text-sm" disabled />
-                    <Input
-                      type="password"
-                      placeholder="4-digit PIN"
-                      maxLength={4}
-                      value={signaturePin}
-                      onChange={(e) => setSignaturePin(e.target.value.replace(/\D/g, ""))}
+                  <Input
+                    type="password"
+                    placeholder="4-digit PIN"
+                    maxLength={4}
+                    value={signaturePin}
+                    onChange={(e) => setSignaturePin(e.target.value.replace(/\D/g, ""))}
                       className="w-28 text-sm"
-                    />
+                  />
                     <Button onClick={handleSaveSignature} size="sm">
-                      <Save className="h-4 w-4 mr-1" />
-                      Save
-                    </Button>
-                  </div>
-                  {savedSignature && (
-                    <p className="text-xs text-green-600">✓ Signature saved. Use PIN to sign forms quickly.</p>
-                  )}
+                    <Save className="h-4 w-4 mr-1" />
+                    Save
+                  </Button>
                 </div>
-                <div className="space-y-2">
+                {savedSignature && (
+                  <p className="text-xs text-green-600">✓ Signature saved. Use PIN to sign forms quickly.</p>
+                )}
+              </div>
+              <div className="space-y-2">
                   <Label className="text-sm">Verification Method</Label>
                   <div className="flex gap-2 flex-wrap">
-                    <Button
-                      variant={verificationMethod === "pin" ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setVerificationMethod("pin")}
-                    >
-                      <Lock className="h-4 w-4 mr-1" />
-                      PIN
-                    </Button>
-                    <Button
-                      variant={verificationMethod === "fingerprint" ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setVerificationMethod("fingerprint")}
-                    >
-                      <Fingerprint className="h-4 w-4 mr-1" />
-                      Fingerprint
-                    </Button>
-                    <Button
-                      variant={verificationMethod === "facial" ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setVerificationMethod("facial")}
-                    >
-                      <Users className="h-4 w-4 mr-1" />
-                      Facial
-                    </Button>
-                  </div>
+                  <Button
+                    variant={verificationMethod === "pin" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setVerificationMethod("pin")}
+                  >
+                    <Lock className="h-4 w-4 mr-1" />
+                    PIN
+                  </Button>
+                  <Button
+                    variant={verificationMethod === "fingerprint" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setVerificationMethod("fingerprint")}
+                  >
+                    <Fingerprint className="h-4 w-4 mr-1" />
+                    Fingerprint
+                  </Button>
+                  <Button
+                    variant={verificationMethod === "facial" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setVerificationMethod("facial")}
+                  >
+                    <Users className="h-4 w-4 mr-1" />
+                    Facial
+                  </Button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </CardContent>
+        </Card>
 
-          <Tabs value={currentCategory} onValueChange={setCurrentCategory} className="space-y-4">
+        <Tabs value={currentCategory} onValueChange={setCurrentCategory} className="space-y-4">
             <TabsList className="grid w-full grid-cols-3 md:grid-cols-5 lg:grid-cols-10 gap-1 h-auto p-1">
-              {categories.map((category) => {
-                const categoryForms = getFormsByCategory(category.id)
-                const completedInCategory = categoryForms.filter((form) => isFormCompleted(form.id)).length
-                const IconComponent = category.icon
+            {categories.map((category) => {
+              const categoryForms = getFormsByCategory(category.id)
+              const completedInCategory = categoryForms.filter((form) => isFormCompleted(form.id)).length
+              const IconComponent = category.icon
 
-                return (
+              return (
                   <TabsTrigger 
                     key={category.id} 
                     value={category.id} 
@@ -552,127 +552,127 @@ export function ComprehensiveConsentForms({ patient, isOpen, onClose, onComplete
                     <IconComponent className="h-4 w-4" />
                     <span className="text-[10px] leading-tight text-center">{category.name}</span>
                     <Badge variant="outline" className="text-[9px] px-1 h-4">
-                      {completedInCategory}/{categoryForms.length}
-                    </Badge>
-                  </TabsTrigger>
-                )
-              })}
-            </TabsList>
+                    {completedInCategory}/{categoryForms.length}
+                  </Badge>
+                </TabsTrigger>
+              )
+            })}
+          </TabsList>
 
-            {categories.map((category) => (
+          {categories.map((category) => (
               <TabsContent key={category.id} value={category.id} className="space-y-3 mt-4">
                 <div className="grid gap-4">
-                  {getFormsByCategory(category.id).map((form) => {
-                    const IconComponent = category.icon
-                    const isCompleted = isFormCompleted(form.id)
+                {getFormsByCategory(category.id).map((form) => {
+                  const IconComponent = category.icon
+                  const isCompleted = isFormCompleted(form.id)
 
-                    return (
+                  return (
                       <Card key={form.id} className={`${isCompleted ? "border-green-300 bg-green-50/50" : "border-border"}`}>
-                        <CardHeader className="pb-3">
-                          <CardTitle className="flex items-center justify-between text-sm">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="flex items-center justify-between text-sm">
                             <div className="flex items-center gap-2 flex-1 min-w-0">
                               <IconComponent className="h-4 w-4 flex-shrink-0" />
                               <span className="truncate">{form.title}</span>
-                              {form.required && (
+                            {form.required && (
                                 <Badge variant="destructive" className="text-xs flex-shrink-0">
-                                  Required
-                                </Badge>
-                              )}
-                            </div>
-                            {isCompleted ? (
-                              <Badge variant="default" className="bg-green-500 text-xs flex-shrink-0 ml-2">
-                                <CheckCircle className="mr-1 h-3 w-3" />
-                                Complete
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline" className="text-xs flex-shrink-0 ml-2">
-                                <Clock className="mr-1 h-3 w-3" />
-                                Pending
+                                Required
                               </Badge>
                             )}
-                          </CardTitle>
-                        </CardHeader>
+                          </div>
+                          {isCompleted ? (
+                              <Badge variant="default" className="bg-green-500 text-xs flex-shrink-0 ml-2">
+                              <CheckCircle className="mr-1 h-3 w-3" />
+                              Complete
+                            </Badge>
+                          ) : (
+                              <Badge variant="outline" className="text-xs flex-shrink-0 ml-2">
+                              <Clock className="mr-1 h-3 w-3" />
+                              Pending
+                            </Badge>
+                          )}
+                        </CardTitle>
+                      </CardHeader>
                         <CardContent className="space-y-4">
                           <div className="p-3 bg-muted/50 rounded-md text-sm leading-relaxed">
-                            <p>{form.content}</p>
-                          </div>
+                          <p>{form.content}</p>
+                        </div>
 
                           <div className="flex items-start space-x-2">
-                            <Checkbox
-                              checked={consentData[form.id]?.agreed || false}
-                              onCheckedChange={(checked) => {
-                                setConsentData((prev) => ({
-                                  ...prev,
-                                  [form.id]: {
-                                    ...prev[form.id],
-                                    agreed: !!checked,
-                                  },
-                                }))
-                              }}
+                          <Checkbox
+                            checked={consentData[form.id]?.agreed || false}
+                            onCheckedChange={(checked) => {
+                              setConsentData((prev) => ({
+                                ...prev,
+                                [form.id]: {
+                                  ...prev[form.id],
+                                  agreed: !!checked,
+                                },
+                              }))
+                            }}
                               className="mt-1"
-                            />
+                          />
                             <Label className="text-sm leading-relaxed cursor-pointer">
                               I have read and agree to this consent
                             </Label>
-                          </div>
+                        </div>
 
-                          {!isCompleted && (
+                        {!isCompleted && (
                             <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t">
-                              {verificationMethod === "pin" && (
-                                <Input
-                                  type="password"
-                                  placeholder="Enter 4-digit PIN"
-                                  maxLength={4}
+                            {verificationMethod === "pin" && (
+                              <Input
+                                type="password"
+                                placeholder="Enter 4-digit PIN"
+                                maxLength={4}
                                   value={pins[form.id] || ""}
                                   onChange={(e) => setPins((prev) => ({
                                     ...prev,
                                     [form.id]: e.target.value.replace(/\D/g, "")
                                   }))}
                                   className="flex-1 sm:max-w-[140px]"
-                                />
-                              )}
+                              />
+                            )}
                               <div className="flex gap-2">
-                                <Button
-                                  size="sm"
-                                  disabled={!consentData[form.id]?.agreed}
-                                  onClick={() => handleFormComplete(form.id, consentData[form.id] || {})}
+                            <Button
+                              size="sm"
+                              disabled={!consentData[form.id]?.agreed}
+                              onClick={() => handleFormComplete(form.id, consentData[form.id] || {})}
                                   className="flex-1 sm:flex-initial"
-                                >
+                            >
                                   Sign with {verificationMethod === "pin" ? "PIN" : verificationMethod}
-                                </Button>
-                                {savedSignature && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    disabled={!consentData[form.id]?.agreed}
-                                    onClick={() => handleApplySavedSignature(form.id)}
-                                  >
+                            </Button>
+                            {savedSignature && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={!consentData[form.id]?.agreed}
+                                onClick={() => handleApplySavedSignature(form.id)}
+                              >
                                     Use Saved
-                                  </Button>
-                                )}
+                              </Button>
+                            )}
                               </div>
-                            </div>
-                          )}
+                          </div>
+                        )}
 
-                          {isCompleted && (
+                        {isCompleted && (
                             <div className="p-3 bg-green-100 border border-green-300 rounded-md">
-                              <div className="flex items-center gap-2 text-green-800">
+                            <div className="flex items-center gap-2 text-green-800">
                                 <CheckCircle className="h-4 w-4" />
                                 <span className="font-medium text-sm">Signed</span>
-                              </div>
-                              <p className="text-green-700 mt-1 text-xs">
-                                {new Date(consentData[form.id]?.completedAt).toLocaleString()}
-                              </p>
                             </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    )
-                  })}
-                </div>
-              </TabsContent>
-            ))}
-          </Tabs>
+                              <p className="text-green-700 mt-1 text-xs">
+                              {new Date(consentData[form.id]?.completedAt).toLocaleString()}
+                            </p>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </div>
+            </TabsContent>
+          ))}
+        </Tabs>
         </div>
 
         <div className="flex justify-between pt-4 border-t mt-4 flex-shrink-0 bg-background">
