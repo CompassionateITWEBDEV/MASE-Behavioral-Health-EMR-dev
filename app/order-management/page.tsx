@@ -19,7 +19,6 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
-import { createClient } from "@/lib/supabase/client"
 import { CheckCircle, XCircle, Clock, Calendar, TrendingUp, TrendingDown } from "lucide-react"
 
 export default function OrderManagementPage() {
