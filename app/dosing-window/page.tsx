@@ -152,7 +152,18 @@ export default function DosingWindowPage() {
   // Auth and providers hooks
   const { user } = useAuth()
   const { data: providersData, isLoading: providersLoading } = useProviders({ active: true })
-  const providers = providersData?.providers || []
+  // Filter to show only physicians/doctors
+  const providers = (providersData?.providers || []).filter((provider) => {
+    const role = provider.role?.toLowerCase() || ""
+    const specialization = provider.specialization?.toLowerCase() || ""
+    return (
+      role === "doctor" ||
+      role === "physician" ||
+      specialization.includes("physician") ||
+      specialization.includes("doctor") ||
+      specialization.includes("medical director")
+    )
+  })
 
   // States
   const [searchQuery, setSearchQuery] = useState("")
@@ -178,6 +189,9 @@ export default function DosingWindowPage() {
   const [doseAmount, setDoseAmount] = useState("")
   const [dosingNotes, setDosingNotes] = useState("")
   const [behaviorNotes, setBehaviorNotes] = useState("")
+  const [clinicalObservations, setClinicalObservations] = useState("")
+  const [selectedQuickObservations, setSelectedQuickObservations] = useState<string[]>([])
+  const [savingObservations, setSavingObservations] = useState(false)
   const [patientVitals, setPatientVitals] = useState<VitalSigns>({})
 
   // Dialog states
@@ -1067,6 +1081,64 @@ export default function DosingWindowPage() {
       setOrderValidationErrors({})
     }
   }, [showOrderRequestDialog, medicationOrder])
+
+  // Save behavior notes and observations
+  const saveBehaviorNotes = async () => {
+    if (!selectedPatient) {
+      toast({
+        title: "No Patient Selected",
+        description: "Please select a patient first",
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!behaviorNotes && !clinicalObservations && selectedQuickObservations.length === 0) {
+      toast({
+        title: "No Observations",
+        description: "Please add at least one observation or note",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setSavingObservations(true)
+
+    try {
+      const observationsData = {
+        patient_id: selectedPatient.id,
+        behavior_at_window: behaviorNotes || null,
+        clinical_observations: clinicalObservations || null,
+        quick_observations: selectedQuickObservations,
+        observed_by: user?.id || null,
+        observation_date: new Date().toISOString(),
+        location: "dosing_window",
+      }
+
+      const { error } = await supabase.from("dosing_window_observations").insert(observationsData)
+
+      if (error) throw error
+
+      toast({
+        title: "Observations Saved",
+        description: "Patient behavior and observations have been recorded",
+      })
+
+      // Reset form
+      setBehaviorNotes("")
+      setClinicalObservations("")
+      setSelectedQuickObservations([])
+    } catch (error: any) {
+      console.error("Error saving observations:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save observations. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setSavingObservations(false)
+    }
+  }
 
   // Reset patient PIN
   const resetPatientPin = async () => {
@@ -2114,6 +2186,8 @@ export default function DosingWindowPage() {
                         <div className="space-y-2">
                           <Label>Clinical Observations</Label>
                           <Textarea
+                            value={clinicalObservations}
+                            onChange={(e) => setClinicalObservations(e.target.value)}
                             placeholder="Document any clinical observations, concerns, or notable behavior..."
                             rows={4}
                           />
@@ -2134,16 +2208,46 @@ export default function DosingWindowPage() {
                               "Good hygiene",
                               "Poor hygiene",
                             ].map((obs) => (
-                              <Badge key={obs} variant="outline" className="cursor-pointer hover:bg-cyan-50">
+                              <Badge
+                                key={obs}
+                                variant={selectedQuickObservations.includes(obs) ? "default" : "outline"}
+                                className={`cursor-pointer ${
+                                  selectedQuickObservations.includes(obs)
+                                    ? "bg-cyan-600 text-white"
+                                    : "hover:bg-cyan-50"
+                                }`}
+                                onClick={() => {
+                                  if (selectedQuickObservations.includes(obs)) {
+                                    setSelectedQuickObservations(
+                                      selectedQuickObservations.filter((o) => o !== obs)
+                                    )
+                                  } else {
+                                    setSelectedQuickObservations([...selectedQuickObservations, obs])
+                                  }
+                                }}
+                              >
                                 {obs}
                               </Badge>
                             ))}
                           </div>
                         </div>
 
-                        <Button className="w-full bg-cyan-600 hover:bg-cyan-700">
-                          <FileText className="h-4 w-4 mr-2" />
-                          Save Observations
+                        <Button
+                          className="w-full bg-cyan-600 hover:bg-cyan-700"
+                          onClick={saveBehaviorNotes}
+                          disabled={savingObservations || !selectedPatient}
+                        >
+                          {savingObservations ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <FileText className="h-4 w-4 mr-2" />
+                              Save Observations
+                            </>
+                          )}
                         </Button>
                       </CardContent>
                     </Card>
