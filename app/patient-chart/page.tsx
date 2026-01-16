@@ -269,7 +269,7 @@ export default function PatientChartPage() {
     medication_type: "prescription",
     start_date: new Date().toISOString().split("T")[0],
     status: "active",
-    instructions: "",
+    notes: "",
   });
   
   // ASAM form state
@@ -850,7 +850,7 @@ export default function PatientChartPage() {
           medication_type: medicationForm.medication_type,
           start_date: medicationForm.start_date,
           status: medicationForm.status,
-          instructions: medicationForm.instructions || null,
+          notes: medicationForm.notes || null,
         }),
       });
       
@@ -869,7 +869,7 @@ export default function PatientChartPage() {
         medication_type: "prescription",
         start_date: new Date().toISOString().split("T")[0],
         status: "active",
-        instructions: "",
+        notes: "",
       });
       
       // Refresh patient data
@@ -3638,14 +3638,14 @@ export default function PatientChartPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="instructions">Instructions</Label>
+              <Label htmlFor="notes">Notes</Label>
               <Textarea
-                id="instructions"
-                value={medicationForm.instructions}
+                id="notes"
+                value={medicationForm.notes}
                 onChange={(e) =>
-                  setMedicationForm({ ...medicationForm, instructions: e.target.value })
+                  setMedicationForm({ ...medicationForm, notes: e.target.value })
                 }
-                placeholder="Additional instructions or notes..."
+                placeholder="Additional notes or instructions..."
                 rows={3}
               />
             </div>
