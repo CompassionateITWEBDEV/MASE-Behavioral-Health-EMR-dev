@@ -1488,7 +1488,11 @@ export default function PatientChartPage() {
                           </CardDescription>
                         </div>
                         <Button
-                          onClick={() => setShowNewAsamDialog(true)}
+                          onClick={() => {
+                            if (selectedPatientId) {
+                              router.push(`/counseling-intake?patient=${selectedPatientId}`);
+                            }
+                          }}
                           className="bg-green-600 hover:bg-green-700"
                           disabled={!selectedPatient}
                         >
