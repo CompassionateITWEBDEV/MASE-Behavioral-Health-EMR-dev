@@ -255,6 +255,35 @@ export default function PatientChartPage() {
   const [encounterAlertsLoading, setEncounterAlertsLoading] = useState(false);
   const [expandedAlerts, setExpandedAlerts] = useState<Set<string>>(new Set());
   
+  // Dialog states
+  const [showAddMedicationDialog, setShowAddMedicationDialog] = useState(false);
+  const [showNewAsamDialog, setShowNewAsamDialog] = useState(false);
+  const [savingMedication, setSavingMedication] = useState(false);
+  const [savingAsam, setSavingAsam] = useState(false);
+  
+  // Medication form state
+  const [medicationForm, setMedicationForm] = useState({
+    medication_name: "",
+    dosage: "",
+    frequency: "",
+    medication_type: "prescription",
+    start_date: new Date().toISOString().split("T")[0],
+    status: "active",
+    instructions: "",
+  });
+  
+  // ASAM form state
+  const [asamForm, setAsamForm] = useState({
+    dimension1: "",
+    dimension2: "",
+    dimension3: "",
+    dimension4: "",
+    dimension5: "",
+    dimension6: "",
+    recommended_level: "",
+    notes: "",
+  });
+  
   // Router for navigation to workflow pages
   const router = useRouter();
 
@@ -796,6 +825,136 @@ export default function PatientChartPage() {
     }
   };
 
+  // Handler to save medication
+  const handleSaveMedication = async () => {
+    if (!selectedPatient) {
+      toast.error("Please select a patient first");
+      return;
+    }
+    
+    if (!medicationForm.medication_name || !medicationForm.dosage || !medicationForm.frequency) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+    
+    setSavingMedication(true);
+    try {
+      const response = await fetch("/api/medications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patient_id: selectedPatient.id,
+          medication_name: medicationForm.medication_name,
+          dosage: medicationForm.dosage,
+          frequency: medicationForm.frequency,
+          medication_type: medicationForm.medication_type,
+          start_date: medicationForm.start_date,
+          status: medicationForm.status,
+          instructions: medicationForm.instructions || null,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to add medication");
+      }
+      
+      toast.success("Medication added successfully");
+      setShowAddMedicationDialog(false);
+      setMedicationForm({
+        medication_name: "",
+        dosage: "",
+        frequency: "",
+        medication_type: "prescription",
+        start_date: new Date().toISOString().split("T")[0],
+        status: "active",
+        instructions: "",
+      });
+      
+      // Refresh patient data
+      if (selectedPatientId) {
+        await fetchPatientData(selectedPatientId);
+      }
+    } catch (error: any) {
+      console.error("Error saving medication:", error);
+      toast.error(error.message || "Failed to add medication");
+    } finally {
+      setSavingMedication(false);
+    }
+  };
+  
+  // Handler to save ASAM assessment
+  const handleSaveAsam = async () => {
+    if (!selectedPatient) {
+      toast.error("Please select a patient first");
+      return;
+    }
+    
+    if (
+      !asamForm.dimension1 ||
+      !asamForm.dimension2 ||
+      !asamForm.dimension3 ||
+      !asamForm.dimension4 ||
+      !asamForm.dimension5 ||
+      !asamForm.dimension6 ||
+      !asamForm.recommended_level
+    ) {
+      toast.error("Please fill in all ASAM dimensions and recommended level");
+      return;
+    }
+    
+    setSavingAsam(true);
+    try {
+      const response = await fetch("/api/assessments/asam", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patient_id: selectedPatient.id,
+          dimensions: {
+            dimension1: parseInt(asamForm.dimension1),
+            dimension2: parseInt(asamForm.dimension2),
+            dimension3: parseInt(asamForm.dimension3),
+            dimension4: asamForm.dimension4,
+            dimension5: parseInt(asamForm.dimension5),
+            dimension6: parseInt(asamForm.dimension6),
+          },
+          recommended_level: asamForm.recommended_level,
+          notes: asamForm.notes || null,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to create ASAM assessment");
+      }
+      
+      toast.success("ASAM assessment created successfully");
+      setShowNewAsamDialog(false);
+      setAsamForm({
+        dimension1: "",
+        dimension2: "",
+        dimension3: "",
+        dimension4: "",
+        dimension5: "",
+        dimension6: "",
+        recommended_level: "",
+        notes: "",
+      });
+      
+      // Refresh patient data
+      if (selectedPatientId) {
+        await fetchPatientData(selectedPatientId);
+      }
+    } catch (error: any) {
+      console.error("Error saving ASAM assessment:", error);
+      toast.error(error.message || "Failed to create ASAM assessment");
+    } finally {
+      setSavingAsam(false);
+    }
+  };
+  
   // Refresh patient data after adding new records
   const refreshPatientData = () => {
     if (selectedPatientId) {
